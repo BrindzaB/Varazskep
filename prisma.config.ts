@@ -9,6 +9,7 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    seed: "tsx prisma/seed.ts",
   },
   datasource: {
     // DIRECT_URL: Direct connection (port 5432) — required for Prisma CLI and migrations.
