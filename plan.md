@@ -230,6 +230,6 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 1 — Foundation
-**Current step:** 1.3 complete, awaiting approval
-**Last approved step:** 1.2 — Prisma schema
-**Next step:** Phase 1, Step 1.4 — Global layout
+**Current step:** 1.4 complete, awaiting approval
+**Last approved step:** 1.3 — Seed script
+**Next step:** Phase 1, Step 1.5 — Product listing page
