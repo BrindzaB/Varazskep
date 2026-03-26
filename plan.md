@@ -229,7 +229,7 @@ A **phase** is done when:
 
 > Update this section at the start of each session to reflect where we are.
 
-**Current phase:** Phase 1 — complete, pending merge to main
-**Current step:** —
-**Last approved step:** 1.7 — Contact page
-**Next step:** Phase 2, Step 2.1 — Cart (Zustand store + /cart page)
+**Current phase:** Phase 2 — Storefront & Checkout
+**Current step:** 2.2 in progress
+**Last approved step:** 2.1 — Cart
+**Next step:** Phase 2, Step 2.2 — Checkout form
