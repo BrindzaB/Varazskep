@@ -6,7 +6,13 @@ import CartItemRow from "@/components/shop/CartItem";
 import { formatHuf } from "@/lib/utils/format";
 
 export default function CartPage() {
-  const { items, totalItems, totalPrice } = useCartStore();
+  const items = useCartStore((state) => state.items);
+  const totalItems = useCartStore((state) =>
+    state.items.reduce((sum, i) => sum + i.quantity, 0),
+  );
+  const totalPrice = useCartStore((state) =>
+    state.items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+  );
 
   if (items.length === 0) {
     return (
@@ -29,7 +35,7 @@ export default function CartPage() {
     <section className="px-4 py-16">
       <div className="mx-auto max-w-layout">
         <h1 className="text-3xl font-bold text-charcoal">
-          Kosár ({totalItems()} termék)
+          Kosár ({totalItems} termék)
         </h1>
 
         <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -65,7 +71,7 @@ export default function CartPage() {
             <div className="mt-4 border-t border-border-light pt-4">
               <div className="flex justify-between text-base font-semibold text-charcoal">
                 <span>Összesen</span>
-                <span>{formatHuf(totalPrice())}</span>
+                <span>{formatHuf(totalPrice)}</span>
               </div>
               <p className="mt-1 text-xs text-muted">Az ár tartalmazza az ÁFÁ-t</p>
             </div>
