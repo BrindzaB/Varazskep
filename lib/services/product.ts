@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
 
+// Re-export formatting utils so callers that only need server-side data
+// can import everything from one place.
+export { formatHuf, getMinPrice } from "@/lib/utils/format";
+
 export type ProductWithVariants = Awaited<
   ReturnType<typeof getActiveProducts>
 >[number];
@@ -16,17 +20,21 @@ export async function getActiveProducts() {
   });
 }
 
-// Returns the lowest variant price for display on the product card.
-export function getMinPrice(variants: { price: number }[]): number {
-  if (variants.length === 0) return 0;
-  return Math.min(...variants.map((v) => v.price));
+export async function getProductBySlug(slug: string) {
+  return prisma.product.findUnique({
+    where: { slug, active: true },
+    include: {
+      variants: {
+        orderBy: [{ color: "asc" }, { price: "asc" }],
+      },
+    },
+  });
 }
 
-// Formats a HUF integer for display: 4990 → "4 990 Ft"
-export function formatHuf(amount: number): string {
-  return (
-    new Intl.NumberFormat("hu-HU", {
-      maximumFractionDigits: 0,
-    }).format(amount) + " Ft"
-  );
+export async function getAllProductSlugs() {
+  const products = await prisma.product.findMany({
+    where: { active: true },
+    select: { slug: true },
+  });
+  return products.map((p) => ({ slug: p.slug }));
 }
