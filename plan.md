@@ -80,8 +80,9 @@ main                          # Always stable and deployable
 ### Rules
 
 - Each **implementation step** gets its own sub-feature branch
+- Sub-feature branches are **local only** — never pushed to GitHub
 - Sub-feature branches merge into their **phase branch** after your approval
-- Phase branches merge into **`main`** only after the full phase is reviewed and approved
+- Phase branches are pushed to GitHub and merge into **`main`** via a PR at the end of each phase
 - Commit messages use **Conventional Commits** format:
   - `feat: add product listing page`
   - `fix: correct price calculation in cart`
@@ -229,6 +230,6 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 1 — Foundation
-**Current step:** 1.1 complete, awaiting approval
-**Last approved step:** —
-**Next step:** Phase 1, Step 1.2 — Prisma schema
+**Current step:** 1.2 complete, awaiting approval
+**Last approved step:** 1.1 — Project init
+**Next step:** Phase 1, Step 1.3 — Seed script
