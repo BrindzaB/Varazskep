@@ -5,6 +5,14 @@ import Link from "next/link";
 import { formatHuf } from "@/lib/utils/format";
 import type { ProductWithVariants } from "@/lib/services/product";
 
+const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+
+function sortSizes(sizes: string[]): string[] {
+  return [...sizes].sort(
+    (a, b) => SIZE_ORDER.indexOf(a) - SIZE_ORDER.indexOf(b),
+  );
+}
+
 // Maps Hungarian color names to CSS background values for the color swatch.
 const COLOR_MAP: Record<string, string> = {
   Fehér: "#ffffff",
@@ -29,10 +37,10 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
 
   const [selectedColor, setSelectedColor] = useState(colors[0] ?? "");
 
-  // Sizes available for the selected color
-  const sizesForColor = variants
-    .filter((v) => v.color === selectedColor)
-    .map((v) => v.size);
+  // Sizes available for the selected color, always in S→XXL order
+  const sizesForColor = sortSizes(
+    variants.filter((v) => v.color === selectedColor).map((v) => v.size),
+  );
 
   const [selectedSize, setSelectedSize] = useState(sizesForColor[0] ?? "");
 
