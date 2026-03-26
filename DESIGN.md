@@ -150,9 +150,9 @@ Főoldal | Termékek | Tervező | Kapcsolat
 | Item      | Route        | Notes                                                          |
 | --------- | ------------ | -------------------------------------------------------------- |
 | Főoldal   | `/`          | Product listing / homepage                                     |
-| Termékek  | `/termekek`  | All products (can also click individual product from homepage) |
-| Tervező   | `/tervezo`   | T-shirt designer module (Fabric.js)                            |
-| Kapcsolat | `/kapcsolat` | Contact info, address, opening hours                           |
+| Termékek  | `/products`  | All products (can also click individual product from homepage) |
+| Tervező   | `/designer`   | T-shirt designer module (Fabric.js)                            |
+| Kapcsolat | `/contact` | Contact info, address, opening hours                           |
 
 ### Header layout
 
@@ -252,7 +252,7 @@ Order status indicators:
 - Product card: product image (square, 1:1), product name, price in HUF, "Kosárba" button
 - No sidebar — clean grid layout only
 
-### Product Detail (`/termekek/[slug]`)
+### Product Detail (`/products/[slug]`)
 
 - Product image left (60%), product info right (40%) on desktop
 - Stacked on mobile
@@ -260,7 +260,7 @@ Order status indicators:
 - Clear HUF price display
 - "Kosárba" and "Tervező megnyitása" (opens designer with this product loaded) CTAs
 
-### T-shirt Designer (`/tervezo`)
+### T-shirt Designer (`/designer`)
 
 - Full-width canvas area — no sidebar frame that competes with the design surface
 - Toolbar on the left (or top on mobile): clipart panel, text tool, color picker
@@ -269,21 +269,21 @@ Order status indicators:
 - Background: `#f8f9fa` (off-white) to make the white canvas pop
 - Designer toolbar: `#32373c` background, white icons
 
-### Cart (`/kosar`)
+### Cart (`/cart`)
 
 - Simple list layout (not a modal)
 - Item row: image thumbnail, name/variant, quantity stepper, price, remove button
 - Order summary card on the right (desktop) / below (mobile)
 - "Tovább a fizetéshez" (Proceed to checkout) primary button
 
-### Checkout (`/fizetes`)
+### Checkout (`/checkout`)
 
 - Single-column, max-width 640px, centered
 - Grouped fields: shipping info block, then order summary block
 - GDPR consent checkbox at the bottom, above the submit button
 - Submit button: full-width, primary style, "Fizetés Stripe-on keresztül"
 
-### Order Confirmation (`/rendeles/[id]`)
+### Order Confirmation (`/orders/[id]`)
 
 - Centered, content-width (800px)
 - Large success icon or checkmark at top

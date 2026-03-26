@@ -107,8 +107,8 @@ main                          # Always stable and deployable
 | 1.3  | Seed script with sample products and variants                                    | `phase-1/seed`            |
 | 1.4  | Global layout: header (logo + nav), footer, Tailwind config matching `DESIGN.md` | `phase-1/layout`          |
 | 1.5  | Product listing page (`/`) — Hungarian UI, product grid per design spec          | `phase-1/product-listing` |
-| 1.6  | Product detail page (`/termekek/[slug]`) — variant selection                     | `phase-1/product-detail`  |
-| 1.7  | Contact page (`/kapcsolat`) — address, phone, opening hours                      | `phase-1/contact-page`    |
+| 1.6  | Product detail page (`/products/[slug]`) — variant selection                     | `phase-1/product-detail`  |
+| 1.7  | Contact page (`/contact`) — address, phone, opening hours                      | `phase-1/contact-page`    |
 
 **Phase 1 complete when:** The app runs locally, products are visible from the database, the header/nav matches the design spec (including the Tervező menu item), and all steps are reviewed and approved.
 
@@ -120,11 +120,11 @@ main                          # Always stable and deployable
 
 | Step | Description                                                           | Branch                       |
 | ---- | --------------------------------------------------------------------- | ---------------------------- |
-| 2.1  | Cart: Zustand store, cart page (`/kosar`), add/remove/update          | `phase-2/cart`               |
-| 2.2  | Checkout form (`/fizetes`): guest fields, GDPR consent checkbox       | `phase-2/checkout-form`      |
+| 2.1  | Cart: Zustand store, cart page (`/cart`), add/remove/update          | `phase-2/cart`               |
+| 2.2  | Checkout form (`/checkout`): guest fields, GDPR consent checkbox       | `phase-2/checkout-form`      |
 | 2.3  | Stripe Checkout session creation (API route)                          | `phase-2/stripe-checkout`    |
 | 2.4  | Stripe webhook handler → order creation in DB (+ unit tests)          | `phase-2/stripe-webhook`     |
-| 2.5  | Order confirmation page (`/rendeles/[id]`) + Resend email (Hungarian) | `phase-2/order-confirmation` |
+| 2.5  | Order confirmation page (`/orders/[id]`) + Resend email (Hungarian) | `phase-2/order-confirmation` |
 
 **Phase 2 complete when:** A real Stripe test payment creates an order in the database and triggers a confirmation email.
 
@@ -230,6 +230,6 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 1 — Foundation
-**Current step:** 1.5 complete, awaiting approval
-**Last approved step:** 1.4 — Global layout
-**Next step:** Phase 1, Step 1.6 — Product detail page
+**Current step:** 1.6 complete, awaiting approval
+**Last approved step:** 1.5 — Product listing page
+**Next step:** Phase 1, Step 1.7 — Contact page

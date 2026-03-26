@@ -42,7 +42,7 @@ export default function Footer() {
             © {new Date().getFullYear()} Varázskép. Minden jog fenntartva.
           </p>
           <Link
-            href="/adatvedelem"
+            href="/privacy"
             className="text-xs text-muted underline-offset-2 hover:underline"
           >
             Adatvédelmi tájékoztató

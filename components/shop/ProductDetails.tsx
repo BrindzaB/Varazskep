@@ -141,7 +141,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
 
         {/* Opens the designer — context wired up in Phase 3 */}
         <Link
-          href="/tervezo"
+          href="/designer"
           className="flex-1 rounded-sm border border-charcoal px-6 py-3 text-center text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal hover:text-white"
         >
           Tervezőfelület megnyitása

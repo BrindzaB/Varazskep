@@ -303,7 +303,7 @@ This is a legal obligation, not optional:
 **Required features:**
 
 1. GDPR consent checkbox at checkout (unchecked by default, must be checked to submit)
-2. Privacy policy page at `/adatvedelem`
+2. Privacy policy page at `/privacy`
 3. Admin panel GDPR erasure function (nulls PII fields, does not delete the order row)
 
 ---

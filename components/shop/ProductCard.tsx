@@ -11,7 +11,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <Link
-      href={`/termekek/${product.slug}`}
+      href={`/products/${product.slug}`}
       className="group flex flex-col overflow-hidden rounded border border-border-light bg-white transition-shadow hover:shadow-card"
     >
       {/* Product image — 1:1 aspect ratio */}

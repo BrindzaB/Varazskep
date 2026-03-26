@@ -6,9 +6,9 @@ import { useState } from "react";
 
 const navItems = [
   { label: "Főoldal", href: "/" },
-  { label: "Termékek", href: "/termekek" },
-  { label: "Tervező", href: "/tervezo" },
-  { label: "Kapcsolat", href: "/kapcsolat" },
+  { label: "Termékek", href: "/products" },
+  { label: "Tervező", href: "/designer" },
+  { label: "Kapcsolat", href: "/contact" },
 ];
 
 export default function Header() {
@@ -47,7 +47,7 @@ export default function Header() {
         <div className="flex items-center gap-4">
           {/* Cart icon — badge will be wired up in Phase 2 */}
           <Link
-            href="/kosar"
+            href="/cart"
             aria-label="Kosár"
             className="hidden text-charcoal hover:text-charcoal-dark md:block"
           >
@@ -134,7 +134,7 @@ export default function Header() {
             ))}
             <li className="mt-2 border-t border-border-light pt-2">
               <Link
-                href="/kosar"
+                href="/cart"
                 onClick={() => setMobileOpen(false)}
                 className="block rounded px-3 py-2 text-sm font-medium text-charcoal transition-colors hover:bg-off-white"
               >

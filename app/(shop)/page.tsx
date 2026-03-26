@@ -24,7 +24,7 @@ export default async function HomePage() {
             Prémium minőség, egyedi minta, gyors szállítás.
           </p>
           <a
-            href="/tervezo"
+            href="/designer"
             className="mt-8 inline-block rounded-sm bg-white px-6 py-3 text-sm font-semibold text-charcoal transition-colors hover:bg-off-white"
           >
             Tervezés megkezdése
