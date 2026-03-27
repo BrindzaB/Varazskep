@@ -31,7 +31,7 @@ Technical reference for Claude Code. Every session must be grounded in this docu
 | Database     | PostgreSQL via Supabase | Hosted on Supabase free tier           |
 | ORM          | Prisma                  | All schema changes via migrations only |
 | Designer     | Fabric.js               | Client-side canvas, serialized to JSON |
-| File Storage | AWS S3                  | SVG exports, 45-day lifecycle rule     |
+| File Storage | Supabase Storage        | Two buckets: `clipart` (permanent — client's catalog) and `designs` (customer design exports, deleted after 45 days) |
 | Payments     | Stripe                  | Checkout + Webhooks                    |
 | Email        | Resend + React Email    | Order confirmation, admin notification |
 | Hosting      | Vercel                  | Connected to main branch               |
@@ -171,7 +171,8 @@ enum OrderStatus {
 
 - Prices are stored in **HUF as integers** (no decimals)
 - Design JSON is stored as JSONB — never stringify it manually
-- SVG URL is nulled after 45 days (S3 lifecycle + scheduled job or manual admin action)
+- Design SVG URL is nulled after 45 days (Supabase Storage `designs` bucket + scheduled job or manual admin action)
+- Clipart SVGs in the `clipart` bucket are permanent — never auto-deleted
 - `Order` is only created in the `stripe/webhook` handler, never before
 
 ---
@@ -224,11 +225,11 @@ STRIPE_SECRET_KEY="sk_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_..."
 
-# AWS S3
-AWS_ACCESS_KEY_ID=""
-AWS_SECRET_ACCESS_KEY=""
-AWS_REGION="eu-central-1"
-AWS_S3_BUCKET_NAME=""
+# Supabase Storage
+SUPABASE_SERVICE_ROLE_KEY=""       # for server-side storage operations
+NEXT_PUBLIC_SUPABASE_URL=""        # your Supabase project URL
+SUPABASE_STORAGE_BUCKET_CLIPART="clipart"
+SUPABASE_STORAGE_BUCKET_DESIGNS="designs"
 
 # Email
 RESEND_API_KEY="re_..."
@@ -298,7 +299,8 @@ This is a legal obligation, not optional:
 | Order metadata (amounts, items)     | 8 years                                     | Hungarian tax law (Számviteli törvény) |
 | Customer PII (name, email, address) | 8 years for accounting, erasable on request | GDPR Art. 17                           |
 | Design JSON (canvasJson)            | Nulled after 45 days                        | Internal policy                        |
-| SVG files on S3                     | Deleted after 45 days                       | S3 Lifecycle Rule                      |
+| Customer design SVGs (designs bucket) | Deleted after 45 days                     | Supabase Storage lifecycle             |
+| Clipart SVGs (clipart bucket)       | Permanent — never deleted                   | Business assets, not personal data     |
 
 **Required features:**
 

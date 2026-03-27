@@ -233,3 +233,4 @@ A **phase** is done when:
 **Current step:** not started
 **Last approved step:** Phase 2 complete — Storefront & Checkout
 **Next step:** Phase 3, Step 3.1 — Fabric.js canvas setup, t-shirt mockup background
+

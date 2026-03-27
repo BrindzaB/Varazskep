@@ -10,15 +10,10 @@ const CANVAS_HEIGHT = 600;
 // T-shirt occupies 88% of the canvas in the tighter dimension
 const MOCKUP_SCALE_FACTOR = 0.88;
 
-// Natural dimensions of tshirt-mockup.svg (matches the SVG viewBox)
+// Fallback natural dimensions — match the SVG viewBox (300×350)
+// Used only if the browser reports 0 for the loaded image (happens with dimensionless SVGs)
 const MOCKUP_NATURAL_WIDTH = 300;
 const MOCKUP_NATURAL_HEIGHT = 350;
-
-// Precomputed scale at which the SVG fills the canvas
-const MOCKUP_SCALE = Math.min(
-  (CANVAS_WIDTH * MOCKUP_SCALE_FACTOR) / MOCKUP_NATURAL_WIDTH,
-  (CANVAS_HEIGHT * MOCKUP_SCALE_FACTOR) / MOCKUP_NATURAL_HEIGHT,
-);
 
 // Center of the canvas
 const CX = CANVAS_WIDTH / 2;
@@ -59,19 +54,25 @@ export default function DesignerCanvas() {
 
       if (!isMounted) return;
 
+      // Use the actual loaded dimensions; fall back to viewBox values if the
+      // browser reports 0 (can happen with dimensionless SVGs in some engines)
+      const naturalWidth = img.width || MOCKUP_NATURAL_WIDTH;
+      const naturalHeight = img.height || MOCKUP_NATURAL_HEIGHT;
+      const scale = Math.min(
+        (CANVAS_WIDTH * MOCKUP_SCALE_FACTOR) / naturalWidth,
+        (CANVAS_HEIGHT * MOCKUP_SCALE_FACTOR) / naturalHeight,
+      );
+
       img.set({
         selectable: false,
         evented: false,
         hoverCursor: "default",
-        originX: "center",
-        originY: "center",
-        left: CX,
-        top: CY,
-        scaleX: MOCKUP_SCALE,
-        scaleY: MOCKUP_SCALE,
+        scaleX: scale,
+        scaleY: scale,
       });
 
       canvas.add(img);
+      canvas.centerObject(img);
       canvas.sendObjectToBack(img);
 
       // Dashed print area boundary — visual guide only, not interactive
