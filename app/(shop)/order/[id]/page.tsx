@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { getOrderBySessionId } from "@/lib/services/order";
 import { formatHuf } from "@/lib/utils/format";
 

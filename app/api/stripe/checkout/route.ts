@@ -94,8 +94,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
       ),
     },
-    success_url: `${appUrl}/rendeles/{CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/fizetes`,
+    success_url: `${appUrl}/order/{CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/checkout`,
   });
 
   if (!session.url) {
