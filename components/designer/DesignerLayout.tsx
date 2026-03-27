@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import DesignerCanvas, { type DesignerCanvasRef } from "./DesignerCanvas";
 import ColorPicker from "./ColorPicker";
 import ClipartPanel from "./ClipartPanel";
+import TextOptionsBar, { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
 
 export const DEFAULT_SHIRT_COLOR = "#9ca3af";
 
@@ -11,10 +12,34 @@ export default function DesignerLayout() {
   const [shirtColor, setShirtColor] = useState(DEFAULT_SHIRT_COLOR);
   const [side, setSide] = useState<"front" | "back">("front");
   const [isClipartOpen, setIsClipartOpen] = useState(false);
+
+  // Text tool state — drives TextOptionsBar visibility and its selected values
+  const [isTextSelected, setIsTextSelected] = useState(false);
+  const [activeFont, setActiveFont] = useState<string>(DEFAULT_TEXT_FONT);
+  const [activeColor, setActiveColor] = useState<string>(DEFAULT_TEXT_COLOR);
+
   const canvasRef = useRef<DesignerCanvasRef>(null);
 
   function handleClipartSelect(svgUrl: string) {
     canvasRef.current?.addClipart(svgUrl);
+  }
+
+  function handleActiveTextChange(isText: boolean, font: string, color: string) {
+    setIsTextSelected(isText);
+    if (isText) {
+      setActiveFont(font);
+      setActiveColor(color);
+    }
+  }
+
+  function handleFontChange(font: string) {
+    setActiveFont(font);
+    canvasRef.current?.setTextFont(font);
+  }
+
+  function handleColorChange(color: string) {
+    setActiveColor(color);
+    canvasRef.current?.setTextColor(color);
   }
 
   return (
@@ -50,14 +75,46 @@ export default function DesignerLayout() {
           </svg>
           <span className="text-xs font-medium">Motívum</span>
         </button>
+
+        <div className="w-10 border-t border-white/20" />
+
+        {/* Text tool button */}
+        <button
+          onClick={() => canvasRef.current?.addText()}
+          title="Szöveg hozzáadása"
+          aria-label="Szöveg hozzáadása"
+          className="flex flex-col items-center gap-1 text-white/60 transition-colors hover:text-white"
+        >
+          <span className="text-2xl font-bold leading-none" aria-hidden="true">
+            T
+          </span>
+          <span className="text-xs font-medium">Szöveg</span>
+        </button>
       </aside>
 
       {/* Canvas area */}
       <div className="flex flex-1 flex-col items-center overflow-auto px-4 py-8 lg:px-8 lg:py-10">
-        <DesignerCanvas ref={canvasRef} shirtColor={shirtColor} side={side} />
+        <DesignerCanvas
+          ref={canvasRef}
+          shirtColor={shirtColor}
+          side={side}
+          onActiveTextChange={handleActiveTextChange}
+        />
 
-        {/* Front / back toggle — sits directly below the canvas */}
-        <div className="mt-4 flex rounded-lg border border-border-light bg-white p-1 shadow-card">
+        {/* Text options bar — visible only when a text object is selected */}
+        {isTextSelected && (
+          <div className="mt-3">
+            <TextOptionsBar
+              currentFont={activeFont}
+              currentColor={activeColor}
+              onFontChange={handleFontChange}
+              onColorChange={handleColorChange}
+            />
+          </div>
+        )}
+
+        {/* Front / back toggle */}
+        <div className="mt-3 flex rounded-lg border border-border-light bg-white p-1 shadow-card">
           <button
             onClick={() => setSide("front")}
             aria-pressed={side === "front"}

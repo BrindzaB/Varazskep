@@ -1,8 +1,9 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import type { Canvas, FabricImage, FabricObject } from "fabric";
+import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
 import { DEFAULT_SHIRT_COLOR } from "./DesignerLayout";
+import { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
 
 // Canvas dimensions (fixed — responsive scaling is a future concern)
 const CANVAS_WIDTH = 500;
@@ -77,15 +78,27 @@ function applyMockupLayout(img: FabricImage, canvas: Canvas): void {
 // Public API exposed to DesignerLayout via ref
 export interface DesignerCanvasRef {
   addClipart: (svgUrl: string) => Promise<void>;
+  addText: () => Promise<void>;
+  setTextFont: (font: string) => void;
+  setTextColor: (color: string) => void;
 }
 
 interface DesignerCanvasProps {
   shirtColor?: string;
   side?: "front" | "back";
+  // Called when text selection changes — isText=true means an IText is selected
+  onActiveTextChange?: (isText: boolean, font: string, color: string) => void;
 }
 
 const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
-  function DesignerCanvas({ shirtColor = DEFAULT_SHIRT_COLOR, side = "front" }, ref) {
+  function DesignerCanvas(
+    {
+      shirtColor = DEFAULT_SHIRT_COLOR,
+      side = "front",
+      onActiveTextChange,
+    },
+    ref,
+  ) {
     const canvasElRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<Canvas | null>(null);
     const shirtImageRef = useRef<FabricImage | null>(null);
@@ -98,22 +111,22 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
     // Tracks which side is currently rendered on the canvas
     const currentSideRef = useRef<"front" | "back">("front");
 
-    // Stores live Fabric objects per side while that side is off-canvas.
-    // Keeping live objects (not JSON) avoids a serialize/deserialize round-trip.
+    // Stores live Fabric objects per side while that side is off-canvas
     const sideObjectsRef = useRef<Record<"front" | "back", FabricObject[]>>({
       front: [],
       back: [],
     });
 
-    // Keeps the latest shirtColor accessible inside effects without adding it
-    // to their dependency arrays (avoids re-running side-switch on color change).
+    // Keeps the latest prop values accessible inside effects without re-running them
     const shirtColorRef = useRef(shirtColor);
-    useEffect(() => {
-      shirtColorRef.current = shirtColor;
-    }, [shirtColor]);
+    useEffect(() => { shirtColorRef.current = shirtColor; }, [shirtColor]);
 
-    // ── Expose addClipart to parent via ref ───────────────────────────────────
+    const onActiveTextChangeRef = useRef(onActiveTextChange);
+    useEffect(() => { onActiveTextChangeRef.current = onActiveTextChange; }, [onActiveTextChange]);
+
+    // ── Expose canvas API to DesignerLayout ───────────────────────────────────
     useImperativeHandle(ref, () => ({
+      // Places a clipart SVG on the canvas
       async addClipart(svgUrl: string) {
         const canvas = fabricRef.current;
         if (!canvas) return;
@@ -133,53 +146,65 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           originY: "center",
         });
 
-        // Delete control — rendered as a charcoal circle with a white × at the
-        // top-right corner of the selected object.
         img.controls = {
           ...img.controls,
-          deleteControl: new Control({
-            x: 0.5,
-            y: -0.5,
-            cursorStyle: "pointer",
-            sizeX: 24,
-            sizeY: 24,
-            mouseUpHandler: (_eventData, transform) => {
-              const target = transform.target;
-              const c = target.canvas;
-              if (c) {
-                c.remove(target);
-                c.requestRenderAll();
-              }
-              return true;
-            },
-            render: (ctx, left, top) => {
-              const radius = 11;
-              const arm = 4;
-              ctx.save();
-              ctx.translate(left, top);
-              // Circle background
-              ctx.beginPath();
-              ctx.arc(0, 0, radius, 0, 2 * Math.PI);
-              ctx.fillStyle = "#32373c";
-              ctx.fill();
-              // White ×
-              ctx.strokeStyle = "#ffffff";
-              ctx.lineWidth = 2;
-              ctx.lineCap = "round";
-              ctx.beginPath();
-              ctx.moveTo(-arm, -arm);
-              ctx.lineTo(arm, arm);
-              ctx.moveTo(arm, -arm);
-              ctx.lineTo(-arm, arm);
-              ctx.stroke();
-              ctx.restore();
-            },
-          }),
+          deleteControl: buildDeleteControl(Control),
         };
 
         canvas.add(img);
         canvas.setActiveObject(img);
         canvas.renderAll();
+      },
+
+      // Adds an editable text object at the print area center
+      async addText() {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+
+        const { IText, Control } = await import("fabric");
+
+        const text = new IText("Szöveg", {
+          left: PRINT_AREA.centerX,
+          top: PRINT_AREA.centerY,
+          originX: "center",
+          originY: "center",
+          fontSize: 36,
+          fontFamily: DEFAULT_TEXT_FONT,
+          fill: DEFAULT_TEXT_COLOR,
+          textAlign: "center",
+        });
+
+        text.controls = {
+          ...text.controls,
+          deleteControl: buildDeleteControl(Control),
+        };
+
+        canvas.add(text);
+        canvas.setActiveObject(text);
+        // Enter edit mode and select all so the user can start typing immediately
+        text.enterEditing();
+        text.selectAll();
+        canvas.requestRenderAll();
+      },
+
+      // Applies a font to the currently selected text object
+      setTextFont(font: string) {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+        const active = canvas.getActiveObject() as IText | null;
+        if (!active || active.type !== "i-text") return;
+        active.set({ fontFamily: font });
+        canvas.requestRenderAll();
+      },
+
+      // Applies a fill color to the currently selected text object
+      setTextColor(color: string) {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+        const active = canvas.getActiveObject() as IText | null;
+        if (!active || active.type !== "i-text") return;
+        active.set({ fill: color });
+        canvas.requestRenderAll();
       },
     }));
 
@@ -190,7 +215,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       let isMounted = true;
 
       const init = async () => {
-        const { Canvas, FabricImage, Rect } = await import("fabric");
+        const { Canvas, FabricImage, IText, Rect } = await import("fabric");
 
         if (!isMounted || !canvasElRef.current) return;
 
@@ -204,8 +229,11 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 
         // Delete selected object on Delete/Backspace
         const handleKeyDown = (e: KeyboardEvent) => {
+          // Don't intercept when the user is typing inside an IText
+          const active = canvas.getActiveObject();
+          if (active instanceof IText && active.isEditing) return;
+
           if (e.key === "Delete" || e.key === "Backspace") {
-            const active = canvas.getActiveObject();
             if (active) {
               canvas.remove(active);
               canvas.discardActiveObject();
@@ -241,6 +269,25 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
             obj.setCoords();
           }
         });
+
+        // Notify parent when a text object is selected or deselected
+        const notifyTextSelection = (selected: FabricObject | undefined) => {
+          if (selected instanceof IText) {
+            const font = typeof selected.fontFamily === "string"
+              ? selected.fontFamily
+              : DEFAULT_TEXT_FONT;
+            const color = typeof selected.fill === "string"
+              ? selected.fill
+              : DEFAULT_TEXT_COLOR;
+            onActiveTextChangeRef.current?.(true, font, color);
+          } else {
+            onActiveTextChangeRef.current?.(false, "", "");
+          }
+        };
+
+        canvas.on("selection:created", (e) => notifyTextSelection(e.selected?.[0]));
+        canvas.on("selection:updated", (e) => notifyTextSelection(e.selected?.[0]));
+        canvas.on("selection:cleared", () => onActiveTextChangeRef.current?.(false, "", ""));
 
         // Fetch and cache the front SVG
         const response = await fetch(MOCKUP_SVG.front);
@@ -335,9 +382,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       };
 
       doSwitch().catch(console.error);
-      return () => {
-        isMounted = false;
-      };
+      return () => { isMounted = false; };
     }, [side]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Color update effect: runs whenever shirtColor changes ─────────────────
@@ -361,9 +406,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       };
 
       update().catch(console.error);
-      return () => {
-        isMounted = false;
-      };
+      return () => { isMounted = false; };
     }, [shirtColor]);
 
     return (
@@ -375,3 +418,46 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 );
 
 export default DesignerCanvas;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Builds a delete control (charcoal circle with white ×) for any Fabric object.
+// Passed `Control` from the dynamic fabric import to avoid a second import call.
+function buildDeleteControl(Control: typeof import("fabric").Control) {
+  return new Control({
+    x: 0.5,
+    y: -0.5,
+    cursorStyle: "pointer",
+    sizeX: 24,
+    sizeY: 24,
+    mouseUpHandler: (_eventData, transform) => {
+      const target = transform.target;
+      const c = target.canvas;
+      if (c) {
+        c.remove(target);
+        c.requestRenderAll();
+      }
+      return true;
+    },
+    render: (ctx, left, top) => {
+      const radius = 11;
+      const arm = 4;
+      ctx.save();
+      ctx.translate(left, top);
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = "#32373c";
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-arm, -arm);
+      ctx.lineTo(arm, arm);
+      ctx.moveTo(arm, -arm);
+      ctx.lineTo(-arm, arm);
+      ctx.stroke();
+      ctx.restore();
+    },
+  });
+}
