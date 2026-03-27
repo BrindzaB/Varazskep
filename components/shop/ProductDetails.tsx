@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatHuf } from "@/lib/utils/format";
+import { useCartStore } from "@/lib/cart/cartStore";
 import type { ProductWithVariants } from "@/lib/services/product";
 
 const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
@@ -31,6 +33,8 @@ interface ProductDetailsProps {
 
 export default function ProductDetails({ product }: ProductDetailsProps) {
   const { variants } = product;
+  const addItem = useCartStore((state) => state.addItem);
+  const router = useRouter();
 
   // Unique colors in the order they appear
   const colors = Array.from(new Set(variants.map((v) => v.color)));
@@ -139,9 +143,21 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
 
       {/* CTAs */}
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-        {/* Kosárba — wired up in Phase 2 */}
         <button
-          disabled={!isInStock}
+          disabled={!isInStock || !selectedVariant}
+          onClick={() => {
+            if (!selectedVariant) return;
+            addItem({
+              variantId: selectedVariant.id,
+              productName: product.name,
+              productSlug: product.slug,
+              color: selectedColor,
+              size: selectedSize,
+              price: selectedVariant.price,
+              imageUrl: product.imageUrl ?? null,
+            });
+            router.push("/cart");
+          }}
           className="flex-1 rounded-sm bg-charcoal px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-charcoal-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
           Kosárba
