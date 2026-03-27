@@ -1,6 +1,9 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
+import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 
 dotenv.config({ path: ".env.local" });
 
@@ -14,6 +17,40 @@ if (!connectionString) {
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
+// Supabase admin client — needs service role key to write to Storage
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    "Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.",
+  );
+}
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false },
+});
+
+const CLIPART_BUCKET = process.env.SUPABASE_STORAGE_BUCKET_CLIPART ?? "clipart";
+
+// Uploads a local SVG file to the clipart bucket and returns its public URL.
+async function uploadClipartSvg(
+  fileName: string,
+  localPath: string,
+): Promise<string> {
+  const fileBuffer = fs.readFileSync(localPath);
+
+  const { error } = await supabase.storage
+    .from(CLIPART_BUCKET)
+    .upload(fileName, fileBuffer, {
+      contentType: "image/svg+xml",
+      upsert: true, // safe to re-run seed without duplicate errors
+    });
+
+  if (error) throw new Error(`Storage upload failed for ${fileName}: ${error.message}`);
+
+  const { data } = supabase.storage.from(CLIPART_BUCKET).getPublicUrl(fileName);
+  return data.publicUrl;
+}
+
 async function main() {
   console.log("Seeding database...");
 
@@ -22,6 +59,7 @@ async function main() {
   await prisma.design.deleteMany();
   await prisma.variant.deleteMany();
   await prisma.product.deleteMany();
+  await prisma.clipart.deleteMany();
 
   // ── T-shirt ────────────────────────────────────────────────────────────────
   const tshirt = await prisma.product.create({
@@ -83,6 +121,28 @@ async function main() {
 
   console.log(`✓ Created product: ${tshirt.name} (${tshirt.slug})`);
   console.log(`✓ Created product: ${mug.name} (${mug.slug})`);
+
+  // ── Clipart ────────────────────────────────────────────────────────────────
+  const assetsDir = path.join(__dirname, "seed-assets", "clipart");
+
+  const clipartItems = [
+    { file: "star.svg", name: "Csillag", category: "Formák" },
+    { file: "heart.svg", name: "Szív", category: "Formák" },
+    { file: "lightning.svg", name: "Villám", category: "Formák" },
+    { file: "sun.svg", name: "Nap", category: "Természet" },
+    { file: "leaf.svg", name: "Levél", category: "Természet" },
+    { file: "flower.svg", name: "Virág", category: "Természet" },
+  ];
+
+  for (const item of clipartItems) {
+    const localPath = path.join(assetsDir, item.file);
+    const svgUrl = await uploadClipartSvg(item.file, localPath);
+    await prisma.clipart.create({
+      data: { name: item.name, category: item.category, svgUrl, active: true },
+    });
+    console.log(`✓ Uploaded clipart: ${item.name} → ${svgUrl}`);
+  }
+
   console.log("Seeding complete.");
 }
 

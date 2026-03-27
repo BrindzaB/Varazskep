@@ -32,6 +32,15 @@ model Variant {
   orders    Order[]
 }
 
+model Clipart {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  svgUrl    String   // Supabase Storage public URL (clipart bucket — permanent)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
 model Design {
   id         String   @id @default(cuid())
   canvasJson Json // Fabric.js serialized canvas state — stored as JSONB
