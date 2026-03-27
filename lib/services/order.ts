@@ -17,6 +17,21 @@ export interface CreateOrderInput {
 }
 
 /**
+ * Fetches an order by its Stripe session ID, including variant + product info.
+ * Used by the confirmation page.
+ */
+export async function getOrderBySessionId(stripeSessionId: string) {
+  return prisma.order.findUnique({
+    where: { stripeSessionId },
+    include: {
+      variant: {
+        include: { product: true },
+      },
+    },
+  });
+}
+
+/**
  * Creates an order in the database after Stripe payment confirmation.
  * Must only ever be called from the Stripe webhook handler.
  *

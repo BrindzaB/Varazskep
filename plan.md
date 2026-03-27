@@ -230,6 +230,6 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 2 — Storefront & Checkout
-**Current step:** 2.4 in progress
-**Last approved step:** 2.3 — Stripe Checkout session creation
-**Next step:** Phase 2, Step 2.4 — Stripe webhook handler + order creation
+**Current step:** 2.5 in progress
+**Last approved step:** 2.4 — Stripe webhook handler + order creation
+**Next step:** Phase 2, Step 2.5 — Order confirmation page + Resend email

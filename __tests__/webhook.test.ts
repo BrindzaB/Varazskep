@@ -18,6 +18,13 @@ vi.mock("stripe", () => {
 // Mock the order service.
 vi.mock("@/lib/services/order", () => ({
   createOrder: vi.fn(),
+  getOrderBySessionId: vi.fn(),
+}));
+
+// Mock the email service — prevents the React Email template (JSX) from being
+// imported and keeps tests focused on the webhook handler logic.
+vi.mock("@/lib/services/email", () => ({
+  sendOrderConfirmationEmail: vi.fn(),
 }));
 
 import { POST } from "@/app/api/stripe/webhook/route";

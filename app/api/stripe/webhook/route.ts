@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createOrder } from "@/lib/services/order";
+import { createOrder, getOrderBySessionId } from "@/lib/services/order";
+import { sendOrderConfirmationEmail } from "@/lib/services/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-03-25.dahlia",
@@ -87,6 +88,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { error: "Order creation failed" },
       { status: 500 },
     );
+  }
+
+  // Send confirmation email — errors are logged but do not fail the webhook.
+  // A failed email must not cause Stripe to retry (which would risk duplicate orders).
+  try {
+    // Fetch the full order with variant + product to populate the email properly.
+    const fullOrder = await getOrderBySessionId(session.id);
+    if (fullOrder) {
+      await sendOrderConfirmationEmail({
+        orderId: fullOrder.id,
+        customerName: fullOrder.customerName,
+        customerEmail: fullOrder.customerEmail,
+        productName: fullOrder.variant.product.name,
+        variantColor: fullOrder.variant.color,
+        variantSize: fullOrder.variant.size,
+        totalAmount: fullOrder.totalAmount,
+        shippingAddress,
+      });
+    }
+  } catch (err) {
+    console.error("[webhook] sendOrderConfirmationEmail failed:", err);
   }
 
   return NextResponse.json({ received: true });

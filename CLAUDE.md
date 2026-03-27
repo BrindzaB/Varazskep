@@ -46,13 +46,13 @@ varazskep/
 ├── app/
 │   ├── (shop)/                  # Public storefront routes
 │   │   ├── page.tsx             # Homepage / product listing
-│   │   ├── termekek/[slug]/     # Product detail page
-│   │   ├── tervezo/             # T-shirt designer page (Fabric.js)
-│   │   ├── kosar/               # Cart page
-│   │   ├── fizetes/             # Checkout page
-│   │   ├── rendeles/[id]/       # Order confirmation page
-│   │   ├── kapcsolat/           # Contact page
-│   │   └── adatvedelem/         # Privacy policy page (GDPR)
+│   │   ├── products/[slug]/     # Product detail page
+│   │   ├── designer/            # T-shirt designer page (Fabric.js)
+│   │   ├── cart/                # Cart page
+│   │   ├── checkout/            # Checkout page
+│   │   ├── order/[id]/          # Order confirmation page
+│   │   ├── contact/             # Contact page
+│   │   └── privacy/             # Privacy policy page (GDPR)
 │   ├── admin/                   # Admin panel (JWT-protected)
 │   │   ├── login/
 │   │   ├── rendelesek/          # Order management
