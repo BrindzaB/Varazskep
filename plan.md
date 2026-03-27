@@ -230,6 +230,6 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 2 — Storefront & Checkout
-**Current step:** 2.2 in progress
-**Last approved step:** 2.1 — Cart
-**Next step:** Phase 2, Step 2.2 — Checkout form
+**Current step:** 2.3 in progress
+**Last approved step:** 2.2 — Checkout form
+**Next step:** Phase 2, Step 2.3 — Stripe Checkout session creation
