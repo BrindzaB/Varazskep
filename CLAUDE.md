@@ -68,6 +68,7 @@ varazskep/
 ├── components/
 │   ├── designer/                # Fabric.js canvas components
 │   │   ├── DesignerCanvas.tsx
+│   │   ├── DesignerLayout.tsx   # Client component — holds designer state, renders toolbar + canvas + panel
 │   │   ├── ColorPicker.tsx
 │   │   ├── ClipartPanel.tsx
 │   │   └── TextTool.tsx
@@ -88,9 +89,12 @@ varazskep/
 │   └── cart/
 │       └── cartStore.ts         # Client-side cart state (Zustand)
 ├── prisma/
-│   └── schema.prisma
+│   ├── schema.prisma
+│   └── seed-assets/
+│       └── clipart/             # Simple SVG shapes used to seed the Clipart table in development
 ├── public/
-│   └── clipart/                 # SVG clipart assets
+│   ├── tshirt-mockup.svg        # T-shirt silhouette for the designer canvas
+│   └── mug-mockup.svg           # Mug silhouette for the designer canvas
 ├── emails/                      # React Email templates (Hungarian)
 ├── __tests__/                   # Tests (critical paths only)
 │   ├── webhook.test.ts
@@ -114,6 +118,7 @@ model Product {
   description String?
   imageUrl    String?
   active      Boolean   @default(true)
+  mockupType  String?   // "tshirt" | "mug" | future types — null means no designer for this product
   variants    Variant[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -130,10 +135,19 @@ model Variant {
   orders    Order[]
 }
 
+model Clipart {
+  id        String   @id @default(cuid())
+  name      String                        // display name shown in the catalog
+  category  String                        // e.g. "Állatok", "Sport", "Természet"
+  svgUrl    String                        // Supabase Storage URL (clipart bucket — permanent, never deleted)
+  active    Boolean  @default(true)       // admin can hide without deleting
+  createdAt DateTime @default(now())
+}
+
 model Design {
   id          String   @id @default(cuid())
   canvasJson  Json     // Fabric.js serialized canvas state (JSONB)
-  svgUrl      String?  // S3 URL, nulled after 45 days
+  svgUrl      String?  // Supabase Storage URL (designs bucket), nulled after 45 days
   createdAt   DateTime @default(now())
   expiresAt   DateTime // 45 days from createdAt
   order       Order?
@@ -194,6 +208,48 @@ Personal photo uploads require content moderation, abuse prevention, larger stor
 ### Why a single Next.js app
 
 The complexity of a separate API server is unnecessary at this scale. Next.js API routes handle all backend logic. If traffic warrants it, extraction to a separate service is a v3 concern.
+
+### Designer — product context via URL params
+
+The designer at `/designer` receives the selected product context from the product detail page via URL search params:
+
+```
+/designer?slug=egyedi-polo&color=Piros&size=M
+```
+
+- `slug` — used to fetch the product's variants and filter available colors
+- `color` — pre-selects the color swatch and pre-loads that color on the canvas
+- `size` — pre-selects the size in the right summary panel
+
+The color picker only shows colors that exist as active variants for that product. Out-of-stock colors are shown but not selectable. Implemented in step 3.5.
+
+### Clipart catalog — database-driven, Supabase Storage backed
+
+The client's figure catalog is stored in the `Clipart` table (not a static JSON file). SVG files live in Supabase Storage `clipart` bucket (permanent — never deleted). The admin uploads figures via the admin panel (Phase 4). Sample figures are seeded in step 3.3 for development and testing.
+
+Seed assets (a handful of simple SVG shapes) live in `prisma/seed-assets/clipart/` in the repo. The seed script uploads them to Supabase Storage and inserts the resulting URLs into the `Clipart` table. These are development-only files — the client's real catalog is managed entirely via the admin panel.
+
+### Design record created before payment (not after)
+
+Canvas JSON is too large for Stripe metadata (500-character limit per value). Therefore a `Design` record is created in the database when the customer clicks "Add to cart" from the designer — before payment. The `designId` is stored in the cart item and passed as a short string in Stripe checkout metadata. The webhook receives the `designId`, looks it up, and links it to the newly created `Order`.
+
+This does not violate the "orders only after webhook" rule — only the Design is pre-created, never the Order.
+
+### Multi-product designer — mockup type system
+
+The designer supports multiple product types (t-shirt, mug, future types like sweatshirt). The `Product.mockupType` field (nullable string) drives which mockup is loaded:
+
+- `"tshirt"` → `public/tshirt-mockup.svg`, t-shirt print area dimensions
+- `"mug"` → `public/mug-mockup.svg`, mug print area dimensions
+- `null` → no designer available; "Open designer" button is hidden on the product page
+
+Mockup configuration (SVG path, print area width/height, default color) is defined in a code-level config object — not in the database — so new types are added by a developer adding a mockup SVG and a config entry. Adding a new product type requires no schema migration.
+
+The designer defaults to "egyedi-polo" when no URL params are present (direct navigation to `/designer`). The left toolbar shows a product icon button at the top that navigates to `/products`, allowing the customer to switch products. In-progress designs are lost on navigation — this is acceptable.
+
+### "Open designer" button visibility
+
+`ProductDetails.tsx` shows the "Tervezőfelület megnyitása" button only when `product.mockupType` is not null. Products without a mockup type are ordered without customization.
 
 ---
 
