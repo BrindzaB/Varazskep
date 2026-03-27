@@ -72,6 +72,7 @@ main                          # Always stable and deployable
     ├── phase-4/jwt-auth
     ├── phase-4/order-dashboard
     ├── phase-4/product-management
+    ├── phase-4/clipart-management
     ├── phase-4/gdpr-erasure
     ├── phase-4/seo
     └── phase-4/deployment
@@ -140,7 +141,7 @@ main                          # Always stable and deployable
 | 3.2  | Color picker: swatches in left toolbar update the t-shirt SVG fill color on the canvas                                                                                                                               | `phase-3/color-picker`         |
 | 3.3  | Clipart panel: `Clipart` Prisma model + migration; seed sample SVGs; API route to fetch figures; modal overlay catalog (customer clicks figure → modal closes → figure placed on canvas inside print area, movable/resizable) | `phase-3/clipart-panel`        |
 | 3.4  | Text tool: add/edit text on canvas, font and color options                                                                                                                                                           | `phase-3/text-tool`            |
-| 3.5  | Design serialization + product wiring: pass selected product/color/size via URL params from product page → designer pre-loads that variant's available colors only → canvas JSON attached to cart item → passed to checkout | `phase-3/design-serialization` |
+| 3.5  | Design serialization + product wiring: add `mockupType` to Product schema (migration); add `mug-mockup.svg`; designer loads correct mockup per product type; pass product/color/size via URL params from product page; default to "egyedi-polo" on direct `/designer` access; product icon button in toolbar navigates to `/products`; pre-create Design record on "add to cart"; pass `designId` in Stripe metadata; hide designer button on products with no `mockupType` | `phase-3/design-serialization` |
 | 3.6  | Server-side SVG export: triggered after webhook, uploaded to Supabase Storage `designs` bucket (45-day retention)                                                                                                    | `phase-3/svg-export`           |
 
 **Phase 3 complete when:** A designed product can be ordered end-to-end and the resulting SVG is visible in Supabase Storage after payment.
@@ -232,6 +233,6 @@ A **phase** is done when:
 
 **Current phase:** Phase 3 — Designer Module
 **Current step:** not started
-**Last approved step:** Step 3.1 — Fabric.js canvas setup, t-shirt mockup background (approved)
-**Next step:** Phase 3, Step 3.2 — Color picker component
+**Last approved step:** Step 3.2 — Color picker (approved)
+**Next step:** Phase 3, Step 3.3 — Clipart panel
 
