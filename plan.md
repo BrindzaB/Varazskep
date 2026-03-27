@@ -233,6 +233,6 @@ A **phase** is done when:
 
 **Current phase:** Phase 3 — Designer Module
 **Current step:** not started
-**Last approved step:** Step 3.2 — Color picker (approved)
+**Last approved step:** Step 3.2 — Color picker (approved, merged)
 **Next step:** Phase 3, Step 3.3 — Clipart panel
 
