@@ -130,10 +130,19 @@ model Variant {
   orders    Order[]
 }
 
+model Clipart {
+  id        String   @id @default(cuid())
+  name      String                        // display name shown in the catalog
+  category  String                        // e.g. "Állatok", "Sport", "Természet"
+  svgUrl    String                        // Supabase Storage URL (clipart bucket — permanent, never deleted)
+  active    Boolean  @default(true)       // admin can hide without deleting
+  createdAt DateTime @default(now())
+}
+
 model Design {
   id          String   @id @default(cuid())
   canvasJson  Json     // Fabric.js serialized canvas state (JSONB)
-  svgUrl      String?  // S3 URL, nulled after 45 days
+  svgUrl      String?  // Supabase Storage URL (designs bucket), nulled after 45 days
   createdAt   DateTime @default(now())
   expiresAt   DateTime // 45 days from createdAt
   order       Order?
@@ -194,6 +203,24 @@ Personal photo uploads require content moderation, abuse prevention, larger stor
 ### Why a single Next.js app
 
 The complexity of a separate API server is unnecessary at this scale. Next.js API routes handle all backend logic. If traffic warrants it, extraction to a separate service is a v3 concern.
+
+### Designer — product context via URL params
+
+The designer at `/designer` receives the selected product context from the product detail page via URL search params:
+
+```
+/designer?slug=egyedi-polo&color=Piros&size=M
+```
+
+- `slug` — used to fetch the product's variants and filter available colors
+- `color` — pre-selects the color swatch and pre-loads that color on the canvas
+- `size` — pre-selects the size in the right summary panel
+
+The color picker only shows colors that exist as active variants for that product. Out-of-stock colors are shown but not selectable. Implemented in step 3.5.
+
+### Clipart catalog — database-driven, Supabase Storage backed
+
+The client's figure catalog is stored in the `Clipart` table (not a static JSON file). SVG files live in Supabase Storage `clipart` bucket (permanent — never deleted). The admin uploads figures via the admin panel (Phase 4). Sample figures are seeded in step 3.3 for development and testing.
 
 ---
 

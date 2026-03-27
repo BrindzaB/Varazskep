@@ -134,16 +134,16 @@ main                          # Always stable and deployable
 
 **Goal:** Customers can design their product on a Fabric.js canvas, save the design, and include it in their order.
 
-| Step | Description                                                         | Branch                         |
-| ---- | ------------------------------------------------------------------- | ------------------------------ |
-| 3.1  | Fabric.js canvas setup, t-shirt mockup background layer             | `phase-3/canvas-setup`         |
-| 3.2  | Color picker component (product color selection updates canvas bg)  | `phase-3/color-picker`         |
-| 3.3  | Clipart panel: load SVG assets, drag-to-canvas                      | `phase-3/clipart-panel`        |
-| 3.4  | Text tool: add/edit text on canvas, font and color options          | `phase-3/text-tool`            |
-| 3.5  | Design serialization: canvas JSON → cart state → passed to checkout | `phase-3/design-serialization` |
-| 3.6  | Server-side SVG export: triggered after webhook, uploaded to S3     | `phase-3/svg-export`           |
+| Step | Description                                                                                                                                                                                                          | Branch                         |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| 3.1  | Fabric.js canvas setup, t-shirt mockup background layer                                                                                                                                                              | `phase-3/canvas-setup`         |
+| 3.2  | Color picker: swatches in left toolbar update the t-shirt SVG fill color on the canvas                                                                                                                               | `phase-3/color-picker`         |
+| 3.3  | Clipart panel: `Clipart` Prisma model + migration; seed sample SVGs; API route to fetch figures; modal overlay catalog (customer clicks figure → modal closes → figure placed on canvas inside print area, movable/resizable) | `phase-3/clipart-panel`        |
+| 3.4  | Text tool: add/edit text on canvas, font and color options                                                                                                                                                           | `phase-3/text-tool`            |
+| 3.5  | Design serialization + product wiring: pass selected product/color/size via URL params from product page → designer pre-loads that variant's available colors only → canvas JSON attached to cart item → passed to checkout | `phase-3/design-serialization` |
+| 3.6  | Server-side SVG export: triggered after webhook, uploaded to Supabase Storage `designs` bucket (45-day retention)                                                                                                    | `phase-3/svg-export`           |
 
-**Phase 3 complete when:** A designed product can be ordered and the resulting SVG is visible in S3 after payment.
+**Phase 3 complete when:** A designed product can be ordered end-to-end and the resulting SVG is visible in Supabase Storage after payment.
 
 ---
 
@@ -151,15 +151,16 @@ main                          # Always stable and deployable
 
 **Goal:** The business can manage orders and products, the app meets legal requirements, and it is deployed to production.
 
-| Step | Description                                                      | Branch                       |
-| ---- | ---------------------------------------------------------------- | ---------------------------- |
-| 4.1  | JWT admin auth: login page, middleware, HTTP-only cookie         | `phase-4/jwt-auth`           |
-| 4.2  | Order dashboard: list all orders, update status, view design     | `phase-4/order-dashboard`    |
-| 4.3  | Product management: create, edit, toggle active/inactive         | `phase-4/product-management` |
-| 4.4  | GDPR erasure function: null PII fields on demand                 | `phase-4/gdpr-erasure`       |
-| 4.5  | SEO: metadata per page, sitemap.xml, robots.txt                  | `phase-4/seo`                |
-| 4.6  | Production deployment: Vercel setup, env vars, custom domain     | `phase-4/deployment`         |
-| 4.7  | S3 lifecycle rule (45-day auto-delete), post-launch verification | `phase-4/deployment`         |
+| Step | Description                                                                                                                              | Branch                       |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| 4.1  | JWT admin auth: login page, middleware, HTTP-only cookie                                                                                 | `phase-4/jwt-auth`           |
+| 4.2  | Order dashboard: list all orders, update status, view design                                                                             | `phase-4/order-dashboard`    |
+| 4.3  | Product management: create, edit, toggle active/inactive                                                                                 | `phase-4/product-management` |
+| 4.4  | Clipart management: upload SVG to Supabase Storage `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive            | `phase-4/clipart-management` |
+| 4.5  | GDPR erasure function: null PII fields on demand                                                                                         | `phase-4/gdpr-erasure`       |
+| 4.6  | SEO: metadata per page, sitemap.xml, robots.txt                                                                                          | `phase-4/seo`                |
+| 4.7  | Production deployment: Vercel setup, env vars, custom domain                                                                             | `phase-4/deployment`         |
+| 4.8  | Supabase Storage lifecycle: verify 45-day auto-delete on `designs` bucket, post-launch verification                                      | `phase-4/deployment`         |
 
 **Phase 4 complete when:** The app is live on Vercel, a real order can be placed end-to-end, and the admin panel is functional.
 
