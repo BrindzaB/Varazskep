@@ -52,7 +52,7 @@ export default async function AdminOrderDetailPage({
             ← Rendelések
           </Link>
           <span className="text-gray-300">/</span>
-          <span className="font-mono text-sm text-gray-600">{order.id.slice(0, 8)}…</span>
+          <span className="font-mono text-sm text-gray-600">{order.id}</span>
         </div>
 
         <div className="flex items-start justify-between mb-8">
