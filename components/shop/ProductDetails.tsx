@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatHuf } from "@/lib/utils/format";
+import { COLOR_MAP } from "@/lib/utils/colors";
 import { useCartStore } from "@/lib/cart/cartStore";
 import type { ProductWithVariants } from "@/lib/services/product";
 
@@ -14,18 +15,6 @@ function sortSizes(sizes: string[]): string[] {
     (a, b) => SIZE_ORDER.indexOf(a) - SIZE_ORDER.indexOf(b),
   );
 }
-
-// Maps Hungarian color names to CSS background values for the color swatch.
-const COLOR_MAP: Record<string, string> = {
-  Fehér: "#ffffff",
-  Fekete: "#32373c",
-  Sötétkék: "#1e3a5f",
-  Piros: "#cf2e2e",
-  Szürke: "#9ca3af",
-  Kék: "#3b82f6",
-  Zöld: "#16a34a",
-  Sárga: "#facc15",
-};
 
 interface ProductDetailsProps {
   product: ProductWithVariants;
@@ -62,6 +51,9 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
     ) ?? null;
 
   const isInStock = selectedVariant ? selectedVariant.stock > 0 : false;
+
+  // URL for the designer with product context pre-loaded
+  const designerUrl = `/designer?slug=${product.slug}&color=${encodeURIComponent(selectedColor)}&size=${encodeURIComponent(selectedSize)}`;
 
   return (
     <div className="flex flex-col">
@@ -163,13 +155,15 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
           Kosárba
         </button>
 
-        {/* Opens the designer — context wired up in Phase 3 */}
-        <Link
-          href="/designer"
-          className="flex-1 rounded-sm border border-charcoal px-6 py-3 text-center text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal hover:text-white"
-        >
-          Tervezőfelület megnyitása
-        </Link>
+        {/* Only shown for products that have a designer mockup */}
+        {product.mockupType && (
+          <Link
+            href={designerUrl}
+            className="flex-1 rounded-sm border border-charcoal px-6 py-3 text-center text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal hover:text-white"
+          >
+            Tervezőfelület megnyitása
+          </Link>
+        )}
       </div>
     </div>
   );
