@@ -233,7 +233,7 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 4 — Admin Panel
-**Current step:** Step 4.3 — Product management (not started)
-**Last approved step:** Step 4.2 — Order dashboard (approved, merged)
-**Next step:** Step 4.3 — Product management
+**Current step:** Step 4.4 — Clipart management (not started)
+**Last approved step:** Step 4.3 — Product management (approved, merged)
+**Next step:** Step 4.4 — Clipart management
 
