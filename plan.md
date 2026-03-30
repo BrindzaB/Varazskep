@@ -232,7 +232,7 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 3 — Designer Module
-**Current step:** not started
+**Current step:** Step 3.6 — Server-side SVG export (implemented, awaiting approval)
 **Last approved step:** Step 3.5 — Design serialization + product wiring (approved, merged)
-**Next step:** Phase 3, Step 3.6 — Server-side SVG export
+**Next step:** Phase 4 — Admin Panel
 

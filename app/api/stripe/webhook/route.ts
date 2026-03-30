@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createOrder, getOrderBySessionId } from "@/lib/services/order";
+import { exportDesignSvg } from "@/lib/services/design";
 import { sendOrderConfirmationEmail } from "@/lib/services/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -87,6 +88,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { error: "Order creation failed" },
       { status: 500 },
     );
+  }
+
+  // Export design SVG to Supabase Storage — errors are logged but do not fail the webhook.
+  if (firstItem.designId) {
+    try {
+      await exportDesignSvg(firstItem.designId);
+    } catch (err) {
+      console.error("[webhook] exportDesignSvg failed:", err);
+    }
   }
 
   // Send confirmation email — errors are logged but do not fail the webhook.
