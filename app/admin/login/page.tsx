@@ -28,7 +28,7 @@ export default function AdminLoginPage() {
         return;
       }
 
-      router.push("/admin/rendelesek");
+      router.push("/admin/orders");
     } catch {
       setError("Hálózati hiba. Kérjük próbálja újra.");
     } finally {

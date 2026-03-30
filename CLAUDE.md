@@ -55,8 +55,8 @@ varazskep/
 │   │   └── privacy/             # Privacy policy page (GDPR)
 │   ├── admin/                   # Admin panel (JWT-protected)
 │   │   ├── login/
-│   │   ├── rendelesek/          # Order management
-│   │   └── termekek/            # Product management
+│   │   ├── orders/              # Order management
+│   │   └── products/            # Product management
 │   ├── api/
 │   │   ├── stripe/
 │   │   │   ├── checkout/route.ts    # Create Stripe session
