@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <!-- Mug body — stroke hardcoded so the outline stays visible even on white canvas -->
+  <rect x="50" y="30" width="170" height="220" rx="12" ry="12" fill="#9ca3af" stroke="#d1d5db" stroke-width="1.5"/>
+  <!-- Handle — color is replaced by buildColoredDataUrl (darkened body color), always slightly darker than body -->
+  <path d="M220 85 C268 85 268 185 220 185" fill="none" stroke="#8b9299" stroke-width="22" stroke-linecap="round"/>
+  <!-- Top rim -->
+  <ellipse cx="135" cy="30" rx="85" ry="13" fill="#8b9299" stroke="#d1d5db" stroke-width="1.5"/>
+  <!-- Bottom base -->
+  <ellipse cx="135" cy="250" rx="75" ry="10" fill="#8b9299" stroke="#d1d5db" stroke-width="1.5"/>
+</svg>

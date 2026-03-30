@@ -27,6 +27,17 @@ vi.mock("@/lib/services/email", () => ({
   sendOrderConfirmationEmail: vi.fn(),
 }));
 
+// Mock the design service — exportDesignSvg requires DB + Supabase env vars.
+vi.mock("@/lib/services/design", () => ({
+  exportDesignSvg: vi.fn(),
+}));
+
+// Mock Supabase — required by the design service module at import time.
+vi.mock("@/lib/supabase", () => ({
+  createSupabaseAdmin: vi.fn(),
+  BUCKET_DESIGNS: "designs",
+}));
+
 import { POST } from "@/app/api/stripe/webhook/route";
 import * as orderService from "@/lib/services/order";
 
@@ -47,7 +58,7 @@ function makeSession(overrides: Record<string, unknown> = {}): object {
   return {
     id: "cs_test_123",
     payment_status: "paid",
-    amount_total: 4990,
+    amount_total: 499000, // 4990 HUF in fillér (Stripe smallest unit)
     customer_email: "teszt@example.com",
     metadata: {
       customerName: "Teszt Elek",
@@ -123,6 +134,7 @@ describe("POST /api/stripe/webhook", () => {
     expect(mockCreateOrder).toHaveBeenCalledWith({
       stripeSessionId: "cs_test_123",
       variantId: "variant_abc",
+      designId: undefined,
       customerName: "Teszt Elek",
       customerEmail: "teszt@example.com",
       shippingAddress: {

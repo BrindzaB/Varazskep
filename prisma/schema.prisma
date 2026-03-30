@@ -16,6 +16,7 @@ model Product {
   description String?
   imageUrl    String?
   active      Boolean   @default(true)
+  mockupType  String?   // "tshirt" | "mug" — null means no designer for this product
   variants    Variant[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -30,6 +31,15 @@ model Variant {
   price     Int // price in HUF (forint), stored as integer — no decimals
   stock     Int      @default(0)
   orders    Order[]
+}
+
+model Clipart {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  svgUrl    String   // Supabase Storage public URL (clipart bucket — permanent)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 }
 
 model Design {

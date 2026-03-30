@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getOrderBySessionId } from "@/lib/services/order";
 import { formatHuf } from "@/lib/utils/format";
+import CartClearer from "@/components/shop/CartClearer";
 
 export const metadata: Metadata = {
   title: "Rendelés visszaigazolás – Varázskép",
@@ -19,6 +20,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
     // The webhook may not have arrived yet — show a processing state.
     return (
       <section className="px-4 py-16">
+        <CartClearer />
         <div className="mx-auto max-w-content text-center">
           <div className="mb-6 text-5xl">⏳</div>
           <h1 className="mb-4 text-3xl font-bold text-charcoal">
@@ -48,6 +50,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
 
   return (
     <section className="px-4 py-16">
+      <CartClearer />
       <div className="mx-auto max-w-content">
         {/* Success header */}
         <div className="mb-10 text-center">

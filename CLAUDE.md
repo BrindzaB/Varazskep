@@ -55,12 +55,13 @@ varazskep/
 │   │   └── privacy/             # Privacy policy page (GDPR)
 │   ├── admin/                   # Admin panel (JWT-protected)
 │   │   ├── login/
-│   │   ├── rendelesek/          # Order management
-│   │   └── termekek/            # Product management
+│   │   ├── orders/              # Order management
+│   │   └── products/            # Product management
 │   ├── api/
 │   │   ├── stripe/
 │   │   │   ├── checkout/route.ts    # Create Stripe session
 │   │   │   └── webhook/route.ts     # Handle Stripe events → create order
+│   │   ├── clipart/route.ts         # GET /api/clipart — returns active clipart items
 │   │   ├── orders/route.ts
 │   │   └── admin/route.ts
 │   ├── layout.tsx
@@ -71,7 +72,7 @@ varazskep/
 │   │   ├── DesignerLayout.tsx   # Client component — holds designer state, renders toolbar + canvas + panel
 │   │   ├── ColorPicker.tsx
 │   │   ├── ClipartPanel.tsx
-│   │   └── TextTool.tsx
+│   │   └── TextOptionsBar.tsx   # Font picker + color swatches shown below canvas when text is selected
 │   ├── shop/                    # Storefront components
 │   │   ├── ProductCard.tsx
 │   │   ├── ProductGrid.tsx
@@ -80,9 +81,11 @@ varazskep/
 │   └── ui/                      # Shared primitives (Button, Input, etc.)
 ├── lib/
 │   ├── db.ts                    # Prisma client singleton
+│   ├── supabase.ts              # Server-side Supabase admin client factory + bucket name constants
 │   ├── services/
 │   │   ├── order.ts             # Order business logic
 │   │   ├── design.ts            # Design serialization + SVG export
+│   │   ├── clipart.ts           # getActiveClipart(), getClipartCategories()
 │   │   └── email.ts             # Resend integration
 │   ├── auth/
 │   │   └── jwt.ts               # JWT admin auth helpers
@@ -93,7 +96,8 @@ varazskep/
 │   └── seed-assets/
 │       └── clipart/             # Simple SVG shapes used to seed the Clipart table in development
 ├── public/
-│   ├── tshirt-mockup.svg        # T-shirt silhouette for the designer canvas
+│   ├── tshirt-mockup.svg        # T-shirt front silhouette for the designer canvas
+│   ├── tshirt-back-mockup.svg   # T-shirt back silhouette (no collar band)
 │   └── mug-mockup.svg           # Mug silhouette for the designer canvas
 ├── emails/                      # React Email templates (Hungarian)
 ├── __tests__/                   # Tests (critical paths only)
@@ -146,7 +150,7 @@ model Clipart {
 
 model Design {
   id          String   @id @default(cuid())
-  canvasJson  Json     // Fabric.js serialized canvas state (JSONB)
+  canvasJson  Json     // Fabric.js serialized canvas state (JSONB) — structure: { front: FabricJSON, back: FabricJSON }
   svgUrl      String?  // Supabase Storage URL (designs bucket), nulled after 45 days
   createdAt   DateTime @default(now())
   expiresAt   DateTime // 45 days from createdAt
@@ -247,6 +251,12 @@ Mockup configuration (SVG path, print area width/height, default color) is defin
 
 The designer defaults to "egyedi-polo" when no URL params are present (direct navigation to `/designer`). The left toolbar shows a product icon button at the top that navigates to `/products`, allowing the customer to switch products. In-progress designs are lost on navigation — this is acceptable.
 
+### Front and back design
+
+The designer supports designing both the front and back of a product. `DesignerLayout` holds `side: "front" | "back"` state, toggled by an "Elől / Hátul" button below the canvas. `DesignerCanvas` stores live Fabric.js objects for the off-screen side in a ref (not serialized to JSON), so switching is instant and lossless within a session.
+
+When the design is saved (step 3.5), `canvasJson` is stored as `{ front: <FabricJSON>, back: <FabricJSON> }`. If a side has no objects, its value is an empty canvas JSON.
+
 ### "Open designer" button visibility
 
 `ProductDetails.tsx` shows the "Tervezőfelület megnyitása" button only when `product.mockupType` is not null. Products without a mockup type are ordered without customization.
@@ -317,6 +327,7 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ### Styling
 
 - Tailwind CSS classes only — no inline `style={{}}` props
+- **Accepted exception:** dynamic runtime values that cannot be expressed as Tailwind classes use inline style. Current cases: `backgroundColor` for color swatches (hex from data), `fontFamily` for font picker buttons (font from data). Both patterns are established in `ColorPicker.tsx` and `TextOptionsBar.tsx`.
 - No CSS modules unless Tailwind is genuinely insufficient
 - Mobile-first responsive design
 - All visual decisions (colors, typography, spacing, components) are defined in `DESIGN.md` — follow it strictly

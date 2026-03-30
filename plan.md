@@ -72,6 +72,7 @@ main                          # Always stable and deployable
     ├── phase-4/jwt-auth
     ├── phase-4/order-dashboard
     ├── phase-4/product-management
+
     ├── phase-4/clipart-management
     ├── phase-4/gdpr-erasure
     ├── phase-4/seo
@@ -231,8 +232,8 @@ A **phase** is done when:
 
 > Update this section at the start of each session to reflect where we are.
 
-**Current phase:** Phase 3 — Designer Module
-**Current step:** not started
-**Last approved step:** Step 3.2 — Color picker (approved, merged)
-**Next step:** Phase 3, Step 3.3 — Clipart panel
+**Current phase:** Phase 4 — Admin Panel
+**Current step:** Step 4.1 — JWT admin auth (not started)
+**Last approved step:** Step 3.6 — Server-side SVG export (approved, merged)
+**Next step:** Step 4.1 — JWT admin auth
 
