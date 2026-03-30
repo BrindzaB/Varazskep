@@ -87,6 +87,33 @@ export async function updateOrderStatus(
   });
 }
 
+/**
+ * Returns all orders sorted by creation date descending, with variant + product info.
+ * Used by the admin order list.
+ */
+export async function getAllOrders() {
+  return prisma.order.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      variant: { include: { product: true } },
+    },
+  });
+}
+
+/**
+ * Returns a single order with full relations including design.
+ * Used by the admin order detail page.
+ */
+export async function getOrderById(orderId: string) {
+  return prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      variant: { include: { product: true } },
+      design: true,
+    },
+  });
+}
+
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],
