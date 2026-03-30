@@ -26,7 +26,7 @@ describe("buildSvgFromObjects", () => {
   it("renders an i-text object as a <text> element", () => {
     const objects = [
       {
-        type: "i-text",
+        type: "IText",
         text: "Hello",
         left: 250,
         top: 280,
@@ -50,7 +50,7 @@ describe("buildSvgFromObjects", () => {
   it("renders an image object as an <image> element", () => {
     const objects = [
       {
-        type: "image",
+        type: "Image",
         src: "https://example.com/star.svg",
         left: 250,
         top: 280,
@@ -71,7 +71,7 @@ describe("buildSvgFromObjects", () => {
   it("escapes XML special characters in text content", () => {
     const objects = [
       {
-        type: "i-text",
+        type: "IText",
         text: 'A & B <test> "quote" \'apos\'',
         left: 250,
         top: 280,
@@ -89,7 +89,7 @@ describe("buildSvgFromObjects", () => {
   it("renders multi-line text with multiple <tspan> elements", () => {
     const objects = [
       {
-        type: "i-text",
+        type: "IText",
         text: "Line one\nLine two",
         left: 250,
         top: 280,
@@ -108,7 +108,7 @@ describe("buildSvgFromObjects", () => {
   it("includes rotation in the transform when angle is non-zero", () => {
     const objects = [
       {
-        type: "i-text",
+        type: "IText",
         text: "Rotated",
         left: 250,
         top: 280,
@@ -138,7 +138,7 @@ describe("buildSvgFromObjects", () => {
 describe("buildDesignSvg", () => {
   it("returns a single 500×600 SVG when only the front has objects", () => {
     const svg = buildDesignSvg({
-      front: [{ type: "i-text", text: "Front", left: 250, top: 280, fontSize: 24, fontFamily: "Inter", fill: "#000000" }],
+      front: [{ type: "IText", text: "Front", left: 250, top: 280, fontSize: 24, fontFamily: "Inter", fill: "#000000" }],
       back: [],
     });
     expect(svg).toContain('width="500" height="600"');
@@ -147,8 +147,8 @@ describe("buildDesignSvg", () => {
 
   it("returns a combined SVG with both panels when back has objects", () => {
     const svg = buildDesignSvg({
-      front: [{ type: "i-text", text: "Front", left: 250, top: 280, fontSize: 24, fontFamily: "Inter", fill: "#000000" }],
-      back: [{ type: "i-text", text: "Back", left: 250, top: 280, fontSize: 24, fontFamily: "Inter", fill: "#000000" }],
+      front: [{ type: "IText", text: "Front", left: 250, top: 280, fontSize: 24, fontFamily: "Inter", fill: "#000000" }],
+      back: [{ type: "IText", text: "Back", left: 250, top: 280, fontSize: 24, fontFamily: "Inter", fill: "#000000" }],
     });
     expect(svg).toContain("Elől");
     expect(svg).toContain("Hátul");

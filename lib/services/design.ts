@@ -70,7 +70,11 @@ function fabricObjectToSvgElement(obj: unknown): string | null {
   if (scaleX !== 1 || scaleY !== 1) parts.push(`scale(${scaleX}, ${scaleY})`);
   const transform = parts.join(" ");
 
-  if (base.type === "i-text") {
+  // Fabric v7 serializes types as "IText" / "Image"; older versions used "i-text" / "image".
+  // Normalise to lowercase + strip hyphens so both work.
+  const typeKey = (base.type ?? "").toLowerCase().replace(/-/g, "");
+
+  if (typeKey === "itext") {
     const t = obj as FabricITextJson;
     const text = t.text ?? "";
     const fontSize = t.fontSize ?? 16;
@@ -105,7 +109,7 @@ function fabricObjectToSvgElement(obj: unknown): string | null {
     );
   }
 
-  if (base.type === "image") {
+  if (typeKey === "image") {
     const img = obj as FabricImageJson;
     const src = img.src ?? "";
     const w = img.width ?? 100;
