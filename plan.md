@@ -233,7 +233,7 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 4 — Admin Panel
-**Current step:** Step 4.1 — JWT admin auth (not started)
-**Last approved step:** Step 3.6 — Server-side SVG export (approved, merged)
-**Next step:** Step 4.1 — JWT admin auth
+**Current step:** Step 4.3 — Product management (not started)
+**Last approved step:** Step 4.2 — Order dashboard (approved, merged)
+**Next step:** Step 4.3 — Product management
 
