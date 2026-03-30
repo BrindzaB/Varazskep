@@ -2,8 +2,8 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
-import { DEFAULT_SHIRT_COLOR } from "./DesignerLayout";
 import { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
+import { getMockupConfig } from "@/lib/designer/mockupConfig";
 
 // Canvas dimensions (fixed — responsive scaling is a future concern)
 const CANVAS_WIDTH = 500;
@@ -12,30 +12,9 @@ const CANVAS_HEIGHT = 600;
 // T-shirt occupies 88% of the canvas in the tighter dimension
 const MOCKUP_SCALE_FACTOR = 0.88;
 
-// Fallback natural dimensions — match the SVG viewBox (300×350)
+// Fallback natural dimensions used if Fabric can't read the SVG viewBox
 const MOCKUP_NATURAL_WIDTH = 300;
 const MOCKUP_NATURAL_HEIGHT = 350;
-
-// Center of the canvas
-const CX = CANVAS_WIDTH / 2;
-const CY = CANVAS_HEIGHT / 2;
-
-// Print area: positioned in the upper-chest of the scaled t-shirt
-const PRINT_AREA = {
-  width: 185,
-  height: 210,
-  centerX: CX,
-  centerY: CY - 15,
-};
-
-// Clipart placed on the canvas is scaled to fit within the print area initially
-const CLIPART_INITIAL_SIZE = 80;
-
-// SVG paths for each side
-const MOCKUP_SVG: Record<"front" | "back", string> = {
-  front: "/tshirt-mockup.svg",
-  back: "/tshirt-back-mockup.svg",
-};
 
 // Darkens a CSS hex color by subtracting `amount` from each RGB channel.
 function darkenHex(hex: string, amount: number): string {
@@ -81,11 +60,14 @@ export interface DesignerCanvasRef {
   addText: () => Promise<void>;
   setTextFont: (font: string) => void;
   setTextColor: (color: string) => void;
+  // Returns serialized user objects (no mockup layer) for both sides
+  getCanvasJson: () => { front: object[]; back: object[] };
 }
 
 interface DesignerCanvasProps {
   shirtColor?: string;
   side?: "front" | "back";
+  mockupType?: string;
   // Called when text selection changes — isText=true means an IText is selected
   onActiveTextChange?: (isText: boolean, font: string, color: string) => void;
 }
@@ -93,12 +75,17 @@ interface DesignerCanvasProps {
 const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
   function DesignerCanvas(
     {
-      shirtColor = DEFAULT_SHIRT_COLOR,
+      shirtColor = "#9ca3af",
       side = "front",
+      mockupType,
       onActiveTextChange,
     },
     ref,
   ) {
+    // Resolved once on mount — mockupType never changes within a session
+    const mockupConfig = getMockupConfig(mockupType ?? null);
+    const { printArea: PRINT_AREA } = mockupConfig;
+
     const canvasElRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<Canvas | null>(null);
     const shirtImageRef = useRef<FabricImage | null>(null);
@@ -134,6 +121,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         const { FabricImage, Control } = await import("fabric");
         const img = await FabricImage.fromURL(svgUrl, { crossOrigin: "anonymous" });
 
+        const CLIPART_INITIAL_SIZE = 80;
         const longestSide = Math.max(img.width ?? 1, img.height ?? 1);
         const scale = CLIPART_INITIAL_SIZE / longestSide;
 
@@ -205,6 +193,30 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         if (!active || active.type !== "i-text") return;
         active.set({ fill: color });
         canvas.requestRenderAll();
+      },
+
+      // Returns serialized user-placed objects for front and back sides.
+      // The mockup image and print-area rect are excluded (selectable === false).
+      getCanvasJson() {
+        const canvas = fabricRef.current;
+        if (!canvas) return { front: [], back: [] };
+
+        const currentSide = currentSideRef.current;
+        const otherSide: "front" | "back" = currentSide === "front" ? "back" : "front";
+
+        const currentObjects = canvas
+          .getObjects()
+          .filter((o) => o.selectable !== false)
+          .map((o) => o.toObject());
+
+        const otherObjects = sideObjectsRef.current[otherSide].map((o) =>
+          o.toObject(),
+        );
+
+        return {
+          [currentSide]: currentObjects,
+          [otherSide]: otherObjects,
+        } as { front: object[]; back: object[] };
       },
     }));
 
@@ -290,7 +302,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         canvas.on("selection:cleared", () => onActiveTextChangeRef.current?.(false, "", ""));
 
         // Fetch and cache the front SVG
-        const response = await fetch(MOCKUP_SVG.front);
+        const response = await fetch(mockupConfig.svgPaths.front);
         const svgText = await response.text();
         if (!isMounted) return;
         svgSourceRef.current.front = svgText;
@@ -303,7 +315,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         shirtImageRef.current = img;
 
         // Dashed print area boundary — visual guide, not interactive
-        const printArea = new Rect({
+        const printAreaRect = new Rect({
           left: PRINT_AREA.centerX,
           top: PRINT_AREA.centerY,
           width: PRINT_AREA.width,
@@ -318,7 +330,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           originX: "center",
           originY: "center",
         });
-        canvas.add(printArea);
+        canvas.add(printAreaRect);
 
         canvas.renderAll();
         currentSideRef.current = "front";
@@ -359,8 +371,9 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         userObjects.forEach((o) => canvas.remove(o));
 
         // Fetch and cache the new side's SVG if not already loaded
+        const svgPath = mockupConfig.svgPaths[side] ?? mockupConfig.svgPaths.front;
         if (!svgSourceRef.current[side]) {
-          const res = await fetch(MOCKUP_SVG[side]);
+          const res = await fetch(svgPath);
           svgSourceRef.current[side] = await res.text();
         }
         if (!isMounted) return;

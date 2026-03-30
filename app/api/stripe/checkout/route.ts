@@ -67,9 +67,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             size: item.size,
           },
         },
-        // Stripe expects the smallest currency unit.
-        // HUF is a zero-decimal currency — amount is passed as-is.
-        unit_amount: item.price,
+        // Stripe expects the smallest currency unit (fillér for HUF: 100 fillér = 1 HUF).
+        // Prices are stored in whole HUF in the DB, so multiply by 100 here.
+        unit_amount: item.price * 100,
       },
       quantity: item.quantity,
     }),
@@ -88,10 +88,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       shippingAddress: JSON.stringify(customer.shippingAddress),
       gdprConsent: String(gdprConsent),
       // Pass cart as metadata so the webhook can reconstruct the order.
-      // Each item includes variantId and quantity; price comes from the
-      // Stripe line items to prevent client-side price tampering.
+      // Each item includes variantId, quantity, and optional designId.
+      // Price comes from the Stripe line items to prevent client-side tampering.
       cartItems: JSON.stringify(
-        items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+        items.map((i) => ({
+          variantId: i.variantId,
+          quantity: i.quantity,
+          ...(i.designId ? { designId: i.designId } : {}),
+        })),
       ),
     },
     success_url: `${appUrl}/order/{CHECKOUT_SESSION_ID}`,

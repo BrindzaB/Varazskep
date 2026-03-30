@@ -70,6 +70,7 @@ async function main() {
         "Prémium minőségű, 100% pamut póló egyedi nyomtatással. Tervezze meg saját mintáját a tervezőfelületen!",
       imageUrl: null, // placeholder until real product photos are added
       active: true,
+      mockupType: "tshirt",
       variants: {
         create: [
           // White
@@ -110,6 +111,7 @@ async function main() {
         "Kerámia bögre egyedi nyomtatással, 330 ml. Mosogatógépben mosható, tartós felirattal.",
       imageUrl: null,
       active: true,
+      mockupType: "mug",
       variants: {
         create: [
           { color: "Fehér", size: "330ml", price: 3490, stock: 100 },

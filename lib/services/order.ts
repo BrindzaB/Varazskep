@@ -4,6 +4,7 @@ import type { OrderStatus } from "@/lib/generated/prisma/client";
 export interface CreateOrderInput {
   stripeSessionId: string;
   variantId: string;
+  designId?: string; // links the pre-created Design record to this order
   customerName: string;
   customerEmail: string;
   shippingAddress: {
@@ -52,6 +53,7 @@ export async function createOrder(input: CreateOrderInput) {
       stripeSessionId: input.stripeSessionId,
       status: "PAID",
       variantId: input.variantId,
+      ...(input.designId ? { designId: input.designId } : {}),
       customerName: input.customerName,
       customerEmail: input.customerEmail,
       shippingAddress: input.shippingAddress,

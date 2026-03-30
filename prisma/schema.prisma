@@ -16,6 +16,7 @@ model Product {
   description String?
   imageUrl    String?
   active      Boolean   @default(true)
+  mockupType  String?   // "tshirt" | "mug" — null means no designer for this product
   variants    Variant[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

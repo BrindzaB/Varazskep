@@ -67,12 +67,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid shippingAddress" }, { status: 400 });
   }
 
-  const totalAmount = session.amount_total ?? 0;
+  // amount_total is returned in fillér (smallest unit) — convert back to whole HUF for storage.
+  const totalAmount = Math.round((session.amount_total ?? 0) / 100);
 
   try {
     await createOrder({
       stripeSessionId: session.id,
       variantId: firstItem.variantId,
+      designId: firstItem.designId,
       customerName: meta.customerName ?? "",
       customerEmail: session.customer_email ?? "",
       shippingAddress,
@@ -114,6 +116,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 interface CartItemMeta {
   variantId: string;
   quantity: number;
+  designId?: string;
 }
 
 function parseCartItems(raw: string | undefined): CartItemMeta[] {
@@ -127,7 +130,11 @@ function parseCartItems(raw: string | undefined): CartItemMeta[] {
         item !== null &&
         typeof (item as CartItemMeta).variantId === "string" &&
         typeof (item as CartItemMeta).quantity === "number",
-    );
+    ).map((item) => ({
+      ...item,
+      // designId is optional — only present for designed items
+      designId: typeof item.designId === "string" ? item.designId : undefined,
+    }));
   } catch {
     return [];
   }
