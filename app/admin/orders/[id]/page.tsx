@@ -127,11 +127,13 @@ export default async function AdminOrderDetailPage({
         {order.design?.svgUrl && (
           <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Egyedi terv</h2>
-            <img
-              src={order.design.svgUrl}
-              alt="Vevő terve"
+            <object
+              data={order.design.svgUrl}
+              type="image/svg+xml"
               className="max-w-full border border-gray-100 rounded"
-            />
+            >
+              <span className="text-sm text-gray-500">Az SVG nem tölthető be.</span>
+            </object>
             <a
               href={order.design.svgUrl}
               target="_blank"
