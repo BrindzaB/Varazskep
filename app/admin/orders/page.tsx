@@ -35,16 +35,16 @@ export default async function AdminOrdersPage() {
         {orders.length === 0 ? (
           <p className="text-gray-500">Még nincs rendelés.</p>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm whitespace-nowrap">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Azonosító</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Vevő</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Termék</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Összeg</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Állapot</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Dátum</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-64">Azonosító</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-40">Vevő</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-72">Termék</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">Összeg</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Állapot</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-32">Dátum</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -55,7 +55,7 @@ export default async function AdminOrdersPage() {
                         href={`/admin/orders/${order.id}`}
                         className="font-mono text-xs text-blue-600 hover:underline"
                       >
-                        {order.id.slice(0, 8)}…
+                        {order.id}
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-gray-900">{order.customerName}</td>
