@@ -232,8 +232,8 @@ A **phase** is done when:
 
 > Update this section at the start of each session to reflect where we are.
 
-**Current phase:** Phase 4 — Admin Panel
-**Current step:** Step 4.7 — Production deployment (not started)
-**Last approved step:** Step 4.6 — SEO (approved, merged)
-**Next step:** Step 4.7 — Production deployment
+**Current phase:** Phase 4 — COMPLETE
+**Current step:** —
+**Last approved step:** Step 4.7/4.8 — Production deployment + Supabase lifecycle (approved, live)
+**Next step:** Phase 5 (future v2, out of current scope)
 
