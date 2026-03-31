@@ -168,7 +168,30 @@ main                          # Always stable and deployable
 
 ---
 
-### Phase 5 — Future v2 (not in current scope)
+### Phase 5 — Frontend UI Redesign
+
+**Goal:** Replace the current generic template UI with a visual design that matches the client's brand image. Every customer-facing page should feel cohesive, polished, and on-brand.
+
+| Step | Description | Branch |
+| ---- | ----------- | ------ |
+| 5.1  | Brand audit: collect client assets (logo, colors, fonts, reference images), update `DESIGN.md` with the final design system | `phase-5/brand-audit` |
+| 5.2  | Global elements: header, footer, typography, color tokens, button styles | `phase-5/global-elements` |
+| 5.3  | Homepage & product listing: hero section, product grid, product cards | `phase-5/homepage` |
+| 5.4  | Product detail page: image, variant selector, CTA | `phase-5/product-detail` |
+| 5.5  | Designer page: toolbar, canvas area, panel styling | `phase-5/designer` |
+| 5.6  | Cart & checkout pages | `phase-5/cart-checkout` |
+| 5.7  | Order confirmation & contact pages | `phase-5/remaining-pages` |
+| 5.8  | Visual QA: cross-browser, mobile responsiveness, final polish | `phase-5/visual-qa` |
+
+**Phase 5 complete when:** All customer-facing pages match the agreed brand design, look consistent on mobile and desktop, and have been reviewed and approved page by page.
+
+**Prerequisites before starting:**
+- Client provides logo (SVG preferred), brand colors, and any reference images or inspiration
+- Design decisions are documented in `DESIGN.md` before any code is written
+
+---
+
+### Phase 6 — Future v2 (not in current scope)
 
 These features are planned but must not be built during the current development cycle:
 
@@ -235,5 +258,5 @@ A **phase** is done when:
 **Current phase:** Phase 4 — COMPLETE
 **Current step:** —
 **Last approved step:** Step 4.7/4.8 — Production deployment + Supabase lifecycle (approved, live)
-**Next step:** Phase 5 (future v2, out of current scope)
+**Next step:** Phase 5 — Frontend UI Redesign (not started — awaiting client brand assets)
 
