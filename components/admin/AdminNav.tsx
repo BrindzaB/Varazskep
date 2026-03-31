@@ -27,6 +27,12 @@ export default function AdminNav() {
         >
           Termékek
         </Link>
+        <Link
+          href="/admin/clipart"
+          className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          Clipartok
+        </Link>
       </div>
       <button
         onClick={handleLogout}
