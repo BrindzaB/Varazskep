@@ -233,7 +233,7 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 4 — Admin Panel
-**Current step:** Step 4.6 — SEO (not started)
-**Last approved step:** Step 4.5 — GDPR erasure (approved, merged)
-**Next step:** Step 4.6 — SEO
+**Current step:** Step 4.7 — Production deployment (not started)
+**Last approved step:** Step 4.6 — SEO (approved, merged)
+**Next step:** Step 4.7 — Production deployment
 
