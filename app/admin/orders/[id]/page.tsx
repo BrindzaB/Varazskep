@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import OrderStatusUpdater from "@/components/admin/OrderStatusUpdater";
-import { getOrderById } from "@/lib/services/order";
+import { getOrderById, PII_ERASED_SENTINEL } from "@/lib/services/order";
+import GdprEraseButton from "@/components/admin/GdprEraseButton";
 import type { OrderStatus } from "@/lib/generated/prisma/client";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -33,12 +34,16 @@ export default async function AdminOrderDetailPage({
   const order = await getOrderById(params.id);
   if (!order) notFound();
 
-  const address = order.shippingAddress as {
-    address: string;
-    city: string;
-    postalCode: string;
-    country: string;
-  };
+  const piiErased = order.customerName === PII_ERASED_SENTINEL;
+
+  const address = piiErased
+    ? null
+    : (order.shippingAddress as {
+        address: string;
+        city: string;
+        postalCode: string;
+        country: string;
+      });
 
   return (
     <div>
@@ -71,26 +76,31 @@ export default async function AdminOrderDetailPage({
           {/* Customer info */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Vevő adatai</h2>
-            <dl className="space-y-1 text-sm">
-              <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Név:</dt>
-                <dd className="text-gray-900">{order.customerName}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Email:</dt>
-                <dd className="text-gray-900">{order.customerEmail}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Cím:</dt>
-                <dd className="text-gray-900">
-                  {address.postalCode} {address.city}, {address.address}
-                </dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Ország:</dt>
-                <dd className="text-gray-900">{address.country}</dd>
-              </div>
-            </dl>
+            {piiErased ? (
+              <p className="text-sm text-gray-400 italic">Személyes adatok törölve.</p>
+            ) : (
+              <dl className="space-y-1 text-sm">
+                <div className="flex gap-2">
+                  <dt className="text-gray-500 w-24 shrink-0">Név:</dt>
+                  <dd className="text-gray-900">{order.customerName}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="text-gray-500 w-24 shrink-0">Email:</dt>
+                  <dd className="text-gray-900">{order.customerEmail}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="text-gray-500 w-24 shrink-0">Cím:</dt>
+                  <dd className="text-gray-900">
+                    {address!.postalCode} {address!.city}, {address!.address}
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="text-gray-500 w-24 shrink-0">Ország:</dt>
+                  <dd className="text-gray-900">{address!.country}</dd>
+                </div>
+              </dl>
+            )}
+            {!piiErased && <GdprEraseButton orderId={order.id} />}
           </div>
 
           {/* Order info */}
