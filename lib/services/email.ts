@@ -3,8 +3,6 @@ import { render } from "@react-email/components";
 import OrderConfirmation from "@/emails/OrderConfirmation";
 import { formatHuf } from "@/lib/utils/format";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
-
 const FROM_ADDRESS = "Varázskép <rendeles@varazskep.hu>";
 
 interface SendOrderConfirmationInput {
@@ -42,6 +40,7 @@ export async function sendOrderConfirmationEmail(
     }),
   );
 
+  const resend = new Resend(process.env.RESEND_API_KEY);
   await resend.emails.send({
     from: FROM_ADDRESS,
     to: input.customerEmail,
