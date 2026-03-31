@@ -68,23 +68,29 @@ main                          # Always stable and deployable
 │   ├── phase-3/text-tool
 │   ├── phase-3/design-serialization
 │   └── phase-3/svg-export
-└── phase-4/admin
-    ├── phase-4/jwt-auth
-    ├── phase-4/order-dashboard
-    ├── phase-4/product-management
-
-    ├── phase-4/clipart-management
-    ├── phase-4/gdpr-erasure
-    ├── phase-4/seo
-    └── phase-4/deployment
+├── phase-4/admin
+│   ├── phase-4/jwt-auth
+│   ├── phase-4/order-dashboard
+│   ├── phase-4/product-management
+│   ├── phase-4/clipart-management
+│   ├── phase-4/gdpr-erasure
+│   ├── phase-4/seo
+│   └── phase-4/deployment
+└── phase-6/malfini-integration
+    ├── phase-6/schema-migration
+    ├── phase-6/api-routes
+    ├── phase-6/shop-ui
+    ├── phase-6/designer
+    ├── phase-6/admin
+    └── phase-6/cleanup
 ```
 
 ### Rules
 
-- Each **implementation step** gets its own sub-feature branch
-- Sub-feature branches are **local only** — never pushed to GitHub
-- Sub-feature branches merge into their **phase branch** after your approval
-- Phase branches are pushed to GitHub and merge into **`main`** via a PR at the end of each phase
+- Each **phase** gets its own branch (e.g. `phase-6/malfini-api-layer`)
+- All steps within a phase are committed to that phase branch
+- Phase branches are pushed to GitHub and merge into **`main`** at the end of each phase
+- Individual steps do **not** get their own branches — one branch per phase only
 - Commit messages use **Conventional Commits** format:
   - `feat: add product listing page`
   - `fix: correct price calculation in cart`
@@ -191,14 +197,37 @@ main                          # Always stable and deployable
 
 ---
 
-### Phase 6 — Future v2 (not in current scope)
+### Phase 6 — Malfini API Integration
+
+**Goal:** Replace dummy products with live Malfini catalog data. Clothing products are fetched from the Malfini REST API; non-clothing products (mugs, etc.) continue to be managed locally. Full architecture documented in `MALFINI_REFACTOR.md`.
+
+| Step | Description | Branch |
+| ---- | ----------- | ------ |
+| 6.1  | Malfini API layer: `lib/malfini/` — types, auth, client, pricing, categoryConfig | `main` (done — committed directly) |
+| 6.2  | DB schema: make `Order.variantId` nullable, add `productSizeCode`, `productCode`, `productName`, `colorName`, `sizeName` | `phase-6/schema-migration` |
+| 6.3  | Service + cart: update `order.ts`, update `cartStore.ts` with `source` discriminator | `phase-6/schema-migration` |
+| 6.4  | API routes: update Stripe checkout + webhook for both sources | `phase-6/api-routes` |
+| 6.5  | Shop UI: products page with category tabs, ProductCard, new Malfini product detail route + MalfiniProductDetails component | `phase-6/shop-ui` |
+| 6.6  | Designer: extract SVG color utils, update DesignerCanvas to accept `imageUrl`, update DesignerLayout for both sources, update designer page + ColorPicker | `phase-6/designer` |
+| 6.7  | Admin: update order display, add read-only Malfini catalog browser | `phase-6/admin` |
+| 6.8  | Supporting files: next.config, sitemap, order confirmation page | `phase-6/cleanup` |
+
+**Phase 6 complete when:** Malfini clothing products appear in the shop, can be designed and ordered end-to-end, and local mug product continues to work unchanged.
+
+**Prerequisites before starting step 6.2:**
+- Add `MALFINI_API_URL`, `MALFINI_USERNAME`, `MALFINI_PASSWORD`, `EUR_TO_HUF_RATE` to `.env.local`
+- Make a test API call to identify real `categoryCode` values → populate `lib/malfini/categoryConfig.ts`
+- Confirm Malfini image CORS policy (needed for designer canvas)
+
+---
+
+### Phase 7 — Future v2 (not in current scope)
 
 These features are planned but must not be built during the current development cycle:
 
 - Cloudinary integration for customer photo uploads
 - SimplePay payment option (Hungarian local payment provider)
 - User accounts with saved designs
-- Multi-product designer support
 - Separate backend service extraction
 
 Do not design current code around these — build what is needed now, keep it simple.
@@ -213,7 +242,7 @@ A **step** is done when:
 - [ ] Claude has delivered the file-by-file walkthrough
 - [ ] You have reviewed the code and the walkthrough
 - [ ] You have given explicit approval
-- [ ] The sub-feature branch is merged to the phase branch
+- [ ] The step is committed to the phase branch
 
 A **phase** is done when:
 
@@ -255,8 +284,10 @@ A **phase** is done when:
 
 > Update this section at the start of each session to reflect where we are.
 
-**Current phase:** Phase 4 — COMPLETE
-**Current step:** —
-**Last approved step:** Step 4.7/4.8 — Production deployment + Supabase lifecycle (approved, live)
-**Next step:** Phase 5 — Frontend UI Redesign (not started — awaiting client brand assets)
+**Current phase:** Phase 6 — Malfini API Integration (in progress)
+**Current step:** Step 6.2 — DB schema migration
+**Last approved step:** Step 6.1 — Malfini API layer (committed to main)
+**Next step:** Step 6.2 — DB schema migration (branch: `phase-6/schema-migration`)
+
+**Note:** Phase 5 (Frontend UI Redesign) is on hold — awaiting client brand assets. It will run after Phase 6.
 
