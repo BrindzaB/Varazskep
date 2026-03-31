@@ -14,17 +14,17 @@ export default async function AdminClipartPage() {
       <AdminNav />
       <main className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Clipartok</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Minták</h1>
           <Link
             href="/admin/clipart/new"
             className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
           >
-            + Új clipart
+            + Új minta
           </Link>
         </div>
 
         {items.length === 0 ? (
-          <p className="text-gray-500">Még nincs clipart.</p>
+          <p className="text-gray-500">Még nincs minta.</p>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">

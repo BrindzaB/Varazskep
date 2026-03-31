@@ -15,12 +15,12 @@ export default async function NewClipartPage() {
             href="/admin/clipart"
             className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
-            ← Clipartok
+            ← Minták
           </Link>
           <span className="text-gray-300">/</span>
-          <span className="text-sm text-gray-600">Új clipart</span>
+          <span className="text-sm text-gray-600">Új minta</span>
         </div>
-        <h1 className="text-2xl font-semibold text-gray-900 mb-6">Új clipart feltöltése</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 mb-6">Új minta feltöltése</h1>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <ClipartUploadForm existingCategories={existingCategories} />
         </div>

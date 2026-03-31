@@ -31,7 +31,7 @@ export default function AdminNav() {
           href="/admin/clipart"
           className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
         >
-          Clipartok
+          Minták
         </Link>
       </div>
       <button
