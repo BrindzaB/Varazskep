@@ -122,3 +122,22 @@ const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   COMPLETE: [],
   CANCELLED: [],
 };
+
+// Sentinel value written to string PII fields after erasure.
+export const PII_ERASED_SENTINEL = "[törölve]";
+
+/**
+ * Nulls all personal data fields on an order (GDPR Art. 17 erasure).
+ * The order row itself is retained to satisfy Hungarian tax law (8-year retention).
+ * Safe to call multiple times — subsequent calls are no-ops on already-erased orders.
+ */
+export async function eraseOrderPii(orderId: string) {
+  return prisma.order.update({
+    where: { id: orderId },
+    data: {
+      customerName: PII_ERASED_SENTINEL,
+      customerEmail: PII_ERASED_SENTINEL,
+      shippingAddress: {},
+    },
+  });
+}
