@@ -24,6 +24,10 @@ interface SendOrderConfirmationInput {
 export async function sendOrderConfirmationEmail(
   input: SendOrderConfirmationInput,
 ): Promise<void> {
+  if (!process.env.RESEND_API_KEY) {
+    return;
+  }
+
   const html = await render(
     OrderConfirmation({
       customerName: input.customerName,
