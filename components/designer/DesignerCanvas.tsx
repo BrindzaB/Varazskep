@@ -25,15 +25,25 @@ function darkenHex(hex: string, amount: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 }
 
+// Returns true if the hex color is near-white (avg channel > 240).
+function isNearWhite(hex: string): boolean {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const r = (num >> 16) & 0xff;
+  const g = (num >> 8) & 0xff;
+  const b = num & 0xff;
+  return (r + g + b) / 3 > 240;
+}
+
 // Replaces the SVG fill colors and returns a data URL the browser can load.
 // Three placeholder grays map to proportional shades of the selected body color:
 //   #9ca3af — base body color
-//   #8b9299 — medium shadow (~18 darker)
+//   #8b9299 — medium shadow (~18 darker, same as body for near-white colors)
 //   #737c85 — deep shadow (~36 darker)
 function buildColoredDataUrl(svgText: string, bodyColor: string): string {
+  const mediumShadow = isNearWhite(bodyColor) ? bodyColor : darkenHex(bodyColor, 18);
   const colored = svgText
     .replace(/#9ca3af/g, bodyColor)
-    .replace(/#8b9299/g, darkenHex(bodyColor, 18))
+    .replace(/#8b9299/g, mediumShadow)
     .replace(/#737c85/g, darkenHex(bodyColor, 36));
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(colored)}`;
 }
