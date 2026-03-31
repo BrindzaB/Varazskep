@@ -21,8 +21,8 @@ export interface MockupConfig {
 export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
   tshirt: {
     svgPaths: {
-      front: "/tshirt-mockup.svg",
-      back: "/tshirt-back-mockup.svg",
+      front: "/tshirt_front.svg",
+      back: "/tshirt_back.svg",
     },
     // Upper-chest print area — matches the hardcoded values from step 3.1
     printArea: { width: 185, height: 210, centerX: CX, centerY: CY - 15 },

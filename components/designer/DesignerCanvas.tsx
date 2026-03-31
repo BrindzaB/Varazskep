@@ -26,11 +26,15 @@ function darkenHex(hex: string, amount: number): string {
 }
 
 // Replaces the SVG fill colors and returns a data URL the browser can load.
+// Three placeholder grays map to proportional shades of the selected body color:
+//   #9ca3af — base body color
+//   #8b9299 — medium shadow (~18 darker)
+//   #737c85 — deep shadow (~36 darker)
 function buildColoredDataUrl(svgText: string, bodyColor: string): string {
-  const collarColor = darkenHex(bodyColor, 18);
   const colored = svgText
     .replace(/#9ca3af/g, bodyColor)
-    .replace(/#8b9299/g, collarColor);
+    .replace(/#8b9299/g, darkenHex(bodyColor, 18))
+    .replace(/#737c85/g, darkenHex(bodyColor, 36));
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(colored)}`;
 }
 
