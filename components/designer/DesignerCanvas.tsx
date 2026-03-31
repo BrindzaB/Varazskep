@@ -296,6 +296,55 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           }
         });
 
+        // Track the last valid scale + position so we can revert on overflow
+        const lastGoodState = new WeakMap<FabricObject, {
+          scaleX: number; scaleY: number; left: number; top: number;
+        }>();
+
+        canvas.on("object:added", (e) => {
+          const obj = e.target;
+          if (!obj || obj.selectable === false) return;
+          lastGoodState.set(obj, {
+            scaleX: obj.scaleX ?? 1,
+            scaleY: obj.scaleY ?? 1,
+            left: obj.left ?? 0,
+            top: obj.top ?? 0,
+          });
+        });
+
+        canvas.on("object:scaling", (e) => {
+          const obj = e.target;
+          if (!obj) return;
+
+          obj.setCoords();
+          const br = obj.getBoundingRect();
+
+          if (
+            br.left < printLeft ||
+            br.top < printTop ||
+            br.left + br.width > printRight ||
+            br.top + br.height > printBottom
+          ) {
+            const good = lastGoodState.get(obj);
+            if (good) {
+              obj.set({
+                scaleX: good.scaleX,
+                scaleY: good.scaleY,
+                left: good.left,
+                top: good.top,
+              });
+              obj.setCoords();
+            }
+          } else {
+            lastGoodState.set(obj, {
+              scaleX: obj.scaleX ?? 1,
+              scaleY: obj.scaleY ?? 1,
+              left: obj.left ?? 0,
+              top: obj.top ?? 0,
+            });
+          }
+        });
+
         // Notify parent when a text object is selected or deselected
         const notifyTextSelection = (selected: FabricObject | undefined) => {
           if (selected instanceof IText) {
