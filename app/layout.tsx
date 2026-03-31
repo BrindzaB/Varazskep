@@ -10,6 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: "Varázskép – Egyedi ajándékok",
   description:
     "Egyedi nyomtatott pólók és bögrék tervezése és rendelése. Tervezze meg saját ajándékát!",
@@ -28,3 +29,4 @@ export default function RootLayout({
     </html>
   );
 }
+

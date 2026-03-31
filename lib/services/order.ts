@@ -87,6 +87,33 @@ export async function updateOrderStatus(
   });
 }
 
+/**
+ * Returns all orders sorted by creation date descending, with variant + product info.
+ * Used by the admin order list.
+ */
+export async function getAllOrders() {
+  return prisma.order.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      variant: { include: { product: true } },
+    },
+  });
+}
+
+/**
+ * Returns a single order with full relations including design.
+ * Used by the admin order detail page.
+ */
+export async function getOrderById(orderId: string) {
+  return prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      variant: { include: { product: true } },
+      design: true,
+    },
+  });
+}
+
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],
@@ -95,3 +122,22 @@ const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   COMPLETE: [],
   CANCELLED: [],
 };
+
+// Sentinel value written to string PII fields after erasure.
+export const PII_ERASED_SENTINEL = "[törölve]";
+
+/**
+ * Nulls all personal data fields on an order (GDPR Art. 17 erasure).
+ * The order row itself is retained to satisfy Hungarian tax law (8-year retention).
+ * Safe to call multiple times — subsequent calls are no-ops on already-erased orders.
+ */
+export async function eraseOrderPii(orderId: string) {
+  return prisma.order.update({
+    where: { id: orderId },
+    data: {
+      customerName: PII_ERASED_SENTINEL,
+      customerEmail: PII_ERASED_SENTINEL,
+      shippingAddress: {},
+    },
+  });
+}
