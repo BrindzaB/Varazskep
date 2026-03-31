@@ -6,12 +6,17 @@ Technical reference for Claude Code. Every session must be grounded in this docu
 
 - `plan.md` — development phases, workflow rules, review protocol
 - `DESIGN.md` — visual design system, colors, typography, component styles
+- `MALFINI_REFACTOR.md` — Phase 6 architecture reference: Malfini API integration, hybrid product sources, schema changes
 
 ---
 
 ## Project Overview
 
-**Varázskép** is a webshop for a small Hungarian local business that sells custom-printed t-shirts and mugs. Customers can personalize products using an interactive browser-based designer tool (predefined clipart + text), then check out as a guest.
+**Varázskép** is a webshop for a small Hungarian local business that sells custom-printed clothing and mugs. Customers can personalize products using an interactive browser-based designer tool (predefined clipart + text), then check out as a guest.
+
+**Product sources (Phase 6 onwards):**
+- **Clothing** (t-shirts, sweatshirts, polo shirts, etc.) — fetched live from the **Malfini REST API**
+- **Other products** (mugs, etc.) — managed locally via the **Prisma database**
 
 **Core constraints (non-negotiable):**
 
@@ -46,8 +51,10 @@ varazskep/
 ├── app/
 │   ├── (shop)/                  # Public storefront routes
 │   │   ├── page.tsx             # Homepage / product listing
-│   │   ├── products/[slug]/     # Product detail page
-│   │   ├── designer/            # T-shirt designer page (Fabric.js)
+│   │   ├── products/
+│   │   │   ├── [slug]/          # Local product detail page (mugs, etc.)
+│   │   │   └── malfini/[code]/  # Malfini product detail page (clothing) — added in Phase 6
+│   │   ├── designer/            # Designer page (Fabric.js)
 │   │   ├── cart/                # Cart page
 │   │   ├── checkout/            # Checkout page
 │   │   ├── order/[id]/          # Order confirmation page
@@ -56,7 +63,7 @@ varazskep/
 │   ├── admin/                   # Admin panel (JWT-protected)
 │   │   ├── login/
 │   │   ├── orders/              # Order management
-│   │   └── products/            # Product management
+│   │   └── products/            # Local product CRUD + read-only Malfini catalog browser
 │   ├── api/
 │   │   ├── stripe/
 │   │   │   ├── checkout/route.ts    # Create Stripe session
@@ -76,17 +83,29 @@ varazskep/
 │   ├── shop/                    # Storefront components
 │   │   ├── ProductCard.tsx
 │   │   ├── ProductGrid.tsx
+│   │   ├── ProductDetails.tsx   # Client component for local product detail (mugs, etc.)
+│   │   ├── MalfiniProductDetails.tsx  # Client component for Malfini product detail — added in Phase 6
 │   │   ├── CartItem.tsx
 │   │   └── CheckoutForm.tsx
 │   └── ui/                      # Shared primitives (Button, Input, etc.)
 ├── lib/
 │   ├── db.ts                    # Prisma client singleton
 │   ├── supabase.ts              # Server-side Supabase admin client factory + bucket name constants
+│   ├── malfini/                 # Malfini API integration layer — added in Phase 6
+│   │   ├── types.ts             # TypeScript interfaces for Malfini API responses
+│   │   ├── auth.ts              # Bearer token fetch + module-level cache
+│   │   ├── client.ts            # getProducts(), getProduct(), getAvailabilities(), getRecommendedPrices()
+│   │   ├── pricing.ts           # convertEurToHuf() — reads EUR_TO_HUF_RATE from env
+│   │   └── categoryConfig.ts   # Maps Malfini categoryCode → designer print area config
 │   ├── services/
 │   │   ├── order.ts             # Order business logic
+│   │   ├── product.ts           # Local product queries (mugs, etc.)
 │   │   ├── design.ts            # Design serialization + SVG export
 │   │   ├── clipart.ts           # getActiveClipart(), getClipartCategories()
 │   │   └── email.ts             # Resend integration
+│   ├── designer/
+│   │   ├── mockupConfig.ts      # SVG mockup config for local products (mug)
+│   │   └── colorUtils.ts        # SVG color replacement utils — extracted in Phase 6
 │   ├── auth/
 │   │   └── jwt.ts               # JWT admin auth helpers
 │   └── cart/
@@ -96,8 +115,8 @@ varazskep/
 │   └── seed-assets/
 │       └── clipart/             # Simple SVG shapes used to seed the Clipart table in development
 ├── public/
-│   ├── tshirt-mockup.svg        # T-shirt front silhouette for the designer canvas
-│   ├── tshirt-back-mockup.svg   # T-shirt back silhouette (no collar band)
+│   ├── tshirt_front.svg         # T-shirt front silhouette (local product fallback)
+│   ├── tshirt_back.svg          # T-shirt back silhouette
 │   └── mug-mockup.svg           # Mug silhouette for the designer canvas
 ├── emails/                      # React Email templates (Hungarian)
 ├── __tests__/                   # Tests (critical paths only)
@@ -105,7 +124,8 @@ varazskep/
 │   └── order.test.ts
 ├── .env.local                   # Never commit this file
 ├── CLAUDE.md                    # This file
-└── plan.md                      # Development workflow
+├── plan.md                      # Development workflow
+└── MALFINI_REFACTOR.md          # Phase 6 architecture reference
 ```
 
 ---
@@ -161,8 +181,17 @@ model Order {
   id              String      @id @default(cuid())
   stripeSessionId String      @unique
   status          OrderStatus @default(PENDING)
-  variantId       String
-  variant         Variant     @relation(fields: [variantId], references: [id])
+  // For local products (mugs, etc.) — null for Malfini orders
+  variantId       String?
+  variant         Variant?    @relation(fields: [variantId], references: [id])
+  // For Malfini products (clothing) — null for local orders
+  productSizeCode String?     // 7-char Malfini SKU, e.g. "M150XM0"
+  productCode     String?     // 3-char Malfini product code
+  // Denormalized display fields — always set for both sources
+  // Required for 8-year retention even if product is later removed
+  productName     String
+  colorName       String
+  sizeName        String
   designId        String?     @unique
   design          Design?     @relation(fields: [designId], references: [id])
   // Customer info (retained 8 years per Hungarian tax law)
@@ -215,17 +244,19 @@ The complexity of a separate API server is unnecessary at this scale. Next.js AP
 
 ### Designer — product context via URL params
 
-The designer at `/designer` receives the selected product context from the product detail page via URL search params:
+The designer at `/designer` receives product context via URL search params. Two URL formats exist depending on the product source:
 
+**Local products (mugs, etc.):**
 ```
-/designer?slug=egyedi-polo&color=Piros&size=M
+/designer?slug=egyedi-bogre&color=Fehér&size=330ml
 ```
 
-- `slug` — used to fetch the product's variants and filter available colors
-- `color` — pre-selects the color swatch and pre-loads that color on the canvas
-- `size` — pre-selects the size in the right summary panel
+**Malfini products (clothing) — Phase 6:**
+```
+/designer?code=M150&colorCode=01&sizeCode=M
+```
 
-The color picker only shows colors that exist as active variants for that product. Out-of-stock colors are shown but not selectable. Implemented in step 3.5.
+The designer page detects which format is present and routes accordingly. Out-of-stock colors are shown but not selectable.
 
 ### Clipart catalog — database-driven, Supabase Storage backed
 
@@ -239,17 +270,18 @@ Canvas JSON is too large for Stripe metadata (500-character limit per value). Th
 
 This does not violate the "orders only after webhook" rule — only the Design is pre-created, never the Order.
 
-### Multi-product designer — mockup type system
+### Multi-product designer — mockup system
 
-The designer supports multiple product types (t-shirt, mug, future types like sweatshirt). The `Product.mockupType` field (nullable string) drives which mockup is loaded:
+The designer supports two mockup modes depending on the product source:
 
-- `"tshirt"` → `public/tshirt-mockup.svg`, t-shirt print area dimensions
-- `"mug"` → `public/mug-mockup.svg`, mug print area dimensions
-- `null` → no designer available; "Open designer" button is hidden on the product page
+**Local products** use the SVG mockup system: `Product.mockupType` drives which local SVG is loaded and which print area applies. Config lives in `lib/designer/mockupConfig.ts`.
+- `"mug"` → `public/mug-mockup.svg`, mug print area
 
-Mockup configuration (SVG path, print area width/height, default color) is defined in a code-level config object — not in the database — so new types are added by a developer adding a mockup SVG and a config entry. Adding a new product type requires no schema migration.
+**Malfini products** use the photo mockup system: the designer loads the Malfini per-color product photo (viewCode `"A"` = front, `"B"` = back) directly as the canvas background. No SVG color replacement. Config lives in `lib/malfini/categoryConfig.ts`, keyed by Malfini `categoryCode`.
 
-The designer defaults to "egyedi-polo" when no URL params are present (direct navigation to `/designer`). The left toolbar shows a product icon button at the top that navigates to `/products`, allowing the customer to switch products. In-progress designs are lost on navigation — this is acceptable.
+In both cases `DesignerCanvas` receives an `imageUrl: string` prop — the parent (`DesignerLayout`) is responsible for producing the correct URL regardless of source. SVG color-replacement utilities live in `lib/designer/colorUtils.ts`.
+
+The designer defaults to the first product whose category is configured in `CATEGORY_CONFIG` when no URL params are present. In-progress designs are lost on navigation — this is acceptable.
 
 ### Front and back design
 
@@ -259,7 +291,10 @@ When the design is saved (step 3.5), `canvasJson` is stored as `{ front: <Fabric
 
 ### "Open designer" button visibility
 
-`ProductDetails.tsx` shows the "Tervezőfelület megnyitása" button only when `product.mockupType` is not null. Products without a mockup type are ordered without customization.
+- **Local products** (`ProductDetails.tsx`): button shown when `product.mockupType` is not null
+- **Malfini products** (`MalfiniProductDetails.tsx`): button shown when `getCategoryConfig(product.categoryCode)` returns a non-null config
+
+Products with no mockup/config are ordered without customization.
 
 ---
 
@@ -305,6 +340,12 @@ JWT_SECRET=""         # min 32 chars, random string
 
 # App
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+# Malfini API (Phase 6)
+MALFINI_API_URL="https://api.malfini.com"
+MALFINI_USERNAME=""
+MALFINI_PASSWORD=""
+EUR_TO_HUF_RATE="400"  # EUR → HUF conversion rate for recommended retail prices
 ```
 
 ---
@@ -327,7 +368,7 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ### Styling
 
 - Tailwind CSS classes only — no inline `style={{}}` props
-- **Accepted exception:** dynamic runtime values that cannot be expressed as Tailwind classes use inline style. Current cases: `backgroundColor` for color swatches (hex from data), `fontFamily` for font picker buttons (font from data). Both patterns are established in `ColorPicker.tsx` and `TextOptionsBar.tsx`.
+- **Accepted exception:** dynamic runtime values that cannot be expressed as Tailwind classes use inline style. Current cases: `backgroundColor` for local product color swatches (hex from data), `fontFamily` for font picker buttons (font from data). Malfini product color swatches use `<img src={colorIconLink}>` instead of `backgroundColor` — no inline style needed.
 - No CSS modules unless Tailwind is genuinely insufficient
 - Mobile-first responsive design
 - All visual decisions (colors, typography, spacing, components) are defined in `DESIGN.md` — follow it strictly
@@ -391,5 +432,4 @@ This is a legal obligation, not optional:
 - Cloudinary integration for customer photo uploads
 - SimplePay as a payment option (Hungarian local payment provider)
 - User accounts with saved designs
-- Multi-product designer
 - Separate backend service extraction

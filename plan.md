@@ -76,18 +76,12 @@ main                          # Always stable and deployable
 │   ├── phase-4/gdpr-erasure
 │   ├── phase-4/seo
 │   └── phase-4/deployment
-└── phase-6/malfini-integration
-    ├── phase-6/schema-migration
-    ├── phase-6/api-routes
-    ├── phase-6/shop-ui
-    ├── phase-6/designer
-    ├── phase-6/admin
-    └── phase-6/cleanup
+└── phase-6/malfini-integration   # all Phase 6 steps committed here
 ```
 
 ### Rules
 
-- Each **phase** gets its own branch (e.g. `phase-6/malfini-api-layer`)
+- Each **phase** gets its own branch (e.g. `phase-6/malfini-integration`)
 - All steps within a phase are committed to that phase branch
 - Phase branches are pushed to GitHub and merge into **`main`** at the end of each phase
 - Individual steps do **not** get their own branches — one branch per phase only
@@ -203,14 +197,14 @@ main                          # Always stable and deployable
 
 | Step | Description | Branch |
 | ---- | ----------- | ------ |
-| 6.1  | Malfini API layer: `lib/malfini/` — types, auth, client, pricing, categoryConfig | `main` (done — committed directly) |
-| 6.2  | DB schema: make `Order.variantId` nullable, add `productSizeCode`, `productCode`, `productName`, `colorName`, `sizeName` | `phase-6/schema-migration` |
-| 6.3  | Service + cart: update `order.ts`, update `cartStore.ts` with `source` discriminator | `phase-6/schema-migration` |
-| 6.4  | API routes: update Stripe checkout + webhook for both sources | `phase-6/api-routes` |
-| 6.5  | Shop UI: products page with category tabs, ProductCard, new Malfini product detail route + MalfiniProductDetails component | `phase-6/shop-ui` |
-| 6.6  | Designer: extract SVG color utils, update DesignerCanvas to accept `imageUrl`, update DesignerLayout for both sources, update designer page + ColorPicker | `phase-6/designer` |
-| 6.7  | Admin: update order display, add read-only Malfini catalog browser | `phase-6/admin` |
-| 6.8  | Supporting files: next.config, sitemap, order confirmation page | `phase-6/cleanup` |
+| 6.1  | Malfini API layer: `lib/malfini/` — types, auth, client, pricing, categoryConfig | `main` (done — committed directly, exception) |
+| 6.2  | DB schema: make `Order.variantId` nullable, add `productSizeCode`, `productCode`, `productName`, `colorName`, `sizeName` | `phase-6/malfini-integration` |
+| 6.3  | Service + cart: update `order.ts`, update `cartStore.ts` with `source` discriminator | `phase-6/malfini-integration` |
+| 6.4  | API routes: update Stripe checkout + webhook for both sources | `phase-6/malfini-integration` |
+| 6.5  | Shop UI: products page with category tabs, ProductCard, new Malfini product detail route + MalfiniProductDetails component | `phase-6/malfini-integration` |
+| 6.6  | Designer: extract SVG color utils, update DesignerCanvas to accept `imageUrl`, update DesignerLayout for both sources, update designer page + ColorPicker | `phase-6/malfini-integration` |
+| 6.7  | Admin: update order display, add read-only Malfini catalog browser | `phase-6/malfini-integration` |
+| 6.8  | Supporting files: next.config, sitemap, order confirmation page | `phase-6/malfini-integration` |
 
 **Phase 6 complete when:** Malfini clothing products appear in the shop, can be designed and ordered end-to-end, and local mug product continues to work unchanged.
 
