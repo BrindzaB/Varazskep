@@ -34,7 +34,7 @@ The webshop previously ran on two hand-seeded dummy products in a local PostgreS
 
 | Endpoint | Cache | Purpose |
 |---|---|---|
-| `POST /api/v4/auth/login` | — | Username/password login → Bearer token |
+| `POST /api/v4/api-auth/login` | — | Username/password login → `{ access_token, refresh_token, token_type, expires_in }` |
 | `GET /api/v4/product?language=hu` | 1 hour | Full product catalog |
 | `GET /api/v4/product?language=hu&productCodes=M150,M151` | 1 hour | Filtered product catalog (optional) |
 | `GET /api/v4/product/availabilities?productCodes=...` | 5 min | Stock per SKU (comma-separated productSizeCodes) |
@@ -42,7 +42,7 @@ The webshop previously ran on two hand-seeded dummy products in a local PostgreS
 
 No per-product endpoint exists. `getProduct(code)` fetches the full list and filters by code — cheap due to 1h ISR cache.
 
-**Note:** `POST /api/v4/api-auth/login` is a separate OAuth refresh token endpoint — not used here.
+**Note:** `POST /api/v4/auth/login` returns decoded JWT claims (user info), not a usable token — not used here.
 
 ### Key data shapes
 

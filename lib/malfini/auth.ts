@@ -5,9 +5,8 @@
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
 
-// Conservative TTL — refreshed before actual expiry to avoid mid-request 401s.
-// Adjust TOKEN_TTL_MS once the actual Malfini token lifetime is confirmed.
-const TOKEN_TTL_MS = 50 * 60 * 1000; // 50 minutes
+// Buffer subtracted from expires_in to refresh before actual expiry.
+const EXPIRY_BUFFER_MS = 60 * 1000; // 1 minute
 
 export async function getMalfiniToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiresAt) {
@@ -32,7 +31,7 @@ async function fetchToken(): Promise<string> {
     );
   }
 
-  const res = await fetch(`${baseUrl}/api/v4/auth/login`, {
+  const res = await fetch(`${baseUrl}/api/v4/api-auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
@@ -43,14 +42,17 @@ async function fetchToken(): Promise<string> {
     throw new Error(`Malfini auth failed: ${res.status} ${res.statusText}`);
   }
 
-  const data = await res.json() as { token?: string; access_token?: string };
-  const token = data.token ?? data.access_token;
+  const data = await res.json() as { access_token?: string; expires_in?: number };
 
-  if (!token) {
-    throw new Error("Malfini auth response did not contain a token");
+  if (!data.access_token) {
+    throw new Error("Malfini auth response did not contain access_token");
   }
 
-  cachedToken = token;
-  tokenExpiresAt = Date.now() + TOKEN_TTL_MS;
-  return token;
+  const ttlMs = data.expires_in
+    ? data.expires_in * 1000 - EXPIRY_BUFFER_MS
+    : 50 * 60 * 1000; // fallback: 50 min if expires_in absent
+
+  cachedToken = data.access_token;
+  tokenExpiresAt = Date.now() + ttlMs;
+  return data.access_token;
 }
