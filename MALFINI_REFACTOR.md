@@ -30,6 +30,8 @@ The webshop previously ran on two hand-seeded dummy products in a local PostgreS
 - **Auth:** `POST /api/v4/api-auth/login` → `{ access_token, expires_in }` — token cached until `expires_in` - 1 min, auto-refreshed on 401
 - **Docs:** https://api.malfini.com/api-docs/index.html
 
+> **Rule:** The API docs require JavaScript rendering and cannot be fetched by the agent. Before implementing any new Malfini API call, always ask the user for the exact endpoint path, query parameter names, and response shape. Never guess or infer them.
+
 ### Key endpoints
 
 | Endpoint | Cache | Purpose |
