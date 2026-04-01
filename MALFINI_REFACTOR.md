@@ -27,7 +27,7 @@ The webshop previously ran on two hand-seeded dummy products in a local PostgreS
 ## Malfini API
 
 - **Base URL:** `https://api.malfini.com`
-- **Auth:** `POST /api/v4/auth/login` → Bearer token (cached 50 min, auto-refreshed on 401)
+- **Auth:** `POST /api/v4/api-auth/login` → `{ access_token, expires_in }` — token cached until `expires_in` - 1 min, auto-refreshed on 401
 - **Docs:** https://api.malfini.com/api-docs/index.html
 
 ### Key endpoints
@@ -87,9 +87,15 @@ MalfiniVariant {
 
 MalfiniNomenclature {
   productSizeCode: string  // 7-char SKU — primary key for availability/price lookups
-  size: string
-  sizeName: string
-  sizeCode: string
+  size: string             // same value as productSizeCode (not human-readable)
+  sizeName: string         // human-readable, e.g. "M", "L", "110 cm/4 éves"
+  sizeCode: string         // short code, e.g. "08", "M0"
+}
+
+MalfiniAttribute {
+  code: string   // e.g. "material-composition"
+  title: string  // e.g. "Anyagösszetétel"
+  text: string   // e.g. "100 % pamut"
 }
 ```
 
@@ -122,13 +128,21 @@ All files in `lib/malfini/` created and committed to `main`.
 
 ---
 
-## Step 6.1b — Test & Discovery Endpoint
+## Step 6.1b — Test & Discovery Endpoint (completed)
 
-**Purpose:** Before any complex implementation, verify the API works and collect the field values that drive filtering and designer config.
+**Purpose:** Verify the API works and collect the field values that drive filtering and designer config.
 
-**What to discover:**
+**Findings — all confirmed from live API (382 products):**
+- Auth endpoint corrected to `POST /api/v4/api-auth/login`
+- `MalfiniAttribute` shape is `{ code, title, text }` — not `{ code, name, value }`
+- Image `viewCode` is lowercase: `"a"` = front, `"b"` = back, `"c"` = detail
+- `categoryConfig.ts` populated with `"t-shirts"` and `"sweatshirts"`
+- Gender codes confirmed — see table in "Confirmed field values" section above
+- CORS: images served from `api.malfini.com` — verify in step 6.6
+
+**What to discover (originally):**
 - Real `categoryCode` values for t-shirts and sweatshirts (to populate `categoryConfig.ts`)
-- Real `genderCode` values (e.g. `"M"`, `"F"`, `"D"`, `"U"`) — needed for gender filter logic
+- Real `genderCode` values — needed for gender filter logic
 - Whether Malfini image URLs are CORS-safe for canvas loading
 - Actual price ranges and response shape
 
