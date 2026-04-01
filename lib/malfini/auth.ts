@@ -32,7 +32,7 @@ async function fetchToken(): Promise<string> {
     );
   }
 
-  const res = await fetch(`${baseUrl}/api-auth/login`, {
+  const res = await fetch(`${baseUrl}/api/v4/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
