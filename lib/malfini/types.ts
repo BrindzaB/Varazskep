@@ -19,14 +19,14 @@ export interface MalfiniVariant {
 }
 
 export interface MalfiniImage {
-  viewCode: string; // "A" = front, "B" = back, other letters for additional views
-  link: string;     // full image URL
+  viewCode: string; // lowercase: "a" = front, "b" = back, "c" = detail, etc.
+  link: string;     // full image URL, e.g. https://api.malfini.com/image/product/150/150_01_a~w400.jpg
 }
 
 export interface MalfiniAttribute {
   code: string;
-  name: string;
-  value: string;
+  title: string; // e.g. "Anyagösszetétel"
+  text: string;  // e.g. "100 % pamut"
 }
 
 export interface MalfiniProduct {

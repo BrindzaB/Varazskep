@@ -42,6 +42,24 @@ The webshop previously ran on two hand-seeded dummy products in a local PostgreS
 
 No per-product endpoint exists. `getProduct(code)` fetches the full list and filters by code — cheap due to 1h ISR cache.
 
+### Confirmed field values (from live API)
+
+**`genderCode` → UI filter mapping:**
+
+| genderCode | UI filter |
+|---|---|
+| `GENTS` | Férfi |
+| `LADIES` | Női |
+| `KIDS` | Gyerek |
+| `UNISEX` | Férfi + Női |
+| `GENTS/KIDS` | Férfi + Gyerek |
+| `UNISEX/KIDS` | Férfi + Női + Gyerek |
+
+**`categoryCode` values in catalog (382 total products):**
+`accessories`, `additional-assortment`, `bags`, `caps`, `fleece`, `jackets-vests`, `outlet`, `polo-shirts`, `promotional-materials`, `safety-footwear`, `shirts`, `sweatshirts`, `t-shirts`, `terry`, `trousers-shorts`
+
+**Phase 6 enabled categories:** `t-shirts`, `sweatshirts` only.
+
 **Note:** `POST /api/v4/auth/login` returns decoded JWT claims (user info), not a usable token — not used here.
 
 ### Key data shapes
@@ -63,7 +81,7 @@ MalfiniVariant {
   colorCode: string
   colorIconLink: string  // URL to color swatch icon image (use as <img> src)
   name: string           // color display name
-  images: [{ viewCode: string, link: string }]  // "A" = front, "B" = back
+  images: [{ viewCode: string, link: string }]  // lowercase: "a" = front, "b" = back, "c" = detail
   nomenclatures: MalfiniNomenclature[]
 }
 
