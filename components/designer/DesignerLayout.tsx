@@ -120,11 +120,12 @@ export default function DesignerLayout({
       const { id: designId } = (await res.json()) as { id: string };
 
       addItem({
+        source: "local",
         variantId: selectedVariant.id,
         productName: product.name,
         productSlug: product.slug,
-        color: shirtColorName,
-        size: selectedSize,
+        colorName: shirtColorName,
+        sizeName: selectedSize,
         price: selectedVariant.price,
         imageUrl: product.imageUrl ?? null,
         designId,

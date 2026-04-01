@@ -62,9 +62,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         product_data: {
           name: item.productName,
           metadata: {
-            variantId: item.variantId,
-            color: item.color,
-            size: item.size,
+            variantId: item.variantId ?? "",
+            colorName: item.colorName,
+            sizeName: item.sizeName,
           },
         },
         // Stripe expects the smallest currency unit (fillér for HUF: 100 fillér = 1 HUF).

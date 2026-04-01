@@ -140,11 +140,12 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
           onClick={() => {
             if (!selectedVariant) return;
             addItem({
+              source: "local",
               variantId: selectedVariant.id,
               productName: product.name,
               productSlug: product.slug,
-              color: selectedColor,
-              size: selectedSize,
+              colorName: selectedColor,
+              sizeName: selectedSize,
               price: selectedVariant.price,
               imageUrl: product.imageUrl ?? null,
             });

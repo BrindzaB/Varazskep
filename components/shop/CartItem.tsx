@@ -1,6 +1,6 @@
 "use client";
 
-import { useCartStore, type CartItem } from "@/lib/cart/cartStore";
+import { useCartStore, itemKey, type CartItem } from "@/lib/cart/cartStore";
 import { formatHuf } from "@/lib/utils/format";
 
 interface CartItemProps {
@@ -49,7 +49,7 @@ export default function CartItemRow({ item }: CartItemProps) {
           {item.productName}
         </p>
         <p className="text-sm text-muted">
-          {item.color}, {item.size}
+          {item.colorName}, {item.sizeName}
         </p>
         <p className="text-sm font-medium text-charcoal">
           {formatHuf(item.price)}
@@ -60,7 +60,7 @@ export default function CartItemRow({ item }: CartItemProps) {
       <div className="flex flex-col items-end gap-3">
         <div className="flex items-center rounded border border-border-light">
           <button
-            onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+            onClick={() => updateQuantity(itemKey(item), item.quantity - 1)}
             aria-label="Mennyiség csökkentése"
             className="px-3 py-1.5 text-charcoal transition-colors hover:bg-off-white"
           >
@@ -70,7 +70,7 @@ export default function CartItemRow({ item }: CartItemProps) {
             {item.quantity}
           </span>
           <button
-            onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+            onClick={() => updateQuantity(itemKey(item), item.quantity + 1)}
             aria-label="Mennyiség növelése"
             className="px-3 py-1.5 text-charcoal transition-colors hover:bg-off-white"
           >
@@ -78,7 +78,7 @@ export default function CartItemRow({ item }: CartItemProps) {
           </button>
         </div>
         <button
-          onClick={() => removeItem(item.variantId)}
+          onClick={() => removeItem(itemKey(item))}
           className="text-xs text-muted underline-offset-2 hover:underline"
         >
           Eltávolítás
