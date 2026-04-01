@@ -109,9 +109,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         orderId: fullOrder.id,
         customerName: fullOrder.customerName,
         customerEmail: fullOrder.customerEmail,
-        productName: fullOrder.variant.product.name,
-        variantColor: fullOrder.variant.color,
-        variantSize: fullOrder.variant.size,
+        productName: fullOrder.productName,
+        variantColor: fullOrder.colorName,
+        variantSize: fullOrder.sizeName,
         totalAmount: fullOrder.totalAmount,
         shippingAddress,
       });

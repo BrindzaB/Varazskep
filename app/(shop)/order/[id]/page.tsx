@@ -81,10 +81,10 @@ export default async function OrderConfirmationPage({ params }: Props) {
             <div className="flex justify-between border-b border-border-light pb-4">
               <div>
                 <p className="font-medium text-charcoal">
-                  {order.variant.product.name}
+                  {order.productName}
                 </p>
                 <p className="text-sm text-muted">
-                  {order.variant.color}, {order.variant.size}
+                  {order.colorName}, {order.sizeName}
                 </p>
               </div>
               <p className="font-medium text-charcoal">
