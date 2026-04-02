@@ -278,9 +278,9 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 6 — Malfini API Integration (in progress)
-**Current step:** Step 6.4 — Stripe checkout + webhook
-**Last approved step:** Step 6.3 — Cart store
-**Next step:** Step 6.4 — Stripe checkout + webhook (branch: `phase-6/malfini-integration`)
+**Current step:** Step 6.5 — Shop UI
+**Last approved step:** Step 6.4 — Stripe checkout + webhook
+**Next step:** Step 6.5 — Shop UI (branch: `phase-6/malfini-integration`)
 
 **Note:** Phase 5 (Frontend UI Redesign) is on hold — awaiting client brand assets. It will run after Phase 6.
 
