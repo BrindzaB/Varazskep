@@ -3,7 +3,15 @@ import type { OrderStatus } from "@/lib/generated/prisma/client";
 
 export interface CreateOrderInput {
   stripeSessionId: string;
-  variantId: string;
+  // One of these must be set — never both.
+  variantId?: string;       // local products (mugs, etc.)
+  productSizeCode?: string; // Malfini products — 7-char SKU
+  productCode?: string;     // Malfini products — 3-char product code
+  // Denormalized display fields — always set regardless of source.
+  // Required for 8-year retention even if the product is later removed.
+  productName: string;
+  colorName: string;
+  sizeName: string;
   designId?: string; // links the pre-created Design record to this order
   customerName: string;
   customerEmail: string;
@@ -52,7 +60,14 @@ export async function createOrder(input: CreateOrderInput) {
     data: {
       stripeSessionId: input.stripeSessionId,
       status: "PAID",
-      variantId: input.variantId,
+      // Source-specific identifiers — one or the other, never both.
+      ...(input.variantId ? { variantId: input.variantId } : {}),
+      ...(input.productSizeCode ? { productSizeCode: input.productSizeCode } : {}),
+      ...(input.productCode ? { productCode: input.productCode } : {}),
+      // Denormalized display fields — always written for both sources.
+      productName: input.productName,
+      colorName: input.colorName,
+      sizeName: input.sizeName,
       ...(input.designId ? { designId: input.designId } : {}),
       customerName: input.customerName,
       customerEmail: input.customerEmail,

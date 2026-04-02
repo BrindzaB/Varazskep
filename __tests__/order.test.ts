@@ -26,6 +26,9 @@ const mockPrisma = prisma as unknown as {
 const baseInput = {
   stripeSessionId: "cs_test_123",
   variantId: "variant_abc",
+  productName: "Egyedi bögre",
+  colorName: "Fehér",
+  sizeName: "330ml",
   customerName: "Teszt Elek",
   customerEmail: "teszt@example.com",
   shippingAddress: {
