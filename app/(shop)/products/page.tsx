@@ -29,8 +29,8 @@ export default async function ProductsPage() {
       p.variants.some((v) => v.images.some((i) => i.viewCode === "a")),
   );
 
-  // Pass 3-char product codes to getPrices — the API filters by product code, not SKU.
-  // The detail page fetches the same codes but gets all per-size pricing from the response.
+  // Pass 3-char product codes — the API filters by product code, not SKU.
+  // Response contains all per-size prices; we look up the representative SKU for card display.
   const productCodes = clothingProducts.map((p) => p.code);
 
   const prices = await getRecommendedPrices(productCodes);

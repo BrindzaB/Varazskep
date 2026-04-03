@@ -56,9 +56,3 @@ export interface MalfiniRecommendedPrice {
   currency: string;
 }
 
-export interface MalfiniPrice {
-  productSizeCode: string;
-  limit: number;    // minimum quantity for this price tier
-  price: number;
-  currency: string;
-}

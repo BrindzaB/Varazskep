@@ -8,7 +8,6 @@
 import { clearCachedToken, getMalfiniToken } from "./auth";
 import type {
   MalfiniAvailability,
-  MalfiniPrice,
   MalfiniProduct,
   MalfiniRecommendedPrice,
 } from "./types";
@@ -129,28 +128,6 @@ export async function getAvailabilities(
   }
 }
 
-// Returns the account's purchase price tiers for the given 3-char product codes (e.g. "M150").
-// The API `productCodes` param filters by product code, not nomenclature code.
-// Response items use `productSizeCode` (7-char) as the SKU key.
-// Each SKU may have multiple tiers (quantity discounts); use the lowest-limit tier
-// as the base (single-unit) price. Revalidated every 5 minutes via ISR.
-export async function getPrices(
-  productCodes: string[],
-): Promise<MalfiniPrice[]> {
-  if (productCodes.length === 0) return [];
-  try {
-    const query = productCodes.join(",");
-    const data = await malfiniGet<MalfiniPrice[]>(
-      `/api/v4/product/prices?productCodes=${encodeURIComponent(query)}`,
-      300,
-    );
-    return Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.error("[Malfini] getPrices failed:", err);
-    return [];
-  }
-}
-
 // Returns Malfini's recommended retail prices for the given 3-char product codes.
 // The API `productCodes` param filters by product code, not nomenclature code.
 // Response items use `productSizeCode` (7-char) as the SKU key.
@@ -170,33 +147,6 @@ export async function getRecommendedPrices(
     console.error("[Malfini] getRecommendedPrices failed:", err);
     return [];
   }
-}
-
-// Builds a Record<productSizeCode, retailPriceHuf> from account purchase price tiers.
-// For each SKU, picks the tier with the lowest limit (= single-unit base price),
-// then applies the retail markup multiplier.
-// Currency-aware: skips EUR→HUF conversion when the API already returns HUF prices.
-export function buildRetailPriceMap(
-  prices: MalfiniPrice[],
-  convertEurToHuf: (eur: number) => number,
-  markup: number,
-): Record<string, number> {
-  // Group tiers by SKU.
-  const grouped: Record<string, MalfiniPrice[]> = {};
-  for (const p of prices) {
-    if (!grouped[p.productSizeCode]) grouped[p.productSizeCode] = [];
-    grouped[p.productSizeCode].push(p);
-  }
-
-  const result: Record<string, number> = {};
-  for (const [sku, tiers] of Object.entries(grouped)) {
-    // Base price = tier with the minimum limit (single-unit price).
-    const base = tiers.reduce((min, t) => (t.limit < min.limit ? t : min));
-    // Skip EUR→HUF conversion if the API already returns prices in HUF.
-    const baseHuf = base.currency === "HUF" ? base.price : convertEurToHuf(base.price);
-    result[sku] = Math.round((baseHuf * markup) / 10) * 10;
-  }
-  return result;
 }
 
 // Builds a Record<productSizeCode, retailPriceHuf> from Malfini recommended prices.
