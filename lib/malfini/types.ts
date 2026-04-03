@@ -52,7 +52,7 @@ export interface MalfiniAvailability {
 
 export interface MalfiniRecommendedPrice {
   productSizeCode: string;
-  price: number;    // EUR, decimal (e.g. 12.99)
+  price: number;    // currency-dependent — check `currency` field (may be HUF or EUR depending on account)
   currency: string;
 }
 

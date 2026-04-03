@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/db";
-import { getRecommendedPrices } from "@/lib/malfini/client";
+import { getRecommendedPrices, buildPriceMap } from "@/lib/malfini/client";
 import { convertEurToHuf } from "@/lib/malfini/pricing";
 import type { CartItem } from "@/lib/cart/cartStore";
 
@@ -76,17 +76,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
 
   // Fetch Malfini prices in one batch call before iterating items.
-  const malfiniSizeCodes = items
+  // Pass 3-char product codes — the API filters by product code, not nomenclature code.
+  // The response is keyed by productSizeCode (7-char), which we use for the per-item lookup.
+  const malfiniProductCodes = items
     .filter((i) => i.source === "malfini")
-    .map((i) => i.productSizeCode)
+    .map((i) => i.productCode)
     .filter((c): c is string => !!c);
 
   let malfiniPriceMap: Record<string, number> = {};
-  if (malfiniSizeCodes.length > 0) {
-    const prices = await getRecommendedPrices(malfiniSizeCodes);
-    malfiniPriceMap = Object.fromEntries(
-      prices.map((p) => [p.productSizeCode, convertEurToHuf(p.price)]),
-    );
+  if (malfiniProductCodes.length > 0) {
+    const prices = await getRecommendedPrices(malfiniProductCodes);
+    malfiniPriceMap = buildPriceMap(prices, convertEurToHuf);
   }
 
   // Build Stripe line items with authoritative prices and the metadata payload.
