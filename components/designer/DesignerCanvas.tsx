@@ -1,52 +1,20 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
 import { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
-import { getMockupConfig } from "@/lib/designer/mockupConfig";
+import type { PrintArea } from "@/lib/designer/mockupConfig";
 
 // Canvas dimensions (fixed — responsive scaling is a future concern)
 const CANVAS_WIDTH = 500;
 const CANVAS_HEIGHT = 600;
 
-// T-shirt occupies 88% of the canvas in the tighter dimension
+// Mockup occupies 88% of the canvas in the tighter dimension
 const MOCKUP_SCALE_FACTOR = 0.88;
 
-// Fallback natural dimensions used if Fabric can't read the SVG viewBox
+// Fallback natural dimensions used if Fabric can't read the image dimensions
 const MOCKUP_NATURAL_WIDTH = 300;
 const MOCKUP_NATURAL_HEIGHT = 350;
-
-// Darkens a CSS hex color by subtracting `amount` from each RGB channel.
-function darkenHex(hex: string, amount: number): string {
-  const num = parseInt(hex.replace("#", ""), 16);
-  const r = Math.max(0, (num >> 16) - amount);
-  const g = Math.max(0, ((num >> 8) & 0xff) - amount);
-  const b = Math.max(0, (num & 0xff) - amount);
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
-}
-
-// Returns true if the hex color is near-white (avg channel > 240).
-function isNearWhite(hex: string): boolean {
-  const num = parseInt(hex.replace("#", ""), 16);
-  const r = (num >> 16) & 0xff;
-  const g = (num >> 8) & 0xff;
-  const b = num & 0xff;
-  return (r + g + b) / 3 > 240;
-}
-
-// Replaces the SVG fill colors and returns a data URL the browser can load.
-// Three placeholder grays map to proportional shades of the selected body color:
-//   #9ca3af — base body color
-//   #8b9299 — medium shadow (~18 darker, same as body for near-white colors)
-//   #737c85 — deep shadow (~36 darker)
-function buildColoredDataUrl(svgText: string, bodyColor: string): string {
-  const mediumShadow = isNearWhite(bodyColor) ? bodyColor : darkenHex(bodyColor, 18);
-  const colored = svgText
-    .replace(/#9ca3af/g, bodyColor)
-    .replace(/#8b9299/g, mediumShadow)
-    .replace(/#737c85/g, darkenHex(bodyColor, 36));
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(colored)}`;
-}
 
 // Scales and centers a FabricImage on the canvas.
 function applyMockupLayout(img: FabricImage, canvas: Canvas): void {
@@ -79,35 +47,27 @@ export interface DesignerCanvasRef {
 }
 
 interface DesignerCanvasProps {
-  shirtColor?: string;
+  // Pre-computed background image URL — can be a data URL (local SVG) or a remote URL (Malfini photo).
+  // Computed by the parent (DesignerLayout). When this changes, the background is swapped in place.
+  imageUrl: string;
   side?: "front" | "back";
-  mockupType?: string;
+  // Print area config — drives object constraints and the dashed boundary rect.
+  // Comes from mockupConfig (local) or categoryConfig (Malfini).
+  printArea: PrintArea;
   // Called when text selection changes — isText=true means an IText is selected
   onActiveTextChange?: (isText: boolean, font: string, color: string) => void;
 }
 
 const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
   function DesignerCanvas(
-    {
-      shirtColor = "#9ca3af",
-      side = "front",
-      mockupType,
-      onActiveTextChange,
-    },
+    { imageUrl, side = "front", printArea, onActiveTextChange },
     ref,
   ) {
-    // Resolved once on mount — mockupType never changes within a session
-    const mockupConfig = getMockupConfig(mockupType ?? null);
-    const { printArea: PRINT_AREA } = mockupConfig;
-
     const canvasElRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<Canvas | null>(null);
     const shirtImageRef = useRef<FabricImage | null>(null);
     const isInitializedRef = useRef(false);
     const keyDownHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
-
-    // Cached SVG source text per side — fetched once, reused on color changes
-    const svgSourceRef = useRef<Partial<Record<"front" | "back", string>>>({});
 
     // Tracks which side is currently rendered on the canvas
     const currentSideRef = useRef<"front" | "back">("front");
@@ -118,16 +78,14 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       back: [],
     });
 
-    // Keeps the latest prop values accessible inside effects without re-running them
-    const shirtColorRef = useRef(shirtColor);
-    useEffect(() => { shirtColorRef.current = shirtColor; }, [shirtColor]);
+    // Signals that canvas mechanics are ready — triggers the image loading effect.
+    const [isReady, setIsReady] = useState(false);
 
     const onActiveTextChangeRef = useRef(onActiveTextChange);
     useEffect(() => { onActiveTextChangeRef.current = onActiveTextChange; }, [onActiveTextChange]);
 
     // ── Expose canvas API to DesignerLayout ───────────────────────────────────
     useImperativeHandle(ref, () => ({
-      // Places a clipart SVG on the canvas
       async addClipart(svgUrl: string) {
         const canvas = fabricRef.current;
         if (!canvas) return;
@@ -142,8 +100,8 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         img.set({
           scaleX: scale,
           scaleY: scale,
-          left: PRINT_AREA.centerX,
-          top: PRINT_AREA.centerY,
+          left: printArea.centerX,
+          top: printArea.centerY,
           originX: "center",
           originY: "center",
         });
@@ -158,7 +116,6 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         canvas.renderAll();
       },
 
-      // Adds an editable text object at the print area center
       async addText() {
         const canvas = fabricRef.current;
         if (!canvas) return;
@@ -166,8 +123,8 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         const { IText, Control } = await import("fabric");
 
         const text = new IText("Szöveg", {
-          left: PRINT_AREA.centerX,
-          top: PRINT_AREA.centerY,
+          left: printArea.centerX,
+          top: printArea.centerY,
           originX: "center",
           originY: "center",
           fontSize: 36,
@@ -183,13 +140,11 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 
         canvas.add(text);
         canvas.setActiveObject(text);
-        // Enter edit mode and select all so the user can start typing immediately
         text.enterEditing();
         text.selectAll();
         canvas.requestRenderAll();
       },
 
-      // Applies a font to the currently selected text object
       setTextFont(font: string) {
         const canvas = fabricRef.current;
         if (!canvas) return;
@@ -199,7 +154,6 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         canvas.requestRenderAll();
       },
 
-      // Applies a fill color to the currently selected text object
       setTextColor(color: string) {
         const canvas = fabricRef.current;
         if (!canvas) return;
@@ -209,8 +163,6 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         canvas.requestRenderAll();
       },
 
-      // Returns serialized user-placed objects for front and back sides.
-      // The mockup image and print-area rect are excluded (selectable === false).
       getCanvasJson() {
         const canvas = fabricRef.current;
         if (!canvas) return { front: [], back: [] };
@@ -234,14 +186,15 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       },
     }));
 
-    // ── Init effect: runs once on mount ──────────────────────────────────────
+    // ── Init effect: sets up canvas mechanics only — no image loading ─────────
+    // Image loading is handled by the effect below, triggered once isReady is true.
     useEffect(() => {
       if (!canvasElRef.current || fabricRef.current) return;
 
       let isMounted = true;
 
       const init = async () => {
-        const { Canvas, FabricImage, IText, Rect } = await import("fabric");
+        const { Canvas, IText, Rect } = await import("fabric");
 
         if (!isMounted || !canvasElRef.current) return;
 
@@ -255,7 +208,6 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 
         // Delete selected object on Delete/Backspace
         const handleKeyDown = (e: KeyboardEvent) => {
-          // Don't intercept when the user is typing inside an IText
           const active = canvas.getActiveObject();
           if (active instanceof IText && active.isEditing) return;
 
@@ -271,10 +223,10 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         keyDownHandlerRef.current = handleKeyDown;
 
         // Constrain user-placed objects to stay within the print area
-        const printLeft   = PRINT_AREA.centerX - PRINT_AREA.width  / 2;
-        const printTop    = PRINT_AREA.centerY - PRINT_AREA.height / 2;
-        const printRight  = PRINT_AREA.centerX + PRINT_AREA.width  / 2;
-        const printBottom = PRINT_AREA.centerY + PRINT_AREA.height / 2;
+        const printLeft   = printArea.centerX - printArea.width  / 2;
+        const printTop    = printArea.centerY - printArea.height / 2;
+        const printRight  = printArea.centerX + printArea.width  / 2;
+        const printBottom = printArea.centerY + printArea.height / 2;
 
         canvas.on("object:moving", (e) => {
           const obj = e.target;
@@ -296,7 +248,6 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           }
         });
 
-        // Track the last valid scale + position so we can revert on overflow
         const lastGoodState = new WeakMap<FabricObject, {
           scaleX: number; scaleY: number; left: number; top: number;
         }>();
@@ -345,7 +296,6 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           }
         });
 
-        // Notify parent when a text object is selected or deselected
         const notifyTextSelection = (selected: FabricObject | undefined) => {
           if (selected instanceof IText) {
             const font = typeof selected.fontFamily === "string"
@@ -364,25 +314,12 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         canvas.on("selection:updated", (e) => notifyTextSelection(e.selected?.[0]));
         canvas.on("selection:cleared", () => onActiveTextChangeRef.current?.(false, "", ""));
 
-        // Fetch and cache the front SVG
-        const response = await fetch(mockupConfig.svgPaths.front);
-        const svgText = await response.text();
-        if (!isMounted) return;
-        svgSourceRef.current.front = svgText;
-
-        const dataUrl = buildColoredDataUrl(svgText, shirtColorRef.current);
-        const img = await FabricImage.fromURL(dataUrl);
-        if (!isMounted) return;
-
-        applyMockupLayout(img, canvas);
-        shirtImageRef.current = img;
-
-        // Dashed print area boundary — visual guide, not interactive
+        // Dashed print area boundary — visual guide only, not interactive
         const printAreaRect = new Rect({
-          left: PRINT_AREA.centerX,
-          top: PRINT_AREA.centerY,
-          width: PRINT_AREA.width,
-          height: PRINT_AREA.height,
+          left: printArea.centerX,
+          top: printArea.centerY,
+          width: printArea.width,
+          height: printArea.height,
           fill: "transparent",
           stroke: "#abb8c3",
           strokeWidth: 1.5,
@@ -394,10 +331,11 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           originY: "center",
         });
         canvas.add(printAreaRect);
-
         canvas.renderAll();
+
         currentSideRef.current = "front";
         isInitializedRef.current = true;
+        if (isMounted) setIsReady(true);
       };
 
       init().catch(console.error);
@@ -414,76 +352,50 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Side switch effect: runs when `side` prop changes ────────────────────
+    // ── Background image + side switch effect ────────────────────────────────
+    // Runs when the canvas is ready, when imageUrl changes (color or Malfini variant),
+    // or when side changes. A single effect handles both cases:
+    //   - side changed: save current objects, restore incoming side's objects, load new image
+    //   - only imageUrl changed: swap background in place, objects stay
     useEffect(() => {
-      if (!isInitializedRef.current) return;
+      if (!isReady || !imageUrl) return;
       const canvas = fabricRef.current;
       if (!canvas) return;
 
       const previousSide = currentSideRef.current;
-      if (previousSide === side) return;
+      const sideChanged = previousSide !== side;
 
-      let isMounted = true;
-
-      const doSwitch = async () => {
-        const { FabricImage } = await import("fabric");
-
-        // Save the live Fabric objects currently on canvas for the outgoing side
-        const userObjects = canvas.getObjects().filter((o) => o.selectable !== false);
-        sideObjectsRef.current[previousSide] = userObjects;
-        userObjects.forEach((o) => canvas.remove(o));
-
-        // Fetch and cache the new side's SVG if not already loaded
-        const svgPath = mockupConfig.svgPaths[side] ?? mockupConfig.svgPaths.front;
-        if (!svgSourceRef.current[side]) {
-          const res = await fetch(svgPath);
-          svgSourceRef.current[side] = await res.text();
-        }
-        if (!isMounted) return;
-
-        const svgText = svgSourceRef.current[side]!;
-        const dataUrl = buildColoredDataUrl(svgText, shirtColorRef.current);
-        const newImg = await FabricImage.fromURL(dataUrl);
-        if (!isMounted) return;
-
-        if (shirtImageRef.current) canvas.remove(shirtImageRef.current);
-        applyMockupLayout(newImg, canvas);
-        shirtImageRef.current = newImg;
-
-        // Restore saved objects for the incoming side
-        sideObjectsRef.current[side].forEach((o) => canvas.add(o));
-
-        currentSideRef.current = side;
-        canvas.renderAll();
-      };
-
-      doSwitch().catch(console.error);
-      return () => { isMounted = false; };
-    }, [side]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // ── Color update effect: runs whenever shirtColor changes ─────────────────
-    useEffect(() => {
-      if (!isInitializedRef.current) return;
-      const canvas = fabricRef.current;
-      const svgText = svgSourceRef.current[currentSideRef.current];
-      if (!canvas || !svgText) return;
-
-      let isMounted = true;
+      let cancelled = false;
 
       const update = async () => {
         const { FabricImage } = await import("fabric");
-        const dataUrl = buildColoredDataUrl(svgText, shirtColor);
-        const newImg = await FabricImage.fromURL(dataUrl);
-        if (!isMounted) return;
+
+        if (sideChanged) {
+          // Stash current side's user objects off-canvas
+          const userObjects = canvas.getObjects().filter((o) => o.selectable !== false);
+          sideObjectsRef.current[previousSide] = userObjects;
+          userObjects.forEach((o) => canvas.remove(o));
+        }
+
+        const newImg = await FabricImage.fromURL(imageUrl, { crossOrigin: "anonymous" });
+        if (cancelled) return;
+
         if (shirtImageRef.current) canvas.remove(shirtImageRef.current);
         applyMockupLayout(newImg, canvas);
         shirtImageRef.current = newImg;
+
+        if (sideChanged) {
+          // Restore the incoming side's objects
+          sideObjectsRef.current[side].forEach((o) => canvas.add(o));
+          currentSideRef.current = side;
+        }
+
         canvas.renderAll();
       };
 
       update().catch(console.error);
-      return () => { isMounted = false; };
-    }, [shirtColor]);
+      return () => { cancelled = true; };
+    }, [isReady, imageUrl, side]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
       <div className="rounded border border-border-light bg-white shadow-card">
@@ -498,7 +410,6 @@ export default DesignerCanvas;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Builds a delete control (charcoal circle with white ×) for any Fabric object.
-// Passed `Control` from the dynamic fabric import to avoid a second import call.
 function buildDeleteControl(Control: typeof import("fabric").Control) {
   return new Control({
     x: 0.5,

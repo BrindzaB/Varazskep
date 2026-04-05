@@ -86,7 +86,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     `/api/v4/product/availabilities?productCodes=${skuParam}&includeFuture=true`,
   );
 
-  const allCategoryCodes = [...new Set(products.map((p) => p.categoryCode).filter(Boolean))].sort();
+  const allCategoryCodes = Array.from(new Set(products.map((p) => p.categoryCode).filter(Boolean))).sort();
 
   return NextResponse.json({
     sampleProductCodes,
