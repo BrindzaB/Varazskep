@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import DesignerCanvas, { type DesignerCanvasRef } from "./DesignerCanvas";
-import ColorPicker, { type ColorEntry } from "./ColorPicker";
+import { type ColorEntry } from "./ColorPicker";
 import ClipartPanel from "./ClipartPanel";
 import TextOptionsBar, { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
 import { COLOR_MAP } from "@/lib/utils/colors";
@@ -31,17 +31,11 @@ function sortNomenclatures(nomenclatures: MalfiniNomenclature[]): MalfiniNomencl
 // ── Shared toolbar UI ─────────────────────────────────────────────────────────
 
 interface ToolbarProps {
-  colors: ColorEntry[];
-  selectedColor: string;
-  onColorChange: (name: string, hex: string) => void;
   onClipartOpen: () => void;
   onAddText: () => void;
 }
 
 function DesignerToolbar({
-  colors,
-  selectedColor,
-  onColorChange,
   onClipartOpen,
   onAddText,
 }: ToolbarProps) {
@@ -70,14 +64,6 @@ function DesignerToolbar({
         </svg>
         <span className="text-xs font-medium">Termékek</span>
       </Link>
-
-      <div className="w-10 border-t border-white/20" />
-
-      <ColorPicker
-        colors={colors}
-        selectedColor={selectedColor}
-        onChange={onColorChange}
-      />
 
       <div className="w-10 border-t border-white/20" />
 
@@ -260,9 +246,6 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   return (
     <div className="flex bg-off-white">
       <DesignerToolbar
-        colors={availableColors}
-        selectedColor={shirtColorHex}
-        onColorChange={handleColorChange}
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
       />
@@ -315,12 +298,6 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         <h2 className="text-lg font-semibold text-charcoal">{product.name}</h2>
 
         <div className="mt-4">
-          <p className="mb-2 text-sm font-medium text-charcoal">
-            Szín: <span className="font-normal text-muted">{shirtColorName}</span>
-          </p>
-        </div>
-
-        <div className="mt-4">
           <p className="mb-2 text-sm font-medium text-charcoal">Méret</p>
           <div className="flex flex-wrap gap-2">
             {sizesForColor.map((size) => (
@@ -336,6 +313,29 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
               >
                 {size}
               </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-medium text-charcoal">
+            Szín: <span className="font-normal text-muted">{shirtColorName}</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {availableColors.map(({ name, hex }) => (
+              <button
+                key={hex}
+                onClick={() => handleColorChange(name, hex)}
+                aria-label={name}
+                aria-pressed={shirtColorHex === hex}
+                title={name}
+                style={{ backgroundColor: hex }}
+                className={`h-8 w-8 rounded-full border-2 transition-all ${
+                  shirtColorHex === hex
+                    ? "border-charcoal ring-2 ring-charcoal ring-offset-1"
+                    : "border-border-light hover:border-charcoal"
+                }`}
+              />
             ))}
           </div>
         </div>
@@ -474,9 +474,6 @@ function MalfiniDesignerLayout({
   return (
     <div className="flex bg-off-white">
       <DesignerToolbar
-        colors={colorEntries}
-        selectedColor={selectedVariant.code}
-        onColorChange={handleColorChange}
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
       />
@@ -529,12 +526,6 @@ function MalfiniDesignerLayout({
         <h2 className="text-lg font-semibold text-charcoal">{malfiniProduct.name}</h2>
 
         <div className="mt-4">
-          <p className="mb-2 text-sm font-medium text-charcoal">
-            Szín: <span className="font-normal text-muted">{selectedVariant.name}</span>
-          </p>
-        </div>
-
-        <div className="mt-4">
           <p className="mb-2 text-sm font-medium text-charcoal">Méret</p>
           <div className="flex flex-wrap gap-2">
             {sortedNomenclatures.map((nom) => {
@@ -558,6 +549,32 @@ function MalfiniDesignerLayout({
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-medium text-charcoal">
+            Szín: <span className="font-normal text-muted">{selectedVariant.name}</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {colorEntries.map(({ name, hex, iconUrl }) => (
+              <button
+                key={hex}
+                onClick={() => handleColorChange(name, hex)}
+                aria-label={name}
+                aria-pressed={selectedVariant.code === hex}
+                title={name}
+                className={`h-8 w-8 overflow-hidden rounded-full border-2 transition-all ${
+                  selectedVariant.code === hex
+                    ? "border-charcoal ring-2 ring-charcoal ring-offset-1"
+                    : "border-border-light hover:border-charcoal"
+                }`}
+              >
+                {iconUrl && (
+                  <img src={iconUrl} alt={name} className="h-full w-full object-cover" />
+                )}
+              </button>
+            ))}
           </div>
         </div>
 

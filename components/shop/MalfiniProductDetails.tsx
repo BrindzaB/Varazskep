@@ -88,7 +88,7 @@ export default function MalfiniProductDetails({
   }
 
   const hasDesigner = getCategoryConfig(product.categoryCode) !== null;
-  const designerUrl = `/designer?code=${product.code}&colorCode=${encodeURIComponent(selectedVariant.colorCode)}&sizeCode=${encodeURIComponent(selectedNomenclature?.sizeCode ?? "")}`;
+  const designerUrl = `/designer?code=${product.code}&colorCode=${encodeURIComponent(selectedVariant.code)}&sizeCode=${encodeURIComponent(selectedNomenclature?.sizeCode ?? "")}`;
 
   return (
     <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
@@ -125,7 +125,10 @@ export default function MalfiniProductDetails({
 
       {/* Details */}
       <div className="flex flex-col">
-        <h1 className="text-3xl font-bold text-charcoal">{product.name}</h1>
+        <h1 className="text-3xl font-bold text-charcoal">
+          <span className="block font-mono text-sm font-normal text-muted mb-1">{product.code}</span>
+          {product.name}
+        </h1>
 
         {/* Price */}
         <p className="mt-3 text-2xl font-semibold text-charcoal">

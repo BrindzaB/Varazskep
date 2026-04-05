@@ -81,6 +81,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
     // Signals that canvas mechanics are ready — triggers the image loading effect.
     const [isReady, setIsReady] = useState(false);
 
+
     const onActiveTextChangeRef = useRef(onActiveTextChange);
     useEffect(() => { onActiveTextChangeRef.current = onActiveTextChange; }, [onActiveTextChange]);
 
@@ -314,7 +315,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         canvas.on("selection:updated", (e) => notifyTextSelection(e.selected?.[0]));
         canvas.on("selection:cleared", () => onActiveTextChangeRef.current?.(false, "", ""));
 
-        // Dashed print area boundary — visual guide only, not interactive
+        // Dashed print area boundary — visual guide, not interactive
         const printAreaRect = new Rect({
           left: printArea.centerX,
           top: printArea.centerY,
@@ -377,7 +378,10 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           userObjects.forEach((o) => canvas.remove(o));
         }
 
-        const newImg = await FabricImage.fromURL(imageUrl, { crossOrigin: "anonymous" });
+        // No crossOrigin — we never call canvas.toDataURL() so the canvas taint
+        // doesn't matter. Setting crossOrigin on Malfini URLs would cause the browser
+        // to block images whose CDN responses lack Access-Control-Allow-Origin headers.
+        const newImg = await FabricImage.fromURL(imageUrl);
         if (cancelled) return;
 
         if (shirtImageRef.current) canvas.remove(shirtImageRef.current);
