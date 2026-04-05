@@ -9,7 +9,7 @@ import type { ProductWithVariants } from "@/lib/services/product";
 export type ClothingProduct = MalfiniProduct & { minPrice: number };
 
 type GenderFilter = "Összes" | "Férfi" | "Női" | "Gyerek";
-type CategoryFilter = "Összes" | "t-shirts" | "sweatshirts" | "local";
+type CategoryFilter = "Összes" | "t-shirts" | "sweatshirts" | "polo-shirts" | "local";
 type SortOrder = "default" | "asc" | "desc";
 
 const GENDER_FILTERS: GenderFilter[] = ["Összes", "Férfi", "Női", "Gyerek"];
@@ -27,6 +27,7 @@ const GENDER_MATCH: Record<string, GenderFilter[]> = {
 const CATEGORY_LABEL: Record<string, string> = {
   "t-shirts": "Pólók",
   sweatshirts: "Pulóverek",
+  "polo-shirts": "Galléros pólók",
   local: "Bögrék",
 };
 
@@ -56,6 +57,7 @@ export default function ProductsPageClient({
     const clothingCats = new Set(clothingProducts.map((p) => p.categoryCode));
     if (clothingCats.has("t-shirts")) cats.push("t-shirts");
     if (clothingCats.has("sweatshirts")) cats.push("sweatshirts");
+    if (clothingCats.has("polo-shirts")) cats.push("polo-shirts");
     if (localProducts.length > 0) cats.push("local");
     return cats;
   }, [clothingProducts, localProducts]);
@@ -67,7 +69,8 @@ export default function ProductsPageClient({
     const showClothing =
       category === "Összes" ||
       category === "t-shirts" ||
-      category === "sweatshirts";
+      category === "sweatshirts" ||
+      category === "polo-shirts";
 
     if (showClothing) {
       for (const p of clothingProducts) {

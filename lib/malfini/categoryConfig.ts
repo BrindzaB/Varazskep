@@ -31,6 +31,10 @@ export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
     printArea: { width: 185, height: 220, centerX: 250, centerY: 295 },
     hasSides: true,
   },
+  "polo-shirts": {
+    printArea: { width: 160, height: 180, centerX: 250, centerY: 285 },
+    hasSides: false,
+  },
 };
 
 // Returns the designer config for a Malfini product category, or null if the
