@@ -1,10 +1,12 @@
 // Malfini REST API v4 client.
 // All functions are safe to call from server components and API routes.
-// Products are cached in memory for 1 hour (module-level cache bypasses Next.js
-// ISR which cannot handle the ~10MB catalog response).
+// Products are cached via Next.js unstable_cache (Vercel Data Cache) for 1 hour —
+// survives cold starts and is shared across all function instances.
+// A warmup cron job (/api/warmup) runs every 45 min to keep the cache permanently warm.
 // Availability/prices use Next.js ISR (revalidate 5 min) — small responses, cacheable.
 // On any error, functions return safe empty fallbacks and log server-side.
 
+import { unstable_cache } from "next/cache";
 import { clearCachedToken, getMalfiniToken } from "./auth";
 import type {
   MalfiniAvailability,
@@ -13,16 +15,6 @@ import type {
 } from "./types";
 
 const BASE = () => process.env.MALFINI_API_URL ?? "https://api.malfini.com";
-
-// Module-level cache for the full product catalog.
-// The catalog response is ~10MB — too large for Next.js ISR cache (2MB limit).
-// This in-process cache serves subsequent requests instantly in both dev and production.
-// TTL matches the ISR revalidate period for products (1 hour).
-let productsCache: {
-  data: MalfiniProduct[];
-  language: string;
-  expiresAt: number;
-} | null = null;
 
 // Typed fetch with Bearer token injection and automatic 401 retry.
 // Uses Next.js ISR revalidation for small, cacheable responses.
@@ -47,34 +39,32 @@ async function malfiniGet<T>(path: string, revalidate: number, attempt = 0): Pro
   return res.json() as Promise<T>;
 }
 
-// Returns all active Malfini products.
-// Uses module-level caching (1 hour TTL) instead of Next.js ISR because the
-// response is ~10MB and exceeds Next.js's 2MB data cache limit.
-export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
-  const now = Date.now();
-
-  if (
-    productsCache &&
-    productsCache.language === language &&
-    productsCache.expiresAt > now
-  ) {
-    return productsCache.data;
-  }
-
-  try {
-    // cache: "no-store" — Next.js ISR is skipped; module-level cache handles reuse.
+// Cached fetch of the full product catalog.
+// unstable_cache stores the return value in the Vercel Data Cache — shared across
+// all function instances and persistent across cold starts (unlike module-level vars).
+// TTL: 1 hour. Tag: "malfini-products" (allows manual invalidation if needed).
+const _fetchProducts = unstable_cache(
+  async (language: string): Promise<MalfiniProduct[]> => {
     const token = await getMalfiniToken();
     const res = await fetch(
       `${BASE()}/api/v4/product?language=${language}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      },
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
     );
 
     if (res.status === 401) {
+      // Token expired server-side — clear, get a fresh one, retry once directly.
+      // Not recursive to avoid interacting with the unstable_cache layer.
       clearCachedToken();
-      return getProducts(language);
+      const freshToken = await getMalfiniToken();
+      const retry = await fetch(
+        `${BASE()}/api/v4/product?language=${language}`,
+        { headers: { Authorization: `Bearer ${freshToken}` }, cache: "no-store" },
+      );
+      if (!retry.ok) {
+        throw new Error(`Malfini getProducts failed after 401 retry: ${retry.status}`);
+      }
+      const retryData: unknown = await retry.json();
+      return Array.isArray(retryData) ? (retryData as MalfiniProduct[]) : [];
     }
 
     if (!res.ok) {
@@ -82,18 +72,25 @@ export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
     }
 
     const data: unknown = await res.json();
-    const result = Array.isArray(data) ? (data as MalfiniProduct[]) : [];
+    return Array.isArray(data) ? (data as MalfiniProduct[]) : [];
+  },
+  ["malfini-products"],
+  { revalidate: 3600, tags: ["malfini-products"] },
+);
 
-    productsCache = { data: result, language, expiresAt: now + 3600 * 1000 };
-    return result;
+// Returns all active Malfini products. Served from Data Cache on cache hit (< 500ms).
+// On cache miss (first deploy or after 1-hour TTL), fetches from Malfini API (~10s).
+export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
+  try {
+    return await _fetchProducts(language);
   } catch (err) {
     console.error("[Malfini] getProducts failed:", err);
-    return productsCache?.data ?? [];
+    return [];
   }
 }
 
 // Returns a single product by its 3-char code.
-// Fetches the full list (from module cache) and filters — no per-product endpoint.
+// Fetches the full list (from Data Cache) and filters — no per-product endpoint.
 export async function getProduct(
   code: string,
   language = "hu",
