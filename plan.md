@@ -278,9 +278,9 @@ A **phase** is done when:
 > Update this section at the start of each session to reflect where we are.
 
 **Current phase:** Phase 6 — Malfini API Integration (in progress)
-**Current step:** Step 6.8 — Supporting files
-**Last approved step:** Step 6.7 — Admin: order display already complete, added read-only Malfini catalog browser (`/admin/products/malfini`, `/admin/products/malfini/[code]`), extracted sizeOrder shared module
-**Next step:** Step 6.8 — Supporting files (branch: `phase-6/malfini-integration`)
+**Current step:** Step 6.8 complete — merge phase-6 → main pending review
+**Last approved step:** Step 6.8 — next.config image domains, sitemap Malfini routes, order confirmation page
+**Next step:** Review + merge `phase-6/malfini-integration` → `main`
 
 **Note:** Phase 5 (Frontend UI Redesign) is on hold — awaiting client brand assets. It will run after Phase 6.
 

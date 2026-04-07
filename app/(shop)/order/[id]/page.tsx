@@ -82,6 +82,11 @@ export default async function OrderConfirmationPage({ params }: Props) {
               <div>
                 <p className="font-medium text-charcoal">
                   {order.productName}
+                  {order.productCode && (
+                    <span className="ml-2 font-mono text-xs text-muted">
+                      {order.productCode}
+                    </span>
+                  )}
                 </p>
                 <p className="text-sm text-muted">
                   {order.colorName}, {order.sizeName}
