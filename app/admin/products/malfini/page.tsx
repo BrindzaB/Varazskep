@@ -61,7 +61,6 @@ export default async function AdminMalfiniCatalogPage({
     return `/admin/products/malfini?category=${code}`;
   }
   function genderUrl(code: string | null): string {
-    const base = categoryFilter ? `?category=${categoryFilter}` : "?";
     if (!code) return `/admin/products/malfini${categoryFilter ? `?category=${categoryFilter}` : ""}`;
     const sep = categoryFilter ? "&" : "?";
     return `/admin/products/malfini${categoryFilter ? `?category=${categoryFilter}` : ""}${sep}gender=${code}`;

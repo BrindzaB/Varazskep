@@ -197,7 +197,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
     canvasRef.current?.addClipart(svgUrl);
   }
 
-  function handleColorChange(name: string, _hex: string) {
+  function handleColorChange(name: string) {
     setShirtColorName(name);
     const firstSize = product.variants.find((v) => v.color === name)?.size ?? "";
     setSelectedSize(firstSize);
@@ -325,7 +325,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
             {availableColors.map(({ name, hex }) => (
               <button
                 key={hex}
-                onClick={() => handleColorChange(name, hex)}
+                onClick={() => handleColorChange(name)}
                 aria-label={name}
                 aria-pressed={shirtColorHex === hex}
                 title={name}
