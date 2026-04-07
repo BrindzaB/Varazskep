@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { formatHuf, getMinPrice } from "@/lib/services/product";
+import { formatHuf, getMinPrice } from "@/lib/utils/format";
+import { COLOR_MAP } from "@/lib/utils/colors";
 import type { ProductWithVariants } from "@/lib/services/product";
 
 interface ProductCardProps {
@@ -8,6 +9,7 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const minPrice = getMinPrice(product.variants);
+  const uniqueColors = Array.from(new Set(product.variants.map((v) => v.color)));
 
   return (
     <Link
@@ -51,6 +53,23 @@ export default function ProductCard({ product }: ProductCardProps) {
         <h2 className="text-base font-semibold text-charcoal">
           {product.name}
         </h2>
+
+        {/* Color swatches — max 4 visible, remainder shown as "+x" */}
+        {uniqueColors.length > 0 && (
+          <div className="mt-2 flex items-center gap-1">
+            {uniqueColors.slice(0, 4).map((color) => (
+              <span
+                key={color}
+                title={color}
+                style={{ backgroundColor: COLOR_MAP[color] ?? "#9ca3af" }}
+                className="h-4 w-4 rounded-full border border-border-light"
+              />
+            ))}
+            {uniqueColors.length > 4 && (
+              <span className="text-xs text-muted">+{uniqueColors.length - 4}</span>
+            )}
+          </div>
+        )}
 
         {product.description && (
           <p className="mt-1 line-clamp-2 text-sm text-muted">

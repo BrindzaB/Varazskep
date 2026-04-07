@@ -49,9 +49,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "No cart items" }, { status: 400 });
   }
 
-  // The current schema supports one variant per order.
-  // Phase 3 will extend this when the designer is added.
-  // For now take the first item only (cart enforces single-product in v1).
+  // The current schema supports one item per order (cart enforces single-product in v1).
   const firstItem = cartItems[0];
 
   let shippingAddress: {
@@ -68,13 +66,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid shippingAddress" }, { status: 400 });
   }
 
-  // amount_total is returned in fillér (smallest unit) — convert back to whole HUF for storage.
+  // amount_total is in fillér (smallest unit) — convert back to whole HUF for storage.
   const totalAmount = Math.round((session.amount_total ?? 0) / 100);
 
   try {
     await createOrder({
       stripeSessionId: session.id,
-      variantId: firstItem.variantId,
+      // Source-specific identifiers:
+      ...(firstItem.source === "local"
+        ? { variantId: firstItem.variantId }
+        : {
+            productSizeCode: firstItem.productSizeCode,
+            productCode: firstItem.productCode,
+          }),
+      // Denormalized display fields — passed from metadata, not re-fetched.
+      // Guarantees 8-year retention even if the product is later removed or renamed.
+      productName: firstItem.productName,
+      colorName: firstItem.colorName,
+      sizeName: firstItem.sizeName,
       designId: firstItem.designId,
       customerName: meta.customerName ?? "",
       customerEmail: session.customer_email ?? "",
@@ -102,16 +111,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Send confirmation email — errors are logged but do not fail the webhook.
   // A failed email must not cause Stripe to retry (which would risk duplicate orders).
   try {
-    // Fetch the full order with variant + product to populate the email properly.
     const fullOrder = await getOrderBySessionId(session.id);
     if (fullOrder) {
       await sendOrderConfirmationEmail({
         orderId: fullOrder.id,
         customerName: fullOrder.customerName,
         customerEmail: fullOrder.customerEmail,
-        productName: fullOrder.variant.product.name,
-        variantColor: fullOrder.variant.color,
-        variantSize: fullOrder.variant.size,
+        productName: fullOrder.productName,
+        variantColor: fullOrder.colorName,
+        variantSize: fullOrder.sizeName,
         totalAmount: fullOrder.totalAmount,
         shippingAddress,
       });
@@ -123,8 +131,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({ received: true });
 }
 
+// Shape embedded in Stripe session metadata by the checkout route.
 interface CartItemMeta {
-  variantId: string;
+  source: "local" | "malfini";
+  // Local only:
+  variantId?: string;
+  // Malfini only:
+  productSizeCode?: string;
+  productCode?: string;
+  // Always set:
+  productName: string;
+  colorName: string;
+  sizeName: string;
   quantity: number;
   designId?: string;
 }
@@ -134,17 +152,18 @@ function parseCartItems(raw: string | undefined): CartItemMeta[] {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item): item is CartItemMeta =>
-        typeof item === "object" &&
-        item !== null &&
-        typeof (item as CartItemMeta).variantId === "string" &&
-        typeof (item as CartItemMeta).quantity === "number",
-    ).map((item) => ({
-      ...item,
-      // designId is optional — only present for designed items
-      designId: typeof item.designId === "string" ? item.designId : undefined,
-    }));
+    return parsed.filter((item): item is CartItemMeta => {
+      if (typeof item !== "object" || item === null) return false;
+      const i = item as Record<string, unknown>;
+      if (i.source !== "local" && i.source !== "malfini") return false;
+      if (typeof i.productName !== "string") return false;
+      if (typeof i.colorName !== "string") return false;
+      if (typeof i.sizeName !== "string") return false;
+      if (typeof i.quantity !== "number") return false;
+      if (i.source === "local" && typeof i.variantId !== "string") return false;
+      if (i.source === "malfini" && typeof i.productSizeCode !== "string") return false;
+      return true;
+    });
   } catch {
     return [];
   }

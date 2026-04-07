@@ -70,7 +70,14 @@ function makeSession(overrides: Record<string, unknown> = {}): object {
         country: "HU",
       }),
       gdprConsent: "true",
-      cartItems: JSON.stringify([{ variantId: "variant_abc", quantity: 1 }]),
+      cartItems: JSON.stringify([{
+        source: "local",
+        variantId: "variant_abc",
+        productName: "Egyedi bögre",
+        colorName: "Fehér",
+        sizeName: "330ml",
+        quantity: 1,
+      }]),
     },
     ...overrides,
   };
@@ -134,6 +141,9 @@ describe("POST /api/stripe/webhook", () => {
     expect(mockCreateOrder).toHaveBeenCalledWith({
       stripeSessionId: "cs_test_123",
       variantId: "variant_abc",
+      productName: "Egyedi bögre",
+      colorName: "Fehér",
+      sizeName: "330ml",
       designId: undefined,
       customerName: "Teszt Elek",
       customerEmail: "teszt@example.com",

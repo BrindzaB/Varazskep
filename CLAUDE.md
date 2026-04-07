@@ -7,6 +7,7 @@ Technical reference for Claude Code. Every session must be grounded in this docu
 - `plan.md` — development phases, workflow rules, review protocol
 - `DESIGN.md` — visual design system, colors, typography, component styles
 - `MALFINI_REFACTOR.md` — Phase 6 architecture reference: Malfini API integration, hybrid product sources, schema changes
+- `public/swagger.json` — full Malfini REST API v4 OpenAPI 3.0 spec (JS-rendered docs are inaccessible; use this file to look up endpoints, parameters, and response schemas)
 
 ---
 
@@ -94,8 +95,8 @@ varazskep/
 │   ├── malfini/                 # Malfini API integration layer — added in Phase 6
 │   │   ├── types.ts             # TypeScript interfaces for Malfini API responses
 │   │   ├── auth.ts              # Bearer token fetch + module-level cache
-│   │   ├── client.ts            # getProducts(), getProduct(), getAvailabilities(), getRecommendedPrices()
-│   │   ├── pricing.ts           # convertEurToHuf() — reads EUR_TO_HUF_RATE from env
+│   │   ├── client.ts            # getProducts(), getProduct(), getAvailabilities(), getRecommendedPrices(), buildPriceMap(), buildAvailabilityMap()
+│   │   ├── pricing.ts           # convertEurToHuf() — reads EUR_TO_HUF_RATE from env (fallback; this account returns HUF)
 │   │   └── categoryConfig.ts   # Maps Malfini categoryCode → designer print area config
 │   ├── services/
 │   │   ├── order.ts             # Order business logic
@@ -313,6 +314,63 @@ Products with no mockup/config are ordered without customization.
 
 ---
 
+## Malfini API — Confirmed Behaviour (Phase 6)
+
+Full OpenAPI spec: `public/swagger.json`. Base URL: `https://api.malfini.com`. Auth: Bearer token (fetched via `lib/malfini/auth.ts`, cached in-process).
+
+### Key endpoint facts
+
+| Endpoint | `productCodes` param | Notes |
+|---|---|---|
+| `GET /api/v4/product` | n/a | Full catalog (~10MB). Cached in-process 1h (exceeds Next.js 2MB ISR limit). |
+| `GET /api/v4/product/recommended-prices` | 3-char product code (e.g. `"M150"`) | **Use this for pricing.** Returns one price per SKU — no tier logic needed. |
+| `GET /api/v4/product/prices` | 3-char product code | Purchase/cost prices with quantity tiers. Not used — prefer recommended prices. |
+| `GET /api/v4/product/availabilities` | 3-char product code | Pass `&includeFuture=true` to include inbound stock. |
+
+**Critical:** `productCodes` filters by the 3-char `product.code` (e.g. `"M150"`), **not** by the 7-char `productSizeCode` / nomenclature code (e.g. `"M150XM0"`). Passing nomenclature codes returns `[]`.
+
+### Pricing
+
+- This account returns prices in **HUF** (`currency: "HUF"`), not EUR. Always check the `currency` field before converting — `buildPriceMap()` handles this.
+- `EUR_TO_HUF_RATE` env var exists as a fallback for accounts that return EUR prices.
+- Retail prices are rounded to the nearest 10 HUF.
+- **Do not apply a markup multiplier** — recommended prices are already the intended retail prices.
+
+### Images
+
+- `viewCode` is a single A-Z letter. Known codes: `"a"` = front, `"b"` = back, `"c"` = detail.
+- **Always filter** products and variants to those that have at least one `viewCode === "a"` image before rendering. Products/variants without a front image must not appear in the shop.
+
+### Product / variant data structure
+
+```
+MalfiniProduct
+  .code          — 3-char product code (URL identifier, used as productCodes filter param)
+  .categoryCode  — maps to designer config in categoryConfig.ts
+  .genderCode    — GENTS | LADIES | KIDS | UNISEX | GENTS/KIDS | UNISEX/KIDS
+  .variants[]
+    .code        — variant identifier (= colorCode in URL params)
+    .colorCode   — color identifier
+    .colorIconLink — URL to color swatch image (use <img>, not backgroundColor)
+    .images[]
+      .viewCode  — "a" (front), "b" (back), etc.
+      .link      — full image URL
+    .nomenclatures[]  — one entry per size
+      .productSizeCode — 7-char SKU (key in price/availability maps)
+      .sizeCode        — size identifier used for sorting (XS, S, M, L, XL, XXL, 3XL…)
+      .sizeName        — display name shown in UI
+```
+
+### Size ordering
+
+Sizes from the API are in arbitrary order. Always sort nomenclatures before rendering using the `SIZE_ORDER` constant in `MalfiniProductDetails.tsx`: `3XS → XXS → XS → S → M → L → XL → XXL → 3XL → 4XL → 5XL → 6XL`, then kids numeric sizes `86–170`. Unknown codes fall to the end.
+
+### Diagnostic endpoint
+
+`GET /api/admin/malfini-test` (admin-authenticated) — tests auth, prices, recommended prices, and availability for 3 sample products. Use this to verify API connectivity and inspect raw responses.
+
+---
+
 ## Environment Variables
 
 Required in `.env.local` (never commit):
@@ -345,7 +403,7 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 MALFINI_API_URL="https://api.malfini.com"
 MALFINI_USERNAME=""
 MALFINI_PASSWORD=""
-EUR_TO_HUF_RATE="400"  # EUR → HUF conversion rate for recommended retail prices
+EUR_TO_HUF_RATE="400"  # Fallback EUR→HUF rate — this account returns HUF prices so this is not actively used
 ```
 
 ---

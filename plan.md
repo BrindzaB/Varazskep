@@ -193,25 +193,24 @@ main                          # Always stable and deployable
 
 ### Phase 6 — Malfini API Integration
 
-**Goal:** Replace dummy products with live Malfini catalog data. Clothing products are fetched from the Malfini REST API; non-clothing products (mugs, etc.) continue to be managed locally. Full architecture documented in `MALFINI_REFACTOR.md`.
+**Goal:** Replace dummy products with live Malfini catalog data. Clothing products (t-shirts and sweatshirts for Phase 6) are fetched from the Malfini REST API; non-clothing products (mugs, etc.) continue to be managed locally. Full architecture documented in `MALFINI_REFACTOR.md`.
 
 | Step | Description | Branch |
 | ---- | ----------- | ------ |
 | 6.1  | Malfini API layer: `lib/malfini/` — types, auth, client, pricing, categoryConfig | `main` (done — committed directly, exception) |
-| 6.2  | DB schema: make `Order.variantId` nullable, add `productSizeCode`, `productCode`, `productName`, `colorName`, `sizeName` | `phase-6/malfini-integration` |
-| 6.3  | Service + cart: update `order.ts`, update `cartStore.ts` with `source` discriminator | `phase-6/malfini-integration` |
+| 6.1b | Test + discovery: temp `GET /api/admin/malfini-test` route, discover real `categoryCode` + `genderCode` values, CORS check on image URLs, populate `categoryConfig.ts` | `phase-6/malfini-integration` |
+| 6.2  | DB schema: make `Order.variantId` nullable, add `productSizeCode`, `productCode`, `productName`, `colorName`, `sizeName`; migration `make_variant_nullable_add_malfini_order_fields` | `phase-6/malfini-integration` |
+| 6.3  | Cart store: add `source` discriminator + Malfini fields, rename `color`→`colorName` / `size`→`sizeName`, bump Zustand persist version | `phase-6/malfini-integration` |
 | 6.4  | API routes: update Stripe checkout + webhook for both sources | `phase-6/malfini-integration` |
-| 6.5  | Shop UI: products page with category tabs, ProductCard, new Malfini product detail route + MalfiniProductDetails component | `phase-6/malfini-integration` |
-| 6.6  | Designer: extract SVG color utils, update DesignerCanvas to accept `imageUrl`, update DesignerLayout for both sources, update designer page + ColorPicker | `phase-6/malfini-integration` |
-| 6.7  | Admin: update order display, add read-only Malfini catalog browser | `phase-6/malfini-integration` |
-| 6.8  | Supporting files: next.config, sitemap, order confirmation page | `phase-6/malfini-integration` |
+| 6.5  | Shop UI: unified products page (5-col grid, 30/page, gender filter + category tabs, "tól X Ft" prices), `MalfiniProductCard`, Malfini product detail route + `MalfiniProductDetails` | `phase-6/malfini-integration` |
+| 6.6  | Designer: extract `colorUtils.ts`, update `DesignerCanvas` (`imageUrl` prop), update `DesignerLayout` (Malfini mode + color-swap in-place), update designer page routing, update `ColorPicker` | `phase-6/malfini-integration` |
+| 6.7  | Admin: update order display for both sources, add read-only Malfini catalog browser | `phase-6/malfini-integration` |
+| 6.8  | Supporting files: next.config image domains, sitemap, order confirmation page | `phase-6/malfini-integration` |
 
-**Phase 6 complete when:** Malfini clothing products appear in the shop, can be designed and ordered end-to-end, and local mug product continues to work unchanged.
+**Phase 6 complete when:** Malfini t-shirts and sweatshirts appear in the unified shop with gender + category filtering, can be designed and ordered end-to-end, and local mug product continues to work unchanged.
 
-**Prerequisites before starting step 6.2:**
+**Prerequisites before starting step 6.1b:**
 - Add `MALFINI_API_URL`, `MALFINI_USERNAME`, `MALFINI_PASSWORD`, `EUR_TO_HUF_RATE` to `.env.local`
-- Make a test API call to identify real `categoryCode` values → populate `lib/malfini/categoryConfig.ts`
-- Confirm Malfini image CORS policy (needed for designer canvas)
 
 ---
 
@@ -278,10 +277,10 @@ A **phase** is done when:
 
 > Update this section at the start of each session to reflect where we are.
 
-**Current phase:** Phase 6 — Malfini API Integration (in progress)
-**Current step:** Step 6.2 — DB schema migration
-**Last approved step:** Step 6.1 — Malfini API layer (committed to main)
-**Next step:** Step 6.2 — DB schema migration (branch: `phase-6/schema-migration`)
+**Current phase:** Phase 6 — Malfini API Integration (complete)
+**Current step:** All steps complete including perf fix (unstable_cache + Vercel Cron warmup)
+**Last approved step:** Performance fix — replace module-level cache with unstable_cache + /api/warmup cron
+**Next step:** Merge `phase-6/malfini-integration` → `main`, then begin Phase 5 (Frontend UI Redesign) when client brand assets are available
 
-**Note:** Phase 5 (Frontend UI Redesign) is on hold — awaiting client brand assets. It will run after Phase 6.
+**Note:** Phase 5 (Frontend UI Redesign) is on hold — awaiting client brand assets. It will run after Phase 6 is merged.
 

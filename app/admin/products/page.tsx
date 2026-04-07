@@ -14,12 +14,20 @@ export default async function AdminProductsPage() {
       <main className="max-w-5xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">Termékek</h1>
-          <Link
-            href="/admin/products/new"
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            + Új termék
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin/products/malfini"
+              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Malfini katalógus
+            </Link>
+            <Link
+              href="/admin/products/new"
+              className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              + Új termék
+            </Link>
+          </div>
         </div>
 
         {products.length === 0 ? (

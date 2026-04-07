@@ -109,15 +109,23 @@ export default async function AdminOrderDetailPage({
             <dl className="space-y-1 text-sm">
               <div className="flex gap-2">
                 <dt className="text-gray-500 w-24 shrink-0">Termék:</dt>
-                <dd className="text-gray-900">{order.variant.product.name}</dd>
+                <dd className="text-gray-900">
+                  {order.productName}
+                  {order.productCode && (
+                    <span className="ml-2 font-mono text-xs text-gray-500">
+                      {order.productCode}
+                      {order.productSizeCode && ` · ${order.productSizeCode}`}
+                    </span>
+                  )}
+                </dd>
               </div>
               <div className="flex gap-2">
                 <dt className="text-gray-500 w-24 shrink-0">Szín:</dt>
-                <dd className="text-gray-900">{order.variant.color}</dd>
+                <dd className="text-gray-900">{order.colorName}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="text-gray-500 w-24 shrink-0">Méret:</dt>
-                <dd className="text-gray-900">{order.variant.size}</dd>
+                <dd className="text-gray-900">{order.sizeName}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="text-gray-500 w-24 shrink-0">Összeg:</dt>

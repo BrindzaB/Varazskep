@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { prisma } from "@/lib/db";
+import { getRecommendedPrices, buildPriceMap } from "@/lib/malfini/client";
+import { convertEurToHuf } from "@/lib/malfini/pricing";
 import type { CartItem } from "@/lib/cart/cartStore";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -22,6 +25,23 @@ interface CheckoutRequestBody {
   items: CartItem[];
   customer: CustomerInfo;
   gdprConsent: boolean;
+}
+
+// Shape embedded in Stripe session metadata (cartItems field).
+// Webhook reads this to reconstruct the order.
+interface CartItemMeta {
+  source: "local" | "malfini";
+  // Local only:
+  variantId?: string;
+  // Malfini only:
+  productSizeCode?: string;
+  productCode?: string;
+  // Always set — denormalized for 8-year retention:
+  productName: string;
+  colorName: string;
+  sizeName: string;
+  quantity: number;
+  designId?: string;
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -55,25 +75,89 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const { items, customer, gdprConsent } = parsed as CheckoutRequestBody;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
 
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = items.map(
-    (item) => ({
+  // Fetch Malfini prices in one batch call before iterating items.
+  // Pass 3-char product codes — the API filters by product code, not nomenclature code.
+  // The response is keyed by productSizeCode (7-char), which we use for the per-item lookup.
+  const malfiniProductCodes = items
+    .filter((i) => i.source === "malfini")
+    .map((i) => i.productCode)
+    .filter((c): c is string => !!c);
+
+  let malfiniPriceMap: Record<string, number> = {};
+  if (malfiniProductCodes.length > 0) {
+    const prices = await getRecommendedPrices(malfiniProductCodes);
+    malfiniPriceMap = buildPriceMap(prices, convertEurToHuf);
+  }
+
+  // Build Stripe line items with authoritative prices and the metadata payload.
+  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+  const cartItemsMeta: CartItemMeta[] = [];
+
+  for (const item of items) {
+    let unitPriceHuf: number;
+
+    if (item.source === "local") {
+      if (!item.variantId) {
+        return NextResponse.json(
+          { error: "Hiányzó variáns azonosító." },
+          { status: 400 },
+        );
+      }
+      // Look up the variant price from the DB — do not trust the client-provided price.
+      const variant = await prisma.variant.findUnique({
+        where: { id: item.variantId },
+        select: { price: true },
+      });
+      if (!variant) {
+        return NextResponse.json(
+          { error: "A termék változat nem található." },
+          { status: 400 },
+        );
+      }
+      unitPriceHuf = variant.price;
+    } else {
+      // source === "malfini"
+      if (!item.productSizeCode) {
+        return NextResponse.json(
+          { error: "Hiányzó termék méretkód." },
+          { status: 400 },
+        );
+      }
+      unitPriceHuf = malfiniPriceMap[item.productSizeCode] ?? 0;
+      if (unitPriceHuf === 0) {
+        return NextResponse.json(
+          { error: "Nem sikerült lekérni a termék árát." },
+          { status: 400 },
+        );
+      }
+    }
+
+    lineItems.push({
       price_data: {
         currency: "huf",
-        product_data: {
-          name: item.productName,
-          metadata: {
-            variantId: item.variantId,
-            color: item.color,
-            size: item.size,
-          },
-        },
-        // Stripe expects the smallest currency unit (fillér for HUF: 100 fillér = 1 HUF).
-        // Prices are stored in whole HUF in the DB, so multiply by 100 here.
-        unit_amount: item.price * 100,
+        product_data: { name: item.productName },
+        // Stripe expects fillér (smallest unit): 100 fillér = 1 HUF.
+        unit_amount: unitPriceHuf * 100,
       },
       quantity: item.quantity,
-    }),
-  );
+    });
+
+    const meta: CartItemMeta = {
+      source: item.source,
+      productName: item.productName,
+      colorName: item.colorName,
+      sizeName: item.sizeName,
+      quantity: item.quantity,
+      ...(item.designId ? { designId: item.designId } : {}),
+    };
+    if (item.source === "local") {
+      meta.variantId = item.variantId;
+    } else {
+      meta.productSizeCode = item.productSizeCode;
+      meta.productCode = item.productCode;
+    }
+    cartItemsMeta.push(meta);
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -87,16 +171,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       customerPhone: customer.phone,
       shippingAddress: JSON.stringify(customer.shippingAddress),
       gdprConsent: String(gdprConsent),
-      // Pass cart as metadata so the webhook can reconstruct the order.
-      // Each item includes variantId, quantity, and optional designId.
-      // Price comes from the Stripe line items to prevent client-side tampering.
-      cartItems: JSON.stringify(
-        items.map((i) => ({
-          variantId: i.variantId,
-          quantity: i.quantity,
-          ...(i.designId ? { designId: i.designId } : {}),
-        })),
-      ),
+      // cartItems carries source, IDs, and denormalized display fields.
+      // Webhook reads this to create the Order — no re-fetching needed.
+      cartItems: JSON.stringify(cartItemsMeta),
     },
     success_url: `${appUrl}/order/{CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/checkout`,

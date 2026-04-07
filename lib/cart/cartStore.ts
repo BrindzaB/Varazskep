@@ -4,11 +4,17 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export interface CartItem {
-  variantId: string;
+  source: "local" | "malfini";
+  // Local only:
+  variantId?: string;
+  productSlug?: string;
+  // Malfini only:
+  productSizeCode?: string; // 7-char SKU — primary key for checkout
+  productCode?: string;     // 3-char code — for navigating back to product detail
+  // Shared (always set):
   productName: string;
-  productSlug: string;
-  color: string;
-  size: string;
+  colorName: string;
+  sizeName: string;
   price: number; // HUF integer
   quantity: number;
   imageUrl: string | null;
@@ -18,17 +24,23 @@ export interface CartItem {
 interface CartState {
   items: CartItem[];
   addItem: (item: Omit<CartItem, "quantity">) => void;
-  removeItem: (variantId: string, designId?: string) => void;
-  updateQuantity: (variantId: string, quantity: number, designId?: string) => void;
+  removeItem: (key: string) => void;
+  updateQuantity: (key: string, quantity: number) => void;
   clearCart: () => void;
   totalItems: () => number;
   totalPrice: () => number;
 }
 
-// Items with a designId are always unique (one design per item).
-// Items without a designId are deduplicated by variantId.
-function itemKey(item: Pick<CartItem, "variantId" | "designId">): string {
-  return item.designId ?? item.variantId;
+// Stable identity key for a cart item.
+// Designed items (designId set): always unique — each design is a distinct line item.
+// Malfini items: keyed by productSizeCode.
+// Local items: keyed by variantId.
+export function itemKey(
+  item: Pick<CartItem, "source" | "variantId" | "productSizeCode" | "designId">
+): string {
+  if (item.designId) return item.designId;
+  if (item.source === "malfini") return item.productSizeCode!;
+  return item.variantId!;
 }
 
 export const useCartStore = create<CartState>()(
@@ -47,7 +59,7 @@ export const useCartStore = create<CartState>()(
           if (existing) {
             return {
               items: state.items.map((i) =>
-                itemKey(i) === key ? { ...i, quantity: i.quantity + 1 } : i,
+                itemKey(i) === key ? { ...i, quantity: i.quantity + 1 } : i
               ),
             };
           }
@@ -55,42 +67,34 @@ export const useCartStore = create<CartState>()(
         });
       },
 
-      removeItem: (variantId, designId) => {
+      removeItem: (key) => {
         set((state) => ({
-          items: state.items.filter((i) => {
-            if (designId) {
-              return !(i.variantId === variantId && i.designId === designId);
-            }
-            return i.variantId !== variantId;
-          }),
+          items: state.items.filter((i) => itemKey(i) !== key),
         }));
       },
 
-      updateQuantity: (variantId, quantity, designId) => {
+      updateQuantity: (key, quantity) => {
         if (quantity < 1) {
-          get().removeItem(variantId, designId);
+          get().removeItem(key);
           return;
         }
         set((state) => ({
-          items: state.items.map((i) => {
-            const matches = designId
-              ? i.variantId === variantId && i.designId === designId
-              : i.variantId === variantId;
-            return matches ? { ...i, quantity } : i;
-          }),
+          items: state.items.map((i) =>
+            itemKey(i) === key ? { ...i, quantity } : i
+          ),
         }));
       },
 
       clearCart: () => set({ items: [] }),
 
-      totalItems: () =>
-        get().items.reduce((sum, i) => sum + i.quantity, 0),
+      totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
 
       totalPrice: () =>
         get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
     }),
     {
       name: "varazskep-cart",
-    },
-  ),
+      version: 2, // bumped — clears stale carts with old CartItem shape on deploy
+    }
+  )
 );

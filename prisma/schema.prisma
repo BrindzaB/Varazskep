@@ -55,9 +55,17 @@ model Order {
   id              String      @id @default(cuid())
   stripeSessionId String      @unique
   status          OrderStatus @default(PENDING)
-  // Product
-  variantId       String
-  variant         Variant     @relation(fields: [variantId], references: [id])
+  // Local products (mugs, etc.) — null for Malfini orders
+  variantId       String?
+  variant         Variant?    @relation(fields: [variantId], references: [id])
+  // Malfini products (clothing) — null for local orders
+  productSizeCode String?     // 7-char SKU e.g. "M150XM0"
+  productCode     String?     // 3-char product code e.g. "150"
+  // Denormalized display fields — always set for both sources
+  // Required for 8-year retention even if product is later removed
+  productName     String      @default("")
+  colorName       String      @default("")
+  sizeName        String      @default("")
   // Design (optional — not all products require a custom design)
   designId        String?     @unique
   design          Design?     @relation(fields: [designId], references: [id])

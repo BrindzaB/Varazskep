@@ -19,21 +19,22 @@ export interface CategoryConfig {
   hasSides: boolean; // true = front/back toggle shown in the designer
 }
 
-// TODO: Replace placeholder keys with real Malfini categoryCode values.
-// Example structure shown below — remove or adjust once real codes are known.
+// Phase 6 scope: t-shirts and sweatshirts only.
+// Print area values are in canvas pixels (canvas 500×600, mockup scaled to ~88%).
+// These are initial values — adjust after visual testing with real product photos.
 export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
-  // "TSHIRTS": {
-  //   printArea: { width: 185, height: 210, centerX: 250, centerY: 285 },
-  //   hasSides: true,
-  // },
-  // "SWEATSHIRTS": {
-  //   printArea: { width: 185, height: 210, centerX: 250, centerY: 285 },
-  //   hasSides: true,
-  // },
-  // "POLO": {
-  //   printArea: { width: 160, height: 180, centerX: 250, centerY: 285 },
-  //   hasSides: true,
-  // },
+  "t-shirts": {
+    printArea: { width: 185, height: 210, centerX: 250, centerY: 285 },
+    hasSides: true,
+  },
+  "sweatshirts": {
+    printArea: { width: 185, height: 220, centerX: 250, centerY: 295 },
+    hasSides: true,
+  },
+  "polo-shirts": {
+    printArea: { width: 160, height: 180, centerX: 250, centerY: 285 },
+    hasSides: false,
+  },
 };
 
 // Returns the designer config for a Malfini product category, or null if the

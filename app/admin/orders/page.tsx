@@ -60,7 +60,7 @@ export default async function AdminOrdersPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-900">{order.customerName}</td>
                     <td className="px-4 py-3 text-gray-700">
-                      {order.variant.product.name} — {order.variant.color} / {order.variant.size}
+                      {order.productName} — {order.colorName} / {order.sizeName}
                     </td>
                     <td className="px-4 py-3 text-gray-900">
                       {order.totalAmount.toLocaleString("hu-HU")} Ft
