@@ -9,8 +9,8 @@ import type { PrintArea } from "@/lib/designer/mockupConfig";
 const CANVAS_WIDTH = 500;
 const CANVAS_HEIGHT = 600;
 
-// Mockup occupies 88% of the canvas in the tighter dimension
-const MOCKUP_SCALE_FACTOR = 0.88;
+// Mockup occupies 95% of the canvas in the tighter dimension
+const MOCKUP_SCALE_FACTOR = 0.95;
 
 // Fallback natural dimensions used if Fabric can't read the image dimensions
 const MOCKUP_NATURAL_WIDTH = 300;
@@ -402,7 +402,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
     }, [isReady, imageUrl, side]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
-      <div className="rounded border border-border-light bg-white shadow-card">
+      <div className="bg-white">
         <canvas ref={canvasElRef} />
       </div>
     );

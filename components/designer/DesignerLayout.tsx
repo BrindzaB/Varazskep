@@ -244,13 +244,13 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   }
 
   return (
-    <div className="flex bg-off-white">
+    <div className="flex bg-white">
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
       />
 
-      <div className="flex flex-1 flex-col items-center overflow-auto px-4 py-8 lg:px-8 lg:py-10">
+      <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
         <DesignerCanvas
           ref={canvasRef}
           imageUrl={imageUrl}
@@ -271,7 +271,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         )}
 
         {mockupConfig.hasSides && (
-          <div className="mt-3 flex rounded-lg border border-border-light bg-white p-1 shadow-card">
+          <div className="mt-3 flex rounded-lg border border-border-light bg-white p-1">
             <button
               onClick={() => setSide("front")}
               aria-pressed={side === "front"}
@@ -472,13 +472,13 @@ function MalfiniDesignerLayout({
   }
 
   return (
-    <div className="flex bg-off-white">
+    <div className="flex bg-white">
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
       />
 
-      <div className="flex flex-1 flex-col items-center overflow-auto px-4 py-8 lg:px-8 lg:py-10">
+      <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
         <DesignerCanvas
           ref={canvasRef}
           imageUrl={imageUrl}
@@ -499,7 +499,7 @@ function MalfiniDesignerLayout({
         )}
 
         {hasSides && (
-          <div className="mt-3 flex rounded-lg border border-border-light bg-white p-1 shadow-card">
+          <div className="mt-3 flex rounded-lg border border-border-light bg-white p-1">
             <button
               onClick={() => setSide("front")}
               aria-pressed={side === "front"}
