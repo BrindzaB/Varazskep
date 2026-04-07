@@ -2,7 +2,7 @@
 // All functions are safe to call from server components and API routes.
 // Products are cached via Next.js unstable_cache (Vercel Data Cache) for 1 hour —
 // survives cold starts and is shared across all function instances.
-// A warmup cron job (/api/warmup) runs every 45 min to keep the cache permanently warm.
+// A warmup cron job (/api/warmup) runs once daily (05:00 UTC) to refresh the cache.
 // Availability/prices use Next.js ISR (revalidate 5 min) — small responses, cacheable.
 // On any error, functions return safe empty fallbacks and log server-side.
 
@@ -75,7 +75,7 @@ const _fetchProducts = unstable_cache(
     return Array.isArray(data) ? (data as MalfiniProduct[]) : [];
   },
   ["malfini-products"],
-  { revalidate: 3600, tags: ["malfini-products"] },
+  { revalidate: 86400, tags: ["malfini-products"] },
 );
 
 // Returns all active Malfini products. Served from Data Cache on cache hit (< 500ms).
