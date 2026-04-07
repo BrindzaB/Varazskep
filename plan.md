@@ -277,10 +277,10 @@ A **phase** is done when:
 
 > Update this section at the start of each session to reflect where we are.
 
-**Current phase:** Phase 6 — Malfini API Integration (in progress)
-**Current step:** Step 6.8 complete — merge phase-6 → main pending review
-**Last approved step:** Step 6.8 — next.config image domains, sitemap Malfini routes, order confirmation page
-**Next step:** Review + merge `phase-6/malfini-integration` → `main`
+**Current phase:** Phase 6 — Malfini API Integration (complete)
+**Current step:** All steps complete including perf fix (unstable_cache + Vercel Cron warmup)
+**Last approved step:** Performance fix — replace module-level cache with unstable_cache + /api/warmup cron
+**Next step:** Merge `phase-6/malfini-integration` → `main`, then begin Phase 5 (Frontend UI Redesign) when client brand assets are available
 
-**Note:** Phase 5 (Frontend UI Redesign) is on hold — awaiting client brand assets. It will run after Phase 6.
+**Note:** Phase 5 (Frontend UI Redesign) is on hold — awaiting client brand assets. It will run after Phase 6 is merged.
 
