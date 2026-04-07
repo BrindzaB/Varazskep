@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import DesignerLayout from "@/components/designer/DesignerLayout";
+import ProductPickerPanel from "@/components/designer/ProductPickerPanel";
 import { getProductBySlug } from "@/lib/services/product";
 import {
+  getProducts,
   getProduct,
   getRecommendedPrices,
   getAvailabilities,
@@ -29,7 +31,60 @@ interface Props {
   };
 }
 
+// Products shown in the picker modal when the designer is opened with no URL params.
+const DESIGNER_PRODUCT_CODES = ["129", "134", "138", "P41", "840", "P21", "P22"];
+
 export default async function DesignerPage({ searchParams }: Props) {
+  // ── Empty state: no URL params — show product picker ──────────────────────
+  if (!searchParams.code && !searchParams.slug) {
+    const allProducts = await getProducts("hu");
+    const settled = DESIGNER_PRODUCT_CODES.map(
+      (code) => allProducts.find((p) => p.code === code) ?? null
+    );
+
+    const pickerProducts = settled
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+      .flatMap((p) => {
+        const variant = p.variants.find((v) => v.images.some((i) => i.viewCode === "a"));
+        const imageUrl = variant?.images.find((i) => i.viewCode === "a")?.link;
+        if (!imageUrl) return [];
+        return [{ code: p.code, name: p.name, categoryName: p.categoryName, imageUrl, genderCode: p.genderCode ?? null }];
+      });
+
+    // Load the first available product as a blurred background designer.
+    const bgCode = pickerProducts[0]?.code;
+    const bgProduct = bgCode ? (settled.find((p) => p?.code === bgCode) ?? null) : null;
+    const bgVariant = bgProduct?.variants.find((v) => v.images.some((i) => i.viewCode === "a")) ?? null;
+    const bgNomenclature = bgVariant?.nomenclatures[0] ?? null;
+
+    const [bgPrices, bgAvailabilities] = bgCode
+      ? await Promise.all([getRecommendedPrices([bgCode]), getAvailabilities([bgCode])])
+      : [[], []];
+
+    const bgPriceMap = buildPriceMap(bgPrices, convertEurToHuf);
+    const bgAvailabilityMap = buildAvailabilityMap(bgAvailabilities);
+
+    return (
+      <div className="relative h-[calc(100vh-4rem)] overflow-hidden">
+        {/* Blurred designer background */}
+        {bgProduct && bgVariant && bgNomenclature && (
+          <div className="pointer-events-none absolute inset-0 select-none blur-sm" aria-hidden="true">
+            <DesignerLayout
+              source="malfini"
+              malfiniProduct={bgProduct}
+              initialVariant={bgVariant}
+              initialNomenclature={bgNomenclature}
+              priceMap={bgPriceMap}
+              availabilityMap={bgAvailabilityMap}
+            />
+          </div>
+        )}
+        {/* Product picker overlay */}
+        <ProductPickerPanel products={pickerProducts} />
+      </div>
+    );
+  }
+
   // ── Malfini mode: ?code=M150&colorCode=01&sizeCode=M ──────────────────────
   if (searchParams.code) {
     const product = await getProduct(searchParams.code, "hu");
