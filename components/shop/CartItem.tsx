@@ -51,9 +51,20 @@ export default function CartItemRow({ item }: CartItemProps) {
         <p className="text-sm text-muted">
           {item.colorName}, {item.sizeName}
         </p>
-        <p className="text-sm font-medium text-charcoal">
-          {formatHuf(item.price)}
-        </p>
+        {item.printFee ? (
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted">
+              Termék: {formatHuf(item.price)} + Nyomtatás: {formatHuf(item.printFee)}
+            </p>
+            <p className="text-sm font-medium text-charcoal">
+              {formatHuf(item.price + item.printFee)}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm font-medium text-charcoal">
+            {formatHuf(item.price)}
+          </p>
+        )}
       </div>
 
       {/* Quantity stepper + remove */}

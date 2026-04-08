@@ -166,6 +166,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
     product.variants.find((v) => v.color === shirtColorName && v.size === selectedSize) ?? null;
   const isInStock = selectedVariant ? selectedVariant.stock > 0 : false;
 
+  const [printFee, setPrintFee] = useState(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
 
@@ -231,6 +232,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         colorName: shirtColorName,
         sizeName: selectedSize,
         price: selectedVariant.price,
+        printFee: printFee > 0 ? printFee : undefined,
         imageUrl: product.imageUrl ?? null,
         designId,
       });
@@ -257,6 +259,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
           side={side}
           printArea={mockupConfig.printArea}
           onActiveTextChange={handleActiveTextChange}
+          onPrintFeeChange={setPrintFee}
         />
 
         {isTextSelected && (
@@ -341,9 +344,22 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         </div>
 
         {selectedVariant && (
-          <p className="mt-5 text-xl font-semibold text-charcoal">
-            {formatHuf(selectedVariant.price)}
-          </p>
+          <div className="mt-5 space-y-1">
+            <div className="flex justify-between text-sm text-muted">
+              <span>Termék</span>
+              <span>{formatHuf(selectedVariant.price)}</span>
+            </div>
+            {printFee > 0 && (
+              <div className="flex justify-between text-sm text-muted">
+                <span>Nyomtatás</span>
+                <span>{formatHuf(printFee)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-base font-semibold text-charcoal border-t border-border-light pt-1">
+              <span>Összesen</span>
+              <span>{formatHuf(selectedVariant.price + printFee)}</span>
+            </div>
+          </div>
         )}
 
         {selectedVariant && !isInStock && (
@@ -399,6 +415,7 @@ function MalfiniDesignerLayout({
   const [isTextSelected, setIsTextSelected] = useState(false);
   const [activeFont, setActiveFont] = useState<string>(DEFAULT_TEXT_FONT);
   const [activeColor, setActiveColor] = useState<string>(DEFAULT_TEXT_COLOR);
+  const [printFee, setPrintFee] = useState(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
 
@@ -459,6 +476,7 @@ function MalfiniDesignerLayout({
         colorName: selectedVariant.name,
         sizeName: selectedNomenclature.sizeName,
         price,
+        printFee: printFee > 0 ? printFee : undefined,
         imageUrl,
         designId,
       });
@@ -485,6 +503,7 @@ function MalfiniDesignerLayout({
           side={side}
           printArea={printArea}
           onActiveTextChange={handleActiveTextChange}
+          onPrintFeeChange={setPrintFee}
         />
 
         {isTextSelected && (
@@ -579,7 +598,22 @@ function MalfiniDesignerLayout({
         </div>
 
         {price > 0 && (
-          <p className="mt-5 text-xl font-semibold text-charcoal">{formatHuf(price)}</p>
+          <div className="mt-5 space-y-1">
+            <div className="flex justify-between text-sm text-muted">
+              <span>Termék</span>
+              <span>{formatHuf(price)}</span>
+            </div>
+            {printFee > 0 && (
+              <div className="flex justify-between text-sm text-muted">
+                <span>Nyomtatás</span>
+                <span>{formatHuf(printFee)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-base font-semibold text-charcoal border-t border-border-light pt-1">
+              <span>Összesen</span>
+              <span>{formatHuf(price + printFee)}</span>
+            </div>
+          </div>
         )}
 
         {selectedNomenclature && !isInStock && (

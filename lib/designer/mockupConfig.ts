@@ -24,8 +24,8 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
       front: "/tshirt_front.svg",
       back: "/tshirt_back.svg",
     },
-    // Upper-chest print area — matches the hardcoded values from step 3.1
-    printArea: { width: 185, height: 210, centerX: CX, centerY: CY - 15 },
+    // Print area spans from just below the collar to near the hem
+    printArea: { width: 185, height: 300, centerX: CX, centerY: CY },
     hasSides: true,
   },
   mug: {

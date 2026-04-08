@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
 import { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
 import type { PrintArea } from "@/lib/designer/mockupConfig";
@@ -8,6 +8,19 @@ import type { PrintArea } from "@/lib/designer/mockupConfig";
 // Canvas dimensions (fixed — responsive scaling is a future concern)
 const CANVAS_WIDTH = 500;
 const CANVAS_HEIGHT = 600;
+
+// Physical print area dimensions (cm) — used for coordinate display and print fee calculation.
+// The full printable area on a standard adult t-shirt is 38×48 cm.
+const PRINT_AREA_CM_WIDTH  = 38;
+const PRINT_AREA_CM_HEIGHT = 48;
+
+// A4 dimension thresholds for print fee tier.
+// An object is "large" if it exceeds A4 in either dimension (width > 21 cm OR height > 29.7 cm).
+// Area-only comparison fails for text, which is wide but short and never reaches A4 area.
+const A4_WIDTH_CM     = 21;
+const A4_HEIGHT_CM    = 29.7;
+const PRINT_FEE_SMALL = 3000; // Ft per object when both dimensions ≤ A4
+const PRINT_FEE_LARGE = 3500; // Ft per object when either dimension exceeds A4
 
 // Mockup occupies 95% of the canvas in the tighter dimension
 const MOCKUP_SCALE_FACTOR = 0.95;
@@ -56,11 +69,13 @@ interface DesignerCanvasProps {
   printArea: PrintArea;
   // Called when text selection changes — isText=true means an IText is selected
   onActiveTextChange?: (isText: boolean, font: string, color: string) => void;
+  // Called whenever the total print fee changes (sum of per-object fees across both sides)
+  onPrintFeeChange?: (fee: number) => void;
 }
 
 const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
   function DesignerCanvas(
-    { imageUrl, side = "front", printArea, onActiveTextChange },
+    { imageUrl, side = "front", printArea, onActiveTextChange, onPrintFeeChange },
     ref,
   ) {
     const canvasElRef = useRef<HTMLCanvasElement>(null);
@@ -81,9 +96,39 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
     // Signals that canvas mechanics are ready — triggers the image loading effect.
     const [isReady, setIsReady] = useState(false);
 
+    // Red center guide line — shown while an object is snapped to horizontal center
+    const [showCenterGuide, setShowCenterGuide] = useState(false);
+
+    // Floating coordinate overlay state — shown above the selected object
+    const [coordOverlay, setCoordOverlay] = useState<{
+      xCm: number;
+      yCm: number;
+      left: number;
+      top: number;
+    } | null>(null);
 
     const onActiveTextChangeRef = useRef(onActiveTextChange);
     useEffect(() => { onActiveTextChangeRef.current = onActiveTextChange; }, [onActiveTextChange]);
+
+    const onPrintFeeChangeRef = useRef(onPrintFeeChange);
+    useEffect(() => { onPrintFeeChangeRef.current = onPrintFeeChange; }, [onPrintFeeChange]);
+
+    // Stable ref to the recalc function — set once the canvas is initialised.
+    const recalcPrintFeeRef = useRef<(() => void) | null>(null);
+
+    // Computes X/Y position (in cm from print area top-left) and DOM position for the overlay.
+    const computeCoordOverlay = useCallback((obj: FabricObject) => {
+      obj.setCoords();
+      const br = obj.getBoundingRect();
+      const printLeft = printArea.centerX - printArea.width  / 2;
+      const printTop  = printArea.centerY - printArea.height / 2;
+      return {
+        xCm:  Math.max(0, (br.left - printLeft) * (PRINT_AREA_CM_WIDTH  / printArea.width)),
+        yCm:  Math.max(0, (br.top  - printTop)  * (PRINT_AREA_CM_HEIGHT / printArea.height)),
+        left: br.left + br.width / 2,
+        top:  br.top,
+      };
+    }, [printArea]);
 
     // ── Expose canvas API to DesignerLayout ───────────────────────────────────
     useImperativeHandle(ref, () => ({
@@ -171,19 +216,40 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         const currentSide = currentSideRef.current;
         const otherSide: "front" | "back" = currentSide === "front" ? "back" : "front";
 
+        const printLeft = printArea.centerX - printArea.width  / 2;
+        const printTop  = printArea.centerY - printArea.height / 2;
+
+        const withCoords = (obj: FabricObject): object => {
+          obj.setCoords();
+          const br = obj.getBoundingRect();
+          return {
+            ...obj.toObject(),
+            _xCm: Math.max(0, (br.left - printLeft) * (PRINT_AREA_CM_WIDTH  / printArea.width)),
+            _yCm: Math.max(0, (br.top  - printTop)  * (PRINT_AREA_CM_HEIGHT / printArea.height)),
+            _wCm: obj.getScaledWidth()  * (PRINT_AREA_CM_WIDTH  / printArea.width),
+            _hCm: obj.getScaledHeight() * (PRINT_AREA_CM_HEIGHT / printArea.height),
+          };
+        };
+
         const currentObjects = canvas
           .getObjects()
           .filter((o) => o.selectable !== false)
-          .map((o) => o.toObject());
+          .map(withCoords);
 
-        const otherObjects = sideObjectsRef.current[otherSide].map((o) =>
-          o.toObject(),
-        );
+        const otherObjects = sideObjectsRef.current[otherSide].map(withCoords);
 
         return {
           [currentSide]: currentObjects,
           [otherSide]: otherObjects,
-        } as { front: object[]; back: object[] };
+          // Print area pixel boundaries — used by the SVG exporter to crop to the
+          // printable zone instead of the full canvas.
+          printAreaPx: {
+            left:   printLeft,
+            top:    printTop,
+            width:  printArea.width,
+            height: printArea.height,
+          },
+        } as unknown as { front: object[]; back: object[] };
       },
     }));
 
@@ -229,13 +295,25 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         const printRight  = printArea.centerX + printArea.width  / 2;
         const printBottom = printArea.centerY + printArea.height / 2;
 
+        // How close (px) the object center must be to snap to the print area center
+        const SNAP_THRESHOLD = 8;
+
         canvas.on("object:moving", (e) => {
           const obj = e.target;
           if (!obj) return;
 
-          const center = obj.getCenterPoint();
+          let center = obj.getCenterPoint();
           const halfW = obj.getScaledWidth() / 2;
           const halfH = obj.getScaledHeight() / 2;
+
+          // Snap to horizontal center of the print area
+          const nearCenter = Math.abs(center.x - printArea.centerX) < SNAP_THRESHOLD;
+          if (nearCenter) {
+            obj.set({ left: printArea.centerX });
+            obj.setCoords();
+            center = obj.getCenterPoint();
+          }
+          setShowCenterGuide(nearCenter);
 
           const clampedX = Math.min(Math.max(center.x, printLeft + halfW), printRight - halfW);
           const clampedY = Math.min(Math.max(center.y, printTop + halfH), printBottom - halfH);
@@ -248,6 +326,25 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
             obj.setCoords();
           }
         });
+
+        canvas.on("object:modified", () => setShowCenterGuide(false));
+
+        // Recalculates total print fee across all objects on both sides and fires callback.
+        const recalcPrintFee = () => {
+          const c = fabricRef.current;
+          if (!c) return;
+          const currentObjs = c.getObjects().filter((o) => o.selectable !== false);
+          const otherSide = currentSideRef.current === "front" ? "back" : "front";
+          const otherObjs = sideObjectsRef.current[otherSide];
+          const total = [...currentObjs, ...otherObjs].reduce((sum, obj) => {
+            const wCm = obj.getScaledWidth()  * (PRINT_AREA_CM_WIDTH  / printArea.width);
+            const hCm = obj.getScaledHeight() * (PRINT_AREA_CM_HEIGHT / printArea.height);
+            const isLarge = wCm > A4_WIDTH_CM || hCm > A4_HEIGHT_CM;
+            return sum + (isLarge ? PRINT_FEE_LARGE : PRINT_FEE_SMALL);
+          }, 0);
+          onPrintFeeChangeRef.current?.(total);
+        };
+        recalcPrintFeeRef.current = recalcPrintFee;
 
         const lastGoodState = new WeakMap<FabricObject, {
           scaleX: number; scaleY: number; left: number; top: number;
@@ -262,6 +359,15 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
             left: obj.left ?? 0,
             top: obj.top ?? 0,
           });
+          recalcPrintFee();
+        });
+
+        canvas.on("object:removed", (e) => {
+          if (e.target && e.target.selectable !== false) recalcPrintFee();
+        });
+
+        canvas.on("object:modified", (e) => {
+          if (e.target && e.target.selectable !== false) recalcPrintFee();
         });
 
         canvas.on("object:scaling", (e) => {
@@ -311,9 +417,28 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           }
         };
 
-        canvas.on("selection:created", (e) => notifyTextSelection(e.selected?.[0]));
-        canvas.on("selection:updated", (e) => notifyTextSelection(e.selected?.[0]));
-        canvas.on("selection:cleared", () => onActiveTextChangeRef.current?.(false, "", ""));
+        canvas.on("selection:created", (e) => {
+          notifyTextSelection(e.selected?.[0]);
+          const obj = e.selected?.[0];
+          if (obj && obj.selectable !== false) setCoordOverlay(computeCoordOverlay(obj));
+        });
+        canvas.on("selection:updated", (e) => {
+          notifyTextSelection(e.selected?.[0]);
+          const obj = e.selected?.[0];
+          if (obj && obj.selectable !== false) setCoordOverlay(computeCoordOverlay(obj));
+          else setCoordOverlay(null);
+        });
+        canvas.on("selection:cleared", () => {
+          onActiveTextChangeRef.current?.(false, "", "");
+          setCoordOverlay(null);
+          setShowCenterGuide(false);
+        });
+        canvas.on("object:moving", (e) => {
+          if (e.target && e.target.selectable !== false) setCoordOverlay(computeCoordOverlay(e.target));
+        });
+        canvas.on("object:scaling", (e) => {
+          if (e.target && e.target.selectable !== false) setCoordOverlay(computeCoordOverlay(e.target));
+        });
 
         // Dashed print area boundary — visual guide, not interactive
         const printAreaRect = new Rect({
@@ -392,6 +517,8 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           // Restore the incoming side's objects
           sideObjectsRef.current[side].forEach((o) => canvas.add(o));
           currentSideRef.current = side;
+          // Update print fee after side switch (objects changed)
+          recalcPrintFeeRef.current?.();
         }
 
         canvas.renderAll();
@@ -401,9 +528,31 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       return () => { cancelled = true; };
     }, [isReady, imageUrl, side]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    const printTop  = printArea.centerY - printArea.height / 2;
+
     return (
-      <div className="bg-white">
+      <div className="relative bg-white">
         <canvas ref={canvasElRef} />
+        {showCenterGuide && (
+          <div
+            className="pointer-events-none absolute"
+            style={{
+              left: printArea.centerX - 0.5,
+              top: printTop,
+              width: 1,
+              height: printArea.height,
+              backgroundColor: "#ef4444",
+            }}
+          />
+        )}
+        {coordOverlay && (
+          <div
+            className="pointer-events-none absolute -translate-x-1/2 rounded bg-charcoal/80 px-2 py-0.5 text-xs text-white"
+            style={{ left: coordOverlay.left, top: coordOverlay.top - 28 }}
+          >
+            X:{coordOverlay.xCm.toFixed(2)}&nbsp;cm&nbsp;&nbsp;Y:{coordOverlay.yCm.toFixed(2)}&nbsp;cm
+          </div>
+        )}
       </div>
     );
   },

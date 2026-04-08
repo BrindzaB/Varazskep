@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useCartStore } from "@/lib/cart/cartStore";
+import { useCartStore, itemKey } from "@/lib/cart/cartStore";
 import { formatHuf } from "@/lib/utils/format";
 
 interface FormFields {
@@ -59,7 +59,7 @@ export default function CheckoutForm() {
   const router = useRouter();
   const items = useCartStore((state) => state.items);
   const totalPrice = useCartStore((state) =>
-    state.items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+    state.items.reduce((sum, i) => sum + (i.price + (i.printFee ?? 0)) * i.quantity, 0),
   );
 
   const [fields, setFields] = useState<FormFields>(EMPTY_FORM);
@@ -246,12 +246,12 @@ export default function CheckoutForm() {
 
           <div className="mt-4 space-y-2">
             {items.map((item) => (
-              <div key={item.variantId} className="flex justify-between text-sm">
+              <div key={itemKey(item)} className="flex justify-between text-sm">
                 <span className="text-muted">
                   {item.productName} × {item.quantity}
                 </span>
                 <span className="text-charcoal">
-                  {formatHuf(item.price * item.quantity)}
+                  {formatHuf((item.price + (item.printFee ?? 0)) * item.quantity)}
                 </span>
               </div>
             ))}

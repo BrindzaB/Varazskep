@@ -5,6 +5,9 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 export interface CanvasJson {
   front: unknown[];
   back: unknown[];
+  // Print area pixel boundaries stored at save-time — used to crop the SVG export.
+  // Absent in designs saved before this feature was added (falls back to full canvas).
+  printAreaPx?: { left: number; top: number; width: number; height: number };
 }
 
 // ── Canvas dimensions — must match DesignerCanvas.tsx ─────────────────────────
@@ -127,12 +130,15 @@ function fabricObjectToSvgElement(obj: unknown): string | null {
 
 /**
  * Converts an array of serialized Fabric objects to an SVG string.
+ * The viewBox crops to the print area so only the printable zone is shown.
  * Pure function — no side effects, suitable for unit testing.
  */
 export function buildSvgFromObjects(
   objects: unknown[],
-  width: number,
-  height: number,
+  viewLeft: number,
+  viewTop: number,
+  viewWidth: number,
+  viewHeight: number,
 ): string {
   const elements = objects
     .map(fabricObjectToSvgElement)
@@ -141,8 +147,7 @@ export function buildSvgFromObjects(
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
-    `     width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-    `  <rect width="${width}" height="${height}" fill="white"/>`,
+    `     width="${viewWidth}" height="${viewHeight}" viewBox="${viewLeft} ${viewTop} ${viewWidth} ${viewHeight}">`,
     elements ? `  ${elements}` : "",
     `</svg>`,
   ]
@@ -161,14 +166,21 @@ export function buildDesignSvg(canvasJson: CanvasJson): string {
   const backObjects = Array.isArray(canvasJson.back) ? canvasJson.back : [];
   const hasBack = backObjects.length > 0;
 
+  // Crop to the print area if the boundaries were saved; fall back to full canvas.
+  const pa = canvasJson.printAreaPx;
+  const vLeft   = pa?.left   ?? 0;
+  const vTop    = pa?.top    ?? 0;
+  const vWidth  = pa?.width  ?? CANVAS_WIDTH;
+  const vHeight = pa?.height ?? CANVAS_HEIGHT;
+
   if (!hasBack) {
-    return buildSvgFromObjects(frontObjects, CANVAS_WIDTH, CANVAS_HEIGHT);
+    return buildSvgFromObjects(frontObjects, vLeft, vTop, vWidth, vHeight);
   }
 
   const GAP = 16;
   const LABEL_HEIGHT = 28;
-  const totalWidth = CANVAS_WIDTH * 2 + GAP;
-  const totalHeight = CANVAS_HEIGHT + LABEL_HEIGHT;
+  const totalWidth  = vWidth * 2 + GAP;
+  const totalHeight = vHeight + LABEL_HEIGHT;
 
   const frontElements = frontObjects
     .map(fabricObjectToSvgElement)
@@ -180,20 +192,18 @@ export function buildDesignSvg(canvasJson: CanvasJson): string {
     .filter((el): el is string => el !== null)
     .join("\n    ");
 
+  // The two panels each use the print area viewBox via a nested <svg>.
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">
-  <rect width="${totalWidth}" height="${totalHeight}" fill="#f9fafb"/>
   <!-- Front panel -->
-  <g>
-    <rect width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+  <svg x="0" y="0" width="${vWidth}" height="${vHeight}" viewBox="${vLeft} ${vTop} ${vWidth} ${vHeight}">
     ${frontElements}
-    <text x="${CANVAS_WIDTH / 2}" y="${CANVAS_HEIGHT + LABEL_HEIGHT - 8}" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#6b7280">Elől</text>
-  </g>
+  </svg>
+  <text x="${vWidth / 2}" y="${vHeight + LABEL_HEIGHT - 8}" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#6b7280">Elől</text>
   <!-- Back panel -->
-  <g transform="translate(${CANVAS_WIDTH + GAP}, 0)">
-    <rect width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+  <svg x="${vWidth + GAP}" y="0" width="${vWidth}" height="${vHeight}" viewBox="${vLeft} ${vTop} ${vWidth} ${vHeight}">
     ${backElements}
-    <text x="${CANVAS_WIDTH / 2}" y="${CANVAS_HEIGHT + LABEL_HEIGHT - 8}" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#6b7280">Hátul</text>
-  </g>
+  </svg>
+  <text x="${vWidth + GAP + vWidth / 2}" y="${vHeight + LABEL_HEIGHT - 8}" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#6b7280">Hátul</text>
 </svg>`;
 }
 

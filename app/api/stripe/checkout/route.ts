@@ -142,6 +142,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       quantity: item.quantity,
     });
 
+    // Add a separate print fee line item if the item was created in the designer.
+    // Validate: must be a positive multiple of 500 and within a reasonable upper bound.
+    if (item.printFee && item.printFee > 0) {
+      const maxAllowed = item.quantity * 100 * 3500; // very generous cap
+      if (item.printFee % 500 !== 0 || item.printFee > maxAllowed) {
+        return NextResponse.json(
+          { error: "Érvénytelen nyomtatási díj." },
+          { status: 400 },
+        );
+      }
+      lineItems.push({
+        price_data: {
+          currency: "huf",
+          product_data: { name: "Egyedi nyomtatás" },
+          unit_amount: item.printFee * 100,
+        },
+        quantity: item.quantity,
+      });
+    }
+
     const meta: CartItemMeta = {
       source: item.source,
       productName: item.productName,

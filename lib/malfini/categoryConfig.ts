@@ -24,15 +24,16 @@ export interface CategoryConfig {
 // These are initial values — adjust after visual testing with real product photos.
 export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   "t-shirts": {
-    printArea: { width: 185, height: 210, centerX: 250, centerY: 285 },
+    printArea: { width: 220, height: 300, centerX: 250, centerY: 300 },
     hasSides: true,
   },
   "sweatshirts": {
-    printArea: { width: 185, height: 220, centerX: 250, centerY: 295 },
+    printArea: { width: 185, height: 300, centerX: 250, centerY: 300 },
     hasSides: true,
   },
   "polo-shirts": {
-    printArea: { width: 160, height: 180, centerX: 250, centerY: 285 },
+    // Slightly narrower and shorter than t-shirts due to the collar and button placket
+    printArea: { width: 200, height: 300, centerX: 250, centerY: 310 },
     hasSides: false,
   },
 };

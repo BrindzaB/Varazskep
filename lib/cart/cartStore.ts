@@ -19,6 +19,7 @@ export interface CartItem {
   quantity: number;
   imageUrl: string | null;
   designId?: string; // set when the item was created in the designer
+  printFee?: number; // total print fee in HUF (sum of per-object fees); added on top of price
 }
 
 interface CartState {
@@ -90,11 +91,11 @@ export const useCartStore = create<CartState>()(
       totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
 
       totalPrice: () =>
-        get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+        get().items.reduce((sum, i) => sum + (i.price + (i.printFee ?? 0)) * i.quantity, 0),
     }),
     {
       name: "varazskep-cart",
-      version: 2, // bumped — clears stale carts with old CartItem shape on deploy
+      version: 3, // bumped — clears stale carts with old CartItem shape on deploy
     }
   )
 );

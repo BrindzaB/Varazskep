@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCartStore } from "@/lib/cart/cartStore";
+import { useCartStore, itemKey } from "@/lib/cart/cartStore";
 import CartItemRow from "@/components/shop/CartItem";
 import { formatHuf } from "@/lib/utils/format";
 
@@ -11,7 +11,7 @@ export default function CartPage() {
     state.items.reduce((sum, i) => sum + i.quantity, 0),
   );
   const totalPrice = useCartStore((state) =>
-    state.items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+    state.items.reduce((sum, i) => sum + (i.price + (i.printFee ?? 0)) * i.quantity, 0),
   );
 
   if (items.length === 0) {
@@ -42,7 +42,7 @@ export default function CartPage() {
           {/* Item list */}
           <div className="lg:col-span-2">
             {items.map((item) => (
-              <CartItemRow key={item.variantId} item={item} />
+              <CartItemRow key={itemKey(item)} item={item} />
             ))}
           </div>
 
@@ -55,14 +55,14 @@ export default function CartPage() {
             <div className="mt-4 space-y-2">
               {items.map((item) => (
                 <div
-                  key={item.variantId}
+                  key={itemKey(item)}
                   className="flex justify-between text-sm"
                 >
                   <span className="text-muted">
                     {item.productName} × {item.quantity}
                   </span>
                   <span className="text-charcoal">
-                    {formatHuf(item.price * item.quantity)}
+                    {formatHuf((item.price + (item.printFee ?? 0)) * item.quantity)}
                   </span>
                 </div>
               ))}

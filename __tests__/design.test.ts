@@ -16,10 +16,9 @@ import { buildSvgFromObjects, buildDesignSvg } from "@/lib/services/design";
 
 describe("buildSvgFromObjects", () => {
   it("returns a valid SVG wrapper for an empty object list", () => {
-    const svg = buildSvgFromObjects([], 500, 600);
+    const svg = buildSvgFromObjects([], 0, 0, 500, 600);
     expect(svg).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
     expect(svg).toContain('width="500" height="600"');
-    expect(svg).toContain('<rect width="500" height="600" fill="white"/>');
     expect(svg).toContain("</svg>");
   });
 
@@ -38,7 +37,7 @@ describe("buildSvgFromObjects", () => {
         scaleY: 1,
       },
     ];
-    const svg = buildSvgFromObjects(objects, 500, 600);
+    const svg = buildSvgFromObjects(objects, 0, 0, 500, 600);
     expect(svg).toContain("<text");
     expect(svg).toContain("Hello");
     expect(svg).toContain('font-family="Inter"');
@@ -61,7 +60,7 @@ describe("buildSvgFromObjects", () => {
         angle: 0,
       },
     ];
-    const svg = buildSvgFromObjects(objects, 500, 600);
+    const svg = buildSvgFromObjects(objects, 0, 0, 500, 600);
     expect(svg).toContain("<image");
     expect(svg).toContain('href="https://example.com/star.svg"');
     expect(svg).toContain('translate(250, 280)');
@@ -80,7 +79,7 @@ describe("buildSvgFromObjects", () => {
         fill: "#000000",
       },
     ];
-    const svg = buildSvgFromObjects(objects, 500, 600);
+    const svg = buildSvgFromObjects(objects, 0, 0, 500, 600);
     expect(svg).toContain("A &amp; B &lt;test&gt; &quot;quote&quot; &apos;apos&apos;");
     // Raw characters must not appear inside element content
     expect(svg).not.toContain("A & B");
@@ -98,7 +97,7 @@ describe("buildSvgFromObjects", () => {
         fill: "#000000",
       },
     ];
-    const svg = buildSvgFromObjects(objects, 500, 600);
+    const svg = buildSvgFromObjects(objects, 0, 0, 500, 600);
     const tspanCount = (svg.match(/<tspan/g) ?? []).length;
     expect(tspanCount).toBe(2);
     expect(svg).toContain("Line one");
@@ -120,13 +119,13 @@ describe("buildSvgFromObjects", () => {
         scaleY: 1,
       },
     ];
-    const svg = buildSvgFromObjects(objects, 500, 600);
+    const svg = buildSvgFromObjects(objects, 0, 0, 500, 600);
     expect(svg).toContain("rotate(45)");
   });
 
   it("skips unknown object types silently", () => {
     const objects = [{ type: "rect", left: 100, top: 100 }];
-    const svg = buildSvgFromObjects(objects, 500, 600);
+    const svg = buildSvgFromObjects(objects, 0, 0, 500, 600);
     // Should still be a valid SVG but contain no user elements beyond the background rect
     expect(svg).toContain("<svg");
     expect(svg).not.toContain("<rect x=");
