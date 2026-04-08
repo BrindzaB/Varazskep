@@ -46,9 +46,9 @@ function DesignerToolbar({
   return (
     <aside className="hidden w-20 flex-shrink-0 flex-col items-center gap-6 bg-charcoal py-6 lg:flex">
       <Link
-        href="/products"
-        title="Vissza a termékekhez"
-        aria-label="Vissza a termékekhez"
+        href="/designer"
+        title="Termék váltása"
+        aria-label="Termék váltása"
         className="flex flex-col items-center gap-1 text-white/60 transition-colors hover:text-white"
       >
         <svg
