@@ -45,7 +45,10 @@ function extractCustomerUploadUrls(canvasJson: unknown): string[] {
   for (const side of ["front", "back"] as const) {
     for (const obj of (json[side] ?? [])) {
       const o = obj as { type?: string; src?: string };
-      if (o.type === "image" && typeof o.src === "string" && o.src.includes("/uploads/")) {
+      // Fabric v7 serializes as "Image" (capital I); older versions used "image".
+      // Normalise before comparing.
+      const typeKey = (o.type ?? "").toLowerCase();
+      if (typeKey === "image" && typeof o.src === "string" && o.src.includes("/uploads/")) {
         if (!seen.has(o.src)) {
           seen.add(o.src);
           urls.push(o.src);
