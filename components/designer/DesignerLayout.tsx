@@ -33,11 +33,15 @@ function sortNomenclatures(nomenclatures: MalfiniNomenclature[]): MalfiniNomencl
 interface ToolbarProps {
   onClipartOpen: () => void;
   onAddText: () => void;
+  onImageUploadClick: () => void;
+  isUploading: boolean;
 }
 
 function DesignerToolbar({
   onClipartOpen,
   onAddText,
+  onImageUploadClick,
+  isUploading,
 }: ToolbarProps) {
   return (
     <aside className="hidden w-20 flex-shrink-0 flex-col items-center gap-6 bg-charcoal py-6 lg:flex">
@@ -90,6 +94,49 @@ function DesignerToolbar({
           <rect x="14" y="14" width="7" height="7" rx="1" />
         </svg>
         <span className="text-xs font-medium">Motívum</span>
+      </button>
+
+      <div className="w-10 border-t border-white/20" />
+
+      <button
+        onClick={onImageUploadClick}
+        disabled={isUploading}
+        title="Saját kép feltöltése"
+        aria-label="Saját kép feltöltése"
+        className="flex flex-col items-center gap-1 text-white/60 transition-colors hover:text-white disabled:opacity-50"
+      >
+        {isUploading ? (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-6 w-6 animate-spin"
+            aria-hidden="true"
+          >
+            <path d="M21 12a9 9 0 11-6.219-8.56" />
+          </svg>
+        ) : (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-6 w-6"
+            aria-hidden="true"
+          >
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        )}
+        <span className="text-xs font-medium">Kép</span>
       </button>
 
       <div className="w-10 border-t border-white/20" />
@@ -169,8 +216,11 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   const [printFee, setPrintFee] = useState(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const canvasRef = useRef<DesignerCanvasRef>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Compute imageUrl by fetching the SVG and applying color replacement.
   // Cached per side to avoid redundant fetches.
@@ -196,6 +246,32 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
 
   function handleClipartSelect(svgUrl: string) {
     canvasRef.current?.addClipart(svgUrl);
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = "";
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/designs/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? "Upload failed");
+      }
+      const { url } = (await res.json()) as { url: string };
+      await canvasRef.current?.addImage(url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "A feltöltés sikertelen.");
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   function handleColorChange(name: string) {
@@ -250,6 +326,15 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
+        onImageUploadClick={() => fileInputRef.current?.click()}
+        isUploading={isUploading}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={handleFileChange}
       />
 
       <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
@@ -271,6 +356,10 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
               onColorChange={(color) => { setActiveColor(color); canvasRef.current?.setTextColor(color); }}
             />
           </div>
+        )}
+
+        {uploadError && (
+          <p className="mt-2 text-sm text-error">{uploadError}</p>
         )}
 
         {mockupConfig.hasSides && (
@@ -418,8 +507,11 @@ function MalfiniDesignerLayout({
   const [printFee, setPrintFee] = useState(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const canvasRef = useRef<DesignerCanvasRef>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Compute imageUrl directly from variant image data — no async work needed.
   // Fall back to front image if back is requested but unavailable.
@@ -451,6 +543,31 @@ function MalfiniDesignerLayout({
   function handleActiveTextChange(isText: boolean, font: string, color: string) {
     setIsTextSelected(isText);
     if (isText) { setActiveFont(font); setActiveColor(color); }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/designs/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? "Upload failed");
+      }
+      const { url } = (await res.json()) as { url: string };
+      await canvasRef.current?.addImage(url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "A feltöltés sikertelen.");
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   async function handleAddToCart() {
@@ -494,6 +611,15 @@ function MalfiniDesignerLayout({
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
+        onImageUploadClick={() => fileInputRef.current?.click()}
+        isUploading={isUploading}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={handleFileChange}
       />
 
       <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
@@ -515,6 +641,10 @@ function MalfiniDesignerLayout({
               onColorChange={(color) => { setActiveColor(color); canvasRef.current?.setTextColor(color); }}
             />
           </div>
+        )}
+
+        {uploadError && (
+          <p className="mt-2 text-sm text-error">{uploadError}</p>
         )}
 
         {hasSides && (

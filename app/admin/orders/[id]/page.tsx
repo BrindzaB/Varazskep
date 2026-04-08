@@ -36,6 +36,61 @@ interface DesignObject {
   _hCm?: number;
 }
 
+// Extracts URLs of customer-uploaded images from canvasJson.
+// Uploaded images are stored under the "uploads/" path prefix in the designs bucket.
+function extractCustomerUploadUrls(canvasJson: unknown): string[] {
+  const json = canvasJson as { front?: unknown[]; back?: unknown[] };
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const side of ["front", "back"] as const) {
+    for (const obj of (json[side] ?? [])) {
+      const o = obj as { type?: string; src?: string };
+      // Fabric v7 serializes as "Image" (capital I); older versions used "image".
+      // Normalise before comparing.
+      const typeKey = (o.type ?? "").toLowerCase();
+      if (typeKey === "image" && typeof o.src === "string" && o.src.includes("/uploads/")) {
+        if (!seen.has(o.src)) {
+          seen.add(o.src);
+          urls.push(o.src);
+        }
+      }
+    }
+  }
+  return urls;
+}
+
+function CustomerUploadedImages({ canvasJson }: { canvasJson: unknown }) {
+  const urls = extractCustomerUploadUrls(canvasJson);
+  if (urls.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+      <h2 className="text-sm font-semibold text-gray-700 mb-3">Feltöltött képek</h2>
+      <div className="flex flex-wrap gap-4">
+        {urls.map((url, i) => (
+          <div key={i} className="flex flex-col items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt={`Feltöltött kép ${i + 1}`}
+              className="h-20 w-20 rounded border border-gray-200 object-contain"
+            />
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              download
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Letöltés
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DesignCoordinatesTable({ canvasJson }: { canvasJson: unknown }) {
   const json = canvasJson as { front?: unknown[]; back?: unknown[] };
   const rows: { side: string; type: string; xCm: number; yCm: number; wCm: number; hCm: number }[] = [];
@@ -234,6 +289,11 @@ export default async function AdminOrderDetailPage({
               Megnyitás új lapon
             </a>
           </div>
+        )}
+
+        {/* Customer uploaded images — extracted from canvasJson */}
+        {order.design?.canvasJson && (
+          <CustomerUploadedImages canvasJson={order.design.canvasJson} />
         )}
 
         {/* Design coordinates — parsed from canvasJson */}

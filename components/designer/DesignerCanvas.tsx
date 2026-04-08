@@ -52,6 +52,7 @@ function applyMockupLayout(img: FabricImage, canvas: Canvas): void {
 // Public API exposed to DesignerLayout via ref
 export interface DesignerCanvasRef {
   addClipart: (svgUrl: string) => Promise<void>;
+  addImage: (url: string) => Promise<void>;
   addText: () => Promise<void>;
   setTextFont: (font: string) => void;
   setTextColor: (color: string) => void;
@@ -142,6 +143,36 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         const CLIPART_INITIAL_SIZE = 80;
         const longestSide = Math.max(img.width ?? 1, img.height ?? 1);
         const scale = CLIPART_INITIAL_SIZE / longestSide;
+
+        img.set({
+          scaleX: scale,
+          scaleY: scale,
+          left: printArea.centerX,
+          top: printArea.centerY,
+          originX: "center",
+          originY: "center",
+        });
+
+        img.controls = {
+          ...img.controls,
+          deleteControl: buildDeleteControl(Control),
+        };
+
+        canvas.add(img);
+        canvas.setActiveObject(img);
+        canvas.renderAll();
+      },
+
+      async addImage(url: string) {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+
+        const { FabricImage, Control } = await import("fabric");
+        const img = await FabricImage.fromURL(url, { crossOrigin: "anonymous" });
+
+        const IMAGE_INITIAL_MAX_SIZE = 200;
+        const longestSide = Math.max(img.width ?? 1, img.height ?? 1);
+        const scale = Math.min(1, IMAGE_INITIAL_MAX_SIZE / longestSide);
 
         img.set({
           scaleX: scale,
