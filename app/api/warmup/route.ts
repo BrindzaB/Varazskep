@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProducts } from "@/lib/malfini/client";
+import { warmupMalfiniCache } from "@/lib/malfini/client";
 
 export async function GET(request: NextRequest) {
   // Vercel Cron sends Authorization: Bearer <CRON_SECRET> automatically.
@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  await getProducts("hu");
+  // Unconditionally fetches fresh data from Malfini and writes to both
+  // the module-level L1 cache and the shared Redis L2 cache.
+  await warmupMalfiniCache("hu");
   return NextResponse.json({ ok: true, warmedAt: new Date().toISOString() });
 }

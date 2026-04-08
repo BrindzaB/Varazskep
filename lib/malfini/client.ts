@@ -8,6 +8,7 @@
 // On any error, functions return safe empty fallbacks and log server-side.
 
 import { clearCachedToken, getMalfiniToken } from "./auth";
+import { getRedisClient, REDIS_KEY_CATALOG, REDIS_CATALOG_TTL_SECONDS } from "@/lib/redis";
 import type {
   MalfiniAvailability,
   MalfiniProduct,
@@ -55,6 +56,7 @@ let productsCache: {
 export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
   const now = Date.now();
 
+  // L1: module-level in-process cache (0ms latency, per-instance)
   if (
     productsCache &&
     productsCache.language === language &&
@@ -62,6 +64,31 @@ export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
   ) {
     return productsCache.data;
   }
+
+  // L2: Upstash Redis (shared across all instances, ~5-50ms latency)
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      const cached = await redis.get<MalfiniProduct[]>(REDIS_KEY_CATALOG);
+      if (cached) {
+        // Populate L1 from Redis so subsequent requests in this instance are instant
+        productsCache = { data: cached, language, expiresAt: now + 3600 * 1000 };
+        return cached;
+      }
+    } catch (err) {
+      console.error("[Malfini] Redis read failed, falling back to API:", err);
+    }
+  }
+
+  // L3: Malfini API (~25s — only reached on first deploy or after Redis flush)
+  return fetchAndCacheProducts(language);
+}
+
+// Fetches fresh catalog from Malfini and writes to both L1 and L2.
+// Called by getProducts() on a cache miss, and directly by the warmup cron
+// to unconditionally refresh both caches.
+async function fetchAndCacheProducts(language = "hu"): Promise<MalfiniProduct[]> {
+  const now = Date.now();
 
   try {
     const token = await getMalfiniToken();
@@ -75,7 +102,7 @@ export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
 
     if (res.status === 401) {
       clearCachedToken();
-      return getProducts(language);
+      return fetchAndCacheProducts(language);
     }
 
     if (!res.ok) {
@@ -85,12 +112,31 @@ export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
     const data: unknown = await res.json();
     const result = Array.isArray(data) ? (data as MalfiniProduct[]) : [];
 
+    // Populate L1
     productsCache = { data: result, language, expiresAt: now + 3600 * 1000 };
+
+    // Populate L2 (Redis) — errors are caught so a Redis failure never breaks the response
+    const redis = getRedisClient();
+    if (redis) {
+      try {
+        await redis.set(REDIS_KEY_CATALOG, result, { ex: REDIS_CATALOG_TTL_SECONDS });
+      } catch (err) {
+        console.error("[Malfini] Redis write failed:", err);
+      }
+    }
+
     return result;
   } catch (err) {
-    console.error("[Malfini] getProducts failed:", err);
+    console.error("[Malfini] fetchAndCacheProducts failed:", err);
     return productsCache?.data ?? [];
   }
+}
+
+// Unconditionally fetches fresh data from Malfini and writes to both caches.
+// Used by the warmup cron to ensure Redis is always refreshed, bypassing any
+// existing cache state in the calling function's instance.
+export async function warmupMalfiniCache(language = "hu"): Promise<void> {
+  await fetchAndCacheProducts(language);
 }
 
 // Returns a single product by its 3-char code.
