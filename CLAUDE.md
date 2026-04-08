@@ -6,7 +6,7 @@ Technical reference for Claude Code. Every session must be grounded in this docu
 
 - `plan.md` — development phases, workflow rules, review protocol
 - `DESIGN.md` — visual design system, colors, typography, component styles
-- `MALFINI_REFACTOR.md` — Phase 6 architecture reference: Malfini API integration, hybrid product sources, schema changes
+- `MALFINI_REFACTOR.md` — Phase 5 architecture reference: Malfini API integration, hybrid product sources, schema changes
 - `public/swagger.json` — full Malfini REST API v4 OpenAPI 3.0 spec (JS-rendered docs are inaccessible; use this file to look up endpoints, parameters, and response schemas)
 
 ---
@@ -15,14 +15,13 @@ Technical reference for Claude Code. Every session must be grounded in this docu
 
 **Varázskép** is a webshop for a small Hungarian local business that sells custom-printed clothing and mugs. Customers can personalize products using an interactive browser-based designer tool (predefined clipart + text), then check out as a guest.
 
-**Product sources (Phase 6 onwards):**
+**Product sources (Phase 5 onwards):**
 - **Clothing** (t-shirts, sweatshirts, polo shirts, etc.) — fetched live from the **Malfini REST API**
 - **Other products** (mugs, etc.) — managed locally via the **Prisma database**
 
 **Core constraints (non-negotiable):**
 
 - Guest-only checkout — no user accounts
-- Predefined clipart only — no customer photo uploads in v1
 - Orders are created in the database **only after Stripe webhook confirmation**
 - Single Next.js application — no separate backend server
 - All customer-facing text is in **Hungarian**
@@ -37,7 +36,8 @@ Technical reference for Claude Code. Every session must be grounded in this docu
 | Database     | PostgreSQL via Supabase | Hosted on Supabase free tier           |
 | ORM          | Prisma                  | All schema changes via migrations only |
 | Designer     | Fabric.js               | Client-side canvas, serialized to JSON |
-| File Storage | Supabase Storage        | Two buckets: `clipart` (permanent — client's catalog) and `designs` (customer design exports, deleted after 45 days) |
+| File Storage | Supabase Storage        | Two buckets: `clipart` (permanent — client's catalog) and `designs` (design SVG exports + customer image uploads, deleted after 45 days) |
+| Cache        | Upstash Redis           | Shared L2 cache for Malfini catalog (25h TTL); L1 is module-level in-process (1h TTL) |
 | Payments     | Stripe                  | Checkout + Webhooks                    |
 | Email        | Resend + React Email    | Order confirmation, admin notification |
 | Hosting      | Vercel                  | Connected to main branch               |
@@ -70,6 +70,9 @@ varazskep/
 │   │   │   ├── checkout/route.ts    # Create Stripe session
 │   │   │   └── webhook/route.ts     # Handle Stripe events → create order
 │   │   ├── clipart/route.ts         # GET /api/clipart — returns active clipart items
+│   │   ├── designs/
+│   │   │   ├── route.ts             # POST /api/designs — save canvas JSON before cart
+│   │   │   └── upload/route.ts      # POST /api/designs/upload — customer image upload (PNG/JPG/WebP ≤10MB)
 │   │   ├── orders/route.ts
 │   │   └── admin/route.ts
 │   ├── layout.tsx
@@ -92,10 +95,11 @@ varazskep/
 ├── lib/
 │   ├── db.ts                    # Prisma client singleton
 │   ├── supabase.ts              # Server-side Supabase admin client factory + bucket name constants
-│   ├── malfini/                 # Malfini API integration layer — added in Phase 6
+│   ├── redis.ts                 # Upstash Redis lazy singleton + cache key/TTL constants — added in Phase 6
+│   ├── malfini/                 # Malfini API integration layer — added in Phase 5
 │   │   ├── types.ts             # TypeScript interfaces for Malfini API responses
 │   │   ├── auth.ts              # Bearer token fetch + module-level cache
-│   │   ├── client.ts            # getProducts(), getProduct(), getAvailabilities(), getRecommendedPrices(), buildPriceMap(), buildAvailabilityMap()
+│   │   ├── client.ts            # getProducts(), getProduct(), getAvailabilities(), getRecommendedPrices(), buildPriceMap(), buildAvailabilityMap(), warmupMalfiniCache()
 │   │   ├── pricing.ts           # convertEurToHuf() — reads EUR_TO_HUF_RATE from env (fallback; this account returns HUF)
 │   │   └── categoryConfig.ts   # Maps Malfini categoryCode → designer print area config
 │   ├── services/
@@ -235,9 +239,9 @@ Stripe Checkout can fail, be abandoned, or be fraudulent. Creating an order befo
 
 The business is small and local. Forcing registration kills conversion. Guest checkout with email order tracking is sufficient for v1.
 
-### Why predefined clipart only
+### Customer image uploads in the designer
 
-Personal photo uploads require content moderation, abuse prevention, larger storage, and GDPR complexity (photos are personal data). Predefined SVG clipart sidesteps all of this cleanly.
+Customers can upload their own raster images (PNG/JPG/WebP, ≤10MB) via the "Kép" button in the designer toolbar. Images are uploaded immediately to the `designs` Supabase bucket under `uploads/{uuid}.{ext}` and the public URL is embedded in the Fabric canvas JSON. Uploads expire with the 45-day designs bucket lifecycle. The admin order detail page extracts and displays download links for any customer-uploaded images found in the canvas JSON (detected by `type === "Image"` + URL containing `/uploads/`). Note: Fabric v7 serializes image type as `"Image"` (capital I).
 
 ### Why a single Next.js app
 
@@ -282,7 +286,7 @@ The designer supports two mockup modes depending on the product source:
 
 In both cases `DesignerCanvas` receives an `imageUrl: string` prop — the parent (`DesignerLayout`) is responsible for producing the correct URL regardless of source. SVG color-replacement utilities live in `lib/designer/colorUtils.ts`.
 
-The designer defaults to the first product whose category is configured in `CATEGORY_CONFIG` when no URL params are present. In-progress designs are lost on navigation — this is acceptable.
+When no URL params are present, the designer shows a product picker panel (blurred designer background + `ProductPickerPanel` overlay). The "Termékek" toolbar button navigates to `/designer` (no params) to reopen this picker. In-progress designs are lost on navigation — this is acceptable.
 
 ### Front and back design
 
@@ -314,7 +318,7 @@ Products with no mockup/config are ordered without customization.
 
 ---
 
-## Malfini API — Confirmed Behaviour (Phase 6)
+## Malfini API — Confirmed Behaviour (Phase 5)
 
 Full OpenAPI spec: `public/swagger.json`. Base URL: `https://api.malfini.com`. Auth: Bearer token (fetched via `lib/malfini/auth.ts`, cached in-process).
 
@@ -322,7 +326,7 @@ Full OpenAPI spec: `public/swagger.json`. Base URL: `https://api.malfini.com`. A
 
 | Endpoint | `productCodes` param | Notes |
 |---|---|---|
-| `GET /api/v4/product` | n/a | Full catalog (~10MB). Cached in-process 1h (exceeds Next.js 2MB ISR limit). |
+| `GET /api/v4/product` | n/a | Full catalog (~10MB). L1: module-level cache 1h per instance. L2: Upstash Redis 25h shared across all instances. |
 | `GET /api/v4/product/recommended-prices` | 3-char product code (e.g. `"M150"`) | **Use this for pricing.** Returns one price per SKU — no tier logic needed. |
 | `GET /api/v4/product/prices` | 3-char product code | Purchase/cost prices with quantity tiers. Not used — prefer recommended prices. |
 | `GET /api/v4/product/availabilities` | 3-char product code | Pass `&includeFuture=true` to include inbound stock. |
@@ -399,11 +403,15 @@ JWT_SECRET=""         # min 32 chars, random string
 # App
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-# Malfini API (Phase 6)
+# Malfini API (Phase 5)
 MALFINI_API_URL="https://api.malfini.com"
 MALFINI_USERNAME=""
 MALFINI_PASSWORD=""
 EUR_TO_HUF_RATE="400"  # Fallback EUR→HUF rate — this account returns HUF prices so this is not actively used
+
+# Upstash Redis (Phase 6) — shared cache for Malfini catalog
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
 ```
 
 ---
@@ -465,7 +473,7 @@ This is a legal obligation, not optional:
 | Order metadata (amounts, items)     | 8 years                                     | Hungarian tax law (Számviteli törvény) |
 | Customer PII (name, email, address) | 8 years for accounting, erasable on request | GDPR Art. 17                           |
 | Design JSON (canvasJson)            | Nulled after 45 days                        | Internal policy                        |
-| Customer design SVGs (designs bucket) | Deleted after 45 days                     | Supabase Storage lifecycle             |
+| Customer design SVGs + uploaded images (designs bucket) | Deleted after 45 days       | Supabase Storage lifecycle             |
 | Clipart SVGs (clipart bucket)       | Permanent — never deleted                   | Business assets, not personal data     |
 
 **Required features:**
@@ -487,7 +495,6 @@ This is a legal obligation, not optional:
 
 ## Future v2 (out of scope for current development)
 
-- Cloudinary integration for customer photo uploads
 - SimplePay as a payment option (Hungarian local payment provider)
 - User accounts with saved designs
 - Separate backend service extraction
