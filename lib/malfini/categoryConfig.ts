@@ -28,7 +28,7 @@ export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
     hasSides: true,
   },
   "sweatshirts": {
-    printArea: { width: 185, height: 300, centerX: 250, centerY: 300 },
+    printArea: { width: 220, height: 300, centerX: 252, centerY: 300 },
     hasSides: true,
   },
   "polo-shirts": {
