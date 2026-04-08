@@ -1,500 +1,105 @@
 # CLAUDE.md — Varázskép Webshop
 
-Technical reference for Claude Code. Every session must be grounded in this document.
+Hungarian custom-printed clothing and mugs webshop. Customers design products via a Fabric.js canvas, then check out as guests.
 
-**Companion documents:**
-
-- `plan.md` — development phases, workflow rules, review protocol
-- `DESIGN.md` — visual design system, colors, typography, component styles
-- `MALFINI_REFACTOR.md` — Phase 5 architecture reference: Malfini API integration, hybrid product sources, schema changes
-- `public/swagger.json` — full Malfini REST API v4 OpenAPI 3.0 spec (JS-rendered docs are inaccessible; use this file to look up endpoints, parameters, and response schemas)
-
----
-
-## Project Overview
-
-**Varázskép** is a webshop for a small Hungarian local business that sells custom-printed clothing and mugs. Customers can personalize products using an interactive browser-based designer tool (predefined clipart + text), then check out as a guest.
-
-**Product sources (Phase 5 onwards):**
-- **Clothing** (t-shirts, sweatshirts, polo shirts, etc.) — fetched live from the **Malfini REST API**
-- **Other products** (mugs, etc.) — managed locally via the **Prisma database**
-
-**Core constraints (non-negotiable):**
-
-- Guest-only checkout — no user accounts
-- Orders are created in the database **only after Stripe webhook confirmation**
-- Single Next.js application — no separate backend server
-- All customer-facing text is in **Hungarian**
+**Companion documents — read these for detail:**
+- `ARCHITECTURE.md` — project structure, schema, architectural decisions, designer system, Malfini API facts
+- `DESIGN.md` — colors, typography, component styles (follow strictly for all UI work)
+- `plan.md` — workflow rules, approval protocol, phase history, current status
+- `public/swagger.json` — full Malfini REST API v4 OpenAPI spec (use this; docs site requires JS rendering)
 
 ---
 
 ## Tech Stack
 
-| Layer        | Technology              | Notes                                  |
-| ------------ | ----------------------- | -------------------------------------- |
-| Framework    | Next.js 14 (App Router) | TypeScript, strict mode                |
-| Database     | PostgreSQL via Supabase | Hosted on Supabase free tier           |
-| ORM          | Prisma                  | All schema changes via migrations only |
-| Designer     | Fabric.js               | Client-side canvas, serialized to JSON |
-| File Storage | Supabase Storage        | Two buckets: `clipart` (permanent — client's catalog) and `designs` (design SVG exports + customer image uploads, deleted after 45 days) |
-| Cache        | Upstash Redis           | Shared L2 cache for Malfini catalog (25h TTL); L1 is module-level in-process (1h TTL) |
-| Payments     | Stripe                  | Checkout + Webhooks                    |
-| Email        | Resend + React Email    | Order confirmation, admin notification |
-| Hosting      | Vercel                  | Connected to main branch               |
-| Styling      | Tailwind CSS            | No inline styles                       |
+| Layer | Technology | Notes |
+|---|---|---|
+| Framework | Next.js 14 (App Router) | TypeScript strict mode |
+| Database | PostgreSQL via Supabase | Prisma ORM; migrations only |
+| Designer | Fabric.js v7 | Client-side canvas; serializes types as `"Image"` / `"IText"` (capital I) |
+| Storage | Supabase Storage | `clipart` bucket (permanent) · `designs` bucket (45-day expiry) |
+| Cache | Upstash Redis | Shared L2 for Malfini catalog (25h TTL); L1 = module-level per instance (1h) |
+| Payments | Stripe | Checkout + Webhooks |
+| Email | Resend + React Email | Hungarian templates |
+| Hosting | Vercel | main branch; daily warmup cron at 05:00 UTC |
+| Styling | Tailwind CSS | No inline styles except dynamic runtime values (hex color, fontFamily) |
 
 ---
 
-## Project Structure
+## Hard Constraints
 
-```
-varazskep/
-├── app/
-│   ├── (shop)/                  # Public storefront routes
-│   │   ├── page.tsx             # Homepage / product listing
-│   │   ├── products/
-│   │   │   ├── [slug]/          # Local product detail page (mugs, etc.)
-│   │   │   └── malfini/[code]/  # Malfini product detail page (clothing) — added in Phase 6
-│   │   ├── designer/            # Designer page (Fabric.js)
-│   │   ├── cart/                # Cart page
-│   │   ├── checkout/            # Checkout page
-│   │   ├── order/[id]/          # Order confirmation page
-│   │   ├── contact/             # Contact page
-│   │   └── privacy/             # Privacy policy page (GDPR)
-│   ├── admin/                   # Admin panel (JWT-protected)
-│   │   ├── login/
-│   │   ├── orders/              # Order management
-│   │   └── products/            # Local product CRUD + read-only Malfini catalog browser
-│   ├── api/
-│   │   ├── stripe/
-│   │   │   ├── checkout/route.ts    # Create Stripe session
-│   │   │   └── webhook/route.ts     # Handle Stripe events → create order
-│   │   ├── clipart/route.ts         # GET /api/clipart — returns active clipart items
-│   │   ├── designs/
-│   │   │   ├── route.ts             # POST /api/designs — save canvas JSON before cart
-│   │   │   └── upload/route.ts      # POST /api/designs/upload — customer image upload (PNG/JPG/WebP ≤10MB)
-│   │   ├── orders/route.ts
-│   │   └── admin/route.ts
-│   ├── layout.tsx
-│   └── globals.css
-├── components/
-│   ├── designer/                # Fabric.js canvas components
-│   │   ├── DesignerCanvas.tsx
-│   │   ├── DesignerLayout.tsx   # Client component — holds designer state, renders toolbar + canvas + panel
-│   │   ├── ColorPicker.tsx
-│   │   ├── ClipartPanel.tsx
-│   │   └── TextOptionsBar.tsx   # Font picker + color swatches shown below canvas when text is selected
-│   ├── shop/                    # Storefront components
-│   │   ├── ProductCard.tsx
-│   │   ├── ProductGrid.tsx
-│   │   ├── ProductDetails.tsx   # Client component for local product detail (mugs, etc.)
-│   │   ├── MalfiniProductDetails.tsx  # Client component for Malfini product detail — added in Phase 6
-│   │   ├── CartItem.tsx
-│   │   └── CheckoutForm.tsx
-│   └── ui/                      # Shared primitives (Button, Input, etc.)
-├── lib/
-│   ├── db.ts                    # Prisma client singleton
-│   ├── supabase.ts              # Server-side Supabase admin client factory + bucket name constants
-│   ├── redis.ts                 # Upstash Redis lazy singleton + cache key/TTL constants — added in Phase 6
-│   ├── malfini/                 # Malfini API integration layer — added in Phase 5
-│   │   ├── types.ts             # TypeScript interfaces for Malfini API responses
-│   │   ├── auth.ts              # Bearer token fetch + module-level cache
-│   │   ├── client.ts            # getProducts(), getProduct(), getAvailabilities(), getRecommendedPrices(), buildPriceMap(), buildAvailabilityMap(), warmupMalfiniCache()
-│   │   ├── pricing.ts           # convertEurToHuf() — reads EUR_TO_HUF_RATE from env (fallback; this account returns HUF)
-│   │   └── categoryConfig.ts   # Maps Malfini categoryCode → designer print area config
-│   ├── services/
-│   │   ├── order.ts             # Order business logic
-│   │   ├── product.ts           # Local product queries (mugs, etc.)
-│   │   ├── design.ts            # Design serialization + SVG export
-│   │   ├── clipart.ts           # getActiveClipart(), getClipartCategories()
-│   │   └── email.ts             # Resend integration
-│   ├── designer/
-│   │   ├── mockupConfig.ts      # SVG mockup config for local products (mug)
-│   │   └── colorUtils.ts        # SVG color replacement utils — extracted in Phase 6
-│   ├── auth/
-│   │   └── jwt.ts               # JWT admin auth helpers
-│   └── cart/
-│       └── cartStore.ts         # Client-side cart state (Zustand)
-├── prisma/
-│   ├── schema.prisma
-│   └── seed-assets/
-│       └── clipart/             # Simple SVG shapes used to seed the Clipart table in development
-├── public/
-│   ├── tshirt_front.svg         # T-shirt front silhouette (local product fallback)
-│   ├── tshirt_back.svg          # T-shirt back silhouette
-│   └── mug-mockup.svg           # Mug silhouette for the designer canvas
-├── emails/                      # React Email templates (Hungarian)
-├── __tests__/                   # Tests (critical paths only)
-│   ├── webhook.test.ts
-│   └── order.test.ts
-├── .env.local                   # Never commit this file
-├── CLAUDE.md                    # This file
-├── plan.md                      # Development workflow
-└── MALFINI_REFACTOR.md          # Phase 6 architecture reference
-```
+- Guest-only checkout — no user accounts
+- Orders created **only** in `stripe/webhook` handler, never before
+- All customer-facing text in **Hungarian**
+- No `any` type — TypeScript strict throughout
+- No inline `style={{}}` — Tailwind only (exceptions: hex backgroundColor, fontFamily from data)
+- All DB access via `lib/services/` — components never call Prisma directly
+- Schema changes via `npx prisma migrate dev --name <name>` only — no raw SQL
 
 ---
 
-## Database Schema
+## Product Sources
 
-### Models
-
-```prisma
-model Product {
-  id          String    @id @default(cuid())
-  name        String
-  slug        String    @unique
-  description String?
-  imageUrl    String?
-  active      Boolean   @default(true)
-  mockupType  String?   // "tshirt" | "mug" | future types — null means no designer for this product
-  variants    Variant[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-}
-
-model Variant {
-  id        String   @id @default(cuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  color     String
-  size      String
-  price     Int      // price in HUF (forint), stored as integer
-  stock     Int      @default(0)
-  orders    Order[]
-}
-
-model Clipart {
-  id        String   @id @default(cuid())
-  name      String                        // display name shown in the catalog
-  category  String                        // e.g. "Állatok", "Sport", "Természet"
-  svgUrl    String                        // Supabase Storage URL (clipart bucket — permanent, never deleted)
-  active    Boolean  @default(true)       // admin can hide without deleting
-  createdAt DateTime @default(now())
-}
-
-model Design {
-  id          String   @id @default(cuid())
-  canvasJson  Json     // Fabric.js serialized canvas state (JSONB) — structure: { front: FabricJSON, back: FabricJSON }
-  svgUrl      String?  // Supabase Storage URL (designs bucket), nulled after 45 days
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime // 45 days from createdAt
-  order       Order?
-}
-
-model Order {
-  id              String      @id @default(cuid())
-  stripeSessionId String      @unique
-  status          OrderStatus @default(PENDING)
-  // For local products (mugs, etc.) — null for Malfini orders
-  variantId       String?
-  variant         Variant?    @relation(fields: [variantId], references: [id])
-  // For Malfini products (clothing) — null for local orders
-  productSizeCode String?     // 7-char Malfini SKU, e.g. "M150XM0"
-  productCode     String?     // 3-char Malfini product code
-  // Denormalized display fields — always set for both sources
-  // Required for 8-year retention even if product is later removed
-  productName     String
-  colorName       String
-  sizeName        String
-  designId        String?     @unique
-  design          Design?     @relation(fields: [designId], references: [id])
-  // Customer info (retained 8 years per Hungarian tax law)
-  customerName    String
-  customerEmail   String
-  shippingAddress Json
-  totalAmount     Int         // in HUF
-  gdprConsent     Boolean
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-}
-
-enum OrderStatus {
-  PENDING
-  PAID
-  IN_PRODUCTION
-  SHIPPED
-  COMPLETE
-  CANCELLED
-}
-```
-
-**Key rules:**
-
-- Prices are stored in **HUF as integers** (no decimals)
-- Design JSON is stored as JSONB — never stringify it manually
-- Design SVG URL is nulled after 45 days (Supabase Storage `designs` bucket + scheduled job or manual admin action)
-- Clipart SVGs in the `clipart` bucket are permanent — never auto-deleted
-- `Order` is only created in the `stripe/webhook` handler, never before
+- **Clothing** (t-shirts, sweatshirts, polo shirts) — Malfini REST API, cached in Redis (L2) + module memory (L1)
+- **Other** (mugs, etc.) — local Prisma `Product` + `Variant` tables
 
 ---
 
-## Architectural Decisions
+## Key File Locations
 
-### Why orders are only created via webhook
-
-Stripe Checkout can fail, be abandoned, or be fraudulent. Creating an order before payment confirmation leads to unpaid order spam. The webhook fires only after successful payment, making it the single source of truth.
-
-### Why no user accounts
-
-The business is small and local. Forcing registration kills conversion. Guest checkout with email order tracking is sufficient for v1.
-
-### Customer image uploads in the designer
-
-Customers can upload their own raster images (PNG/JPG/WebP, ≤10MB) via the "Kép" button in the designer toolbar. Images are uploaded immediately to the `designs` Supabase bucket under `uploads/{uuid}.{ext}` and the public URL is embedded in the Fabric canvas JSON. Uploads expire with the 45-day designs bucket lifecycle. The admin order detail page extracts and displays download links for any customer-uploaded images found in the canvas JSON (detected by `type === "Image"` + URL containing `/uploads/`). Note: Fabric v7 serializes image type as `"Image"` (capital I).
-
-### Why a single Next.js app
-
-The complexity of a separate API server is unnecessary at this scale. Next.js API routes handle all backend logic. If traffic warrants it, extraction to a separate service is a v3 concern.
-
-### Designer — product context via URL params
-
-The designer at `/designer` receives product context via URL search params. Two URL formats exist depending on the product source:
-
-**Local products (mugs, etc.):**
-```
-/designer?slug=egyedi-bogre&color=Fehér&size=330ml
-```
-
-**Malfini products (clothing) — Phase 6:**
-```
-/designer?code=M150&colorCode=01&sizeCode=M
-```
-
-The designer page detects which format is present and routes accordingly. Out-of-stock colors are shown but not selectable.
-
-### Clipart catalog — database-driven, Supabase Storage backed
-
-The client's figure catalog is stored in the `Clipart` table (not a static JSON file). SVG files live in Supabase Storage `clipart` bucket (permanent — never deleted). The admin uploads figures via the admin panel (Phase 4). Sample figures are seeded in step 3.3 for development and testing.
-
-Seed assets (a handful of simple SVG shapes) live in `prisma/seed-assets/clipart/` in the repo. The seed script uploads them to Supabase Storage and inserts the resulting URLs into the `Clipart` table. These are development-only files — the client's real catalog is managed entirely via the admin panel.
-
-### Design record created before payment (not after)
-
-Canvas JSON is too large for Stripe metadata (500-character limit per value). Therefore a `Design` record is created in the database when the customer clicks "Add to cart" from the designer — before payment. The `designId` is stored in the cart item and passed as a short string in Stripe checkout metadata. The webhook receives the `designId`, looks it up, and links it to the newly created `Order`.
-
-This does not violate the "orders only after webhook" rule — only the Design is pre-created, never the Order.
-
-### Multi-product designer — mockup system
-
-The designer supports two mockup modes depending on the product source:
-
-**Local products** use the SVG mockup system: `Product.mockupType` drives which local SVG is loaded and which print area applies. Config lives in `lib/designer/mockupConfig.ts`.
-- `"mug"` → `public/mug-mockup.svg`, mug print area
-
-**Malfini products** use the photo mockup system: the designer loads the Malfini per-color product photo (viewCode `"A"` = front, `"B"` = back) directly as the canvas background. No SVG color replacement. Config lives in `lib/malfini/categoryConfig.ts`, keyed by Malfini `categoryCode`.
-
-In both cases `DesignerCanvas` receives an `imageUrl: string` prop — the parent (`DesignerLayout`) is responsible for producing the correct URL regardless of source. SVG color-replacement utilities live in `lib/designer/colorUtils.ts`.
-
-When no URL params are present, the designer shows a product picker panel (blurred designer background + `ProductPickerPanel` overlay). The "Termékek" toolbar button navigates to `/designer` (no params) to reopen this picker. In-progress designs are lost on navigation — this is acceptable.
-
-### Front and back design
-
-The designer supports designing both the front and back of a product. `DesignerLayout` holds `side: "front" | "back"` state, toggled by an "Elől / Hátul" button below the canvas. `DesignerCanvas` stores live Fabric.js objects for the off-screen side in a ref (not serialized to JSON), so switching is instant and lossless within a session.
-
-When the design is saved (step 3.5), `canvasJson` is stored as `{ front: <FabricJSON>, back: <FabricJSON> }`. If a side has no objects, its value is an empty canvas JSON.
-
-### "Open designer" button visibility
-
-- **Local products** (`ProductDetails.tsx`): button shown when `product.mockupType` is not null
-- **Malfini products** (`MalfiniProductDetails.tsx`): button shown when `getCategoryConfig(product.categoryCode)` returns a non-null config
-
-Products with no mockup/config are ordered without customization.
+| File | Purpose |
+|---|---|
+| `lib/malfini/client.ts` | `getProducts()`, `getProduct()`, `warmupMalfiniCache()` |
+| `lib/malfini/categoryConfig.ts` | categoryCode → designer print area config |
+| `lib/malfini/types.ts` | TypeScript interfaces for Malfini API responses |
+| `lib/redis.ts` | Upstash Redis singleton + key/TTL constants |
+| `lib/services/design.ts` | Design serialization + SVG export |
+| `lib/services/order.ts` | Order business logic |
+| `lib/cart/cartStore.ts` | Zustand cart (`source: "local" \| "malfini"`) |
+| `components/designer/DesignerLayout.tsx` | Designer state, toolbar, canvas, panels (both product modes) |
+| `components/designer/DesignerCanvas.tsx` | Fabric.js canvas ref: `addClipart`, `addImage`, `addText`, `getCanvasJson` |
+| `app/(shop)/designer/page.tsx` | Routes `?code` → Malfini, `?slug` → local, no params → product picker |
+| `app/api/designs/upload/route.ts` | Customer image upload → `designs` bucket `uploads/` subfolder |
+| `app/api/warmup/route.ts` | Malfini catalog warmup (called by cron + manually after first deploy) |
+| `prisma/schema.prisma` | Database schema |
 
 ---
 
 ## Language Standard
 
-| Context                                    | Language  |
-| ------------------------------------------ | --------- |
-| Customer-facing UI (labels, buttons, text) | Hungarian |
-| Error messages shown to customers          | Hungarian |
-| Email templates                            | Hungarian |
-| Admin panel UI                             | Hungarian |
-| Code (variable names, function names)      | English   |
-| Code comments                              | English   |
-| Git commit messages                        | English   |
-| This file and plan.md                      | English   |
-
----
-
-## Malfini API — Confirmed Behaviour (Phase 5)
-
-Full OpenAPI spec: `public/swagger.json`. Base URL: `https://api.malfini.com`. Auth: Bearer token (fetched via `lib/malfini/auth.ts`, cached in-process).
-
-### Key endpoint facts
-
-| Endpoint | `productCodes` param | Notes |
-|---|---|---|
-| `GET /api/v4/product` | n/a | Full catalog (~10MB). L1: module-level cache 1h per instance. L2: Upstash Redis 25h shared across all instances. |
-| `GET /api/v4/product/recommended-prices` | 3-char product code (e.g. `"M150"`) | **Use this for pricing.** Returns one price per SKU — no tier logic needed. |
-| `GET /api/v4/product/prices` | 3-char product code | Purchase/cost prices with quantity tiers. Not used — prefer recommended prices. |
-| `GET /api/v4/product/availabilities` | 3-char product code | Pass `&includeFuture=true` to include inbound stock. |
-
-**Critical:** `productCodes` filters by the 3-char `product.code` (e.g. `"M150"`), **not** by the 7-char `productSizeCode` / nomenclature code (e.g. `"M150XM0"`). Passing nomenclature codes returns `[]`.
-
-### Pricing
-
-- This account returns prices in **HUF** (`currency: "HUF"`), not EUR. Always check the `currency` field before converting — `buildPriceMap()` handles this.
-- `EUR_TO_HUF_RATE` env var exists as a fallback for accounts that return EUR prices.
-- Retail prices are rounded to the nearest 10 HUF.
-- **Do not apply a markup multiplier** — recommended prices are already the intended retail prices.
-
-### Images
-
-- `viewCode` is a single A-Z letter. Known codes: `"a"` = front, `"b"` = back, `"c"` = detail.
-- **Always filter** products and variants to those that have at least one `viewCode === "a"` image before rendering. Products/variants without a front image must not appear in the shop.
-
-### Product / variant data structure
-
-```
-MalfiniProduct
-  .code          — 3-char product code (URL identifier, used as productCodes filter param)
-  .categoryCode  — maps to designer config in categoryConfig.ts
-  .genderCode    — GENTS | LADIES | KIDS | UNISEX | GENTS/KIDS | UNISEX/KIDS
-  .variants[]
-    .code        — variant identifier (= colorCode in URL params)
-    .colorCode   — color identifier
-    .colorIconLink — URL to color swatch image (use <img>, not backgroundColor)
-    .images[]
-      .viewCode  — "a" (front), "b" (back), etc.
-      .link      — full image URL
-    .nomenclatures[]  — one entry per size
-      .productSizeCode — 7-char SKU (key in price/availability maps)
-      .sizeCode        — size identifier used for sorting (XS, S, M, L, XL, XXL, 3XL…)
-      .sizeName        — display name shown in UI
-```
-
-### Size ordering
-
-Sizes from the API are in arbitrary order. Always sort nomenclatures before rendering using the `SIZE_ORDER` constant in `MalfiniProductDetails.tsx`: `3XS → XXS → XS → S → M → L → XL → XXL → 3XL → 4XL → 5XL → 6XL`, then kids numeric sizes `86–170`. Unknown codes fall to the end.
-
-### Diagnostic endpoint
-
-`GET /api/admin/malfini-test` (admin-authenticated) — tests auth, prices, recommended prices, and availability for 3 sample products. Use this to verify API connectivity and inspect raw responses.
-
----
-
-## Environment Variables
-
-Required in `.env.local` (never commit):
-
-```env
-# Database
-DATABASE_URL="postgresql://..."
-
-# Stripe
-STRIPE_SECRET_KEY="sk_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_..."
-
-# Supabase Storage
-SUPABASE_SERVICE_ROLE_KEY=""       # for server-side storage operations
-NEXT_PUBLIC_SUPABASE_URL=""        # your Supabase project URL
-SUPABASE_STORAGE_BUCKET_CLIPART="clipart"
-SUPABASE_STORAGE_BUCKET_DESIGNS="designs"
-
-# Email
-RESEND_API_KEY="re_..."
-
-# Admin Auth
-JWT_SECRET=""         # min 32 chars, random string
-
-# App
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-
-# Malfini API (Phase 5)
-MALFINI_API_URL="https://api.malfini.com"
-MALFINI_USERNAME=""
-MALFINI_PASSWORD=""
-EUR_TO_HUF_RATE="400"  # Fallback EUR→HUF rate — this account returns HUF prices so this is not actively used
-
-# Upstash Redis (Phase 6) — shared cache for Malfini catalog
-UPSTASH_REDIS_REST_URL=""
-UPSTASH_REDIS_REST_TOKEN=""
-```
+| Context | Language |
+|---|---|
+| Customer-facing UI, error messages, emails | Hungarian |
+| Admin panel UI | Hungarian |
+| Code, comments, commit messages, this file | English |
 
 ---
 
 ## Development Rules
 
-### TypeScript
-
-- `strict: true` in `tsconfig.json` — no exceptions
-- No `any` type — use `unknown` and narrow it, or define a proper type
-- All API route handlers must be typed with `NextRequest` / `NextResponse`
-- All Prisma results typed via generated types — do not redefine model types manually
-
-### Architecture
-
-- Components **never** call Prisma directly — all DB access goes through `lib/services/`
-- Client components only access the database via API routes — never via server-only imports
-- `lib/db.ts` exports a singleton Prisma client — do not instantiate Prisma anywhere else
-
-### Styling
-
-- Tailwind CSS classes only — no inline `style={{}}` props
-- **Accepted exception:** dynamic runtime values that cannot be expressed as Tailwind classes use inline style. Current cases: `backgroundColor` for local product color swatches (hex from data), `fontFamily` for font picker buttons (font from data). Malfini product color swatches use `<img src={colorIconLink}>` instead of `backgroundColor` — no inline style needed.
-- No CSS modules unless Tailwind is genuinely insufficient
-- Mobile-first responsive design
-- All visual decisions (colors, typography, spacing, components) are defined in `DESIGN.md` — follow it strictly
-
-### Schema Changes
-
-- Always create a Prisma migration (`npx prisma migrate dev --name <name>`)
-- Never edit the database directly with raw SQL
-- Migration names must be descriptive: `add_gdpr_consent_to_order`, not `update1`
-
-### File & Component Rules
-
-- Designer components live in `components/designer/` only
-- Shop-facing components live in `components/shop/` only
-- Shared/generic primitives (Button, Input, Modal) live in `components/ui/` only
-- One component per file — no barrel exports from `components/`
-
-### Testing
-
-Tests are required **only** for:
-
-- `app/api/stripe/webhook/route.ts` — order creation logic
-- `lib/services/order.ts` — order status transitions
-- `lib/services/design.ts` — SVG export logic
-
-Use **Vitest** for unit/integration tests. No end-to-end testing framework in v1.
+- **Folders**: designer components → `components/designer/`, shop → `components/shop/`, shared → `components/ui/`; one component per file
+- **Testing**: Vitest required only for `stripe/webhook`, `lib/services/order.ts`, `lib/services/design.ts`
+- **Migrations**: always `npx prisma migrate dev --name <descriptive-name>`
+- **Fabric v7**: types serialize as `"Image"` / `"IText"` — normalize with `.toLowerCase()` before comparing
 
 ---
 
-## GDPR & Legal Requirements
+## GDPR Essentials
 
-This is a legal obligation, not optional:
-
-| Data                                | Retention                                   | Rule                                   |
-| ----------------------------------- | ------------------------------------------- | -------------------------------------- |
-| Order metadata (amounts, items)     | 8 years                                     | Hungarian tax law (Számviteli törvény) |
-| Customer PII (name, email, address) | 8 years for accounting, erasable on request | GDPR Art. 17                           |
-| Design JSON (canvasJson)            | Nulled after 45 days                        | Internal policy                        |
-| Customer design SVGs + uploaded images (designs bucket) | Deleted after 45 days       | Supabase Storage lifecycle             |
-| Clipart SVGs (clipart bucket)       | Permanent — never deleted                   | Business assets, not personal data     |
-
-**Required features:**
-
-1. GDPR consent checkbox at checkout (unchecked by default, must be checked to submit)
-2. Privacy policy page at `/privacy`
-3. Admin panel GDPR erasure function (nulls PII fields, does not delete the order row)
+- Orders + customer PII: 8-year retention (Hungarian tax law)
+- `Design.canvasJson`: nulled after 45 days; `designs` bucket (SVGs + customer uploads): 45-day lifecycle
+- Admin GDPR erasure: nulls PII fields on demand, order row is kept
 
 ---
 
-## Admin Panel
+## Environment Variables
 
-- Single admin user — credentials stored as environment variables
-- Authentication via JWT (HTTP-only cookie, 24h expiry)
-- All `/admin/*` routes protected by Next.js middleware
-- No self-registration — admin account is seeded once
-
----
-
-## Future v2 (out of scope for current development)
-
-- SimplePay as a payment option (Hungarian local payment provider)
-- User accounts with saved designs
-- Separate backend service extraction
+```
+DATABASE_URL
+STRIPE_SECRET_KEY  STRIPE_WEBHOOK_SECRET  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+SUPABASE_SERVICE_ROLE_KEY  NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_STORAGE_BUCKET_CLIPART  SUPABASE_STORAGE_BUCKET_DESIGNS
+RESEND_API_KEY  JWT_SECRET  NEXT_PUBLIC_APP_URL  CRON_SECRET
+MALFINI_API_URL  MALFINI_USERNAME  MALFINI_PASSWORD  EUR_TO_HUF_RATE
+UPSTASH_REDIS_REST_URL  UPSTASH_REDIS_REST_TOKEN
+```

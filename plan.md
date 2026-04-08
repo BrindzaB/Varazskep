@@ -100,79 +100,33 @@ main                          # Always stable and deployable
 
 ## Development Phases
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation ✅ Done
 
-**Goal:** A running Next.js app with a database, real product data, and a working product listing.
-
-| Step | Description                                                                      | Branch                    |
-| ---- | -------------------------------------------------------------------------------- | ------------------------- |
-| 1.1  | Project init: Next.js 14, TypeScript, ESLint, Prettier, Tailwind                 | `phase-1/project-init`    |
-| 1.2  | Prisma schema: Product, Variant, Design, Order models + migration                | `phase-1/prisma-schema`   |
-| 1.3  | Seed script with sample products and variants                                    | `phase-1/seed`            |
-| 1.4  | Global layout: header (logo + nav), footer, Tailwind config matching `DESIGN.md` | `phase-1/layout`          |
-| 1.5  | Product listing page (`/`) — Hungarian UI, product grid per design spec          | `phase-1/product-listing` |
-| 1.6  | Product detail page (`/products/[slug]`) — variant selection                     | `phase-1/product-detail`  |
-| 1.7  | Contact page (`/contact`) — address, phone, opening hours                      | `phase-1/contact-page`    |
-
-**Phase 1 complete when:** The app runs locally, products are visible from the database, the header/nav matches the design spec (including the Tervező menu item), and all steps are reviewed and approved.
+Next.js 14 init, Prisma schema (Product/Variant/Design/Order), seed script, global layout (header/nav/footer), product listing page, product detail page, contact page.
 
 ---
 
-### Phase 2 — Storefront & Checkout
+### Phase 2 — Storefront & Checkout ✅ Done
 
-**Goal:** A complete purchase flow from cart to paid order, with confirmation email.
-
-| Step | Description                                                           | Branch                       |
-| ---- | --------------------------------------------------------------------- | ---------------------------- |
-| 2.1  | Cart: Zustand store, cart page (`/cart`), add/remove/update          | `phase-2/cart`               |
-| 2.2  | Checkout form (`/checkout`): guest fields, GDPR consent checkbox       | `phase-2/checkout-form`      |
-| 2.3  | Stripe Checkout session creation (API route)                          | `phase-2/stripe-checkout`    |
-| 2.4  | Stripe webhook handler → order creation in DB (+ unit tests)          | `phase-2/stripe-webhook`     |
-| 2.5  | Order confirmation page (`/orders/[id]`) + Resend email (Hungarian) | `phase-2/order-confirmation` |
-
-**Phase 2 complete when:** A real Stripe test payment creates an order in the database and triggers a confirmation email.
+Zustand cart, guest checkout form with GDPR consent, Stripe Checkout session, Stripe webhook → order creation, order confirmation page + Resend email.
 
 ---
 
-### Phase 3 — Designer Module
+### Phase 3 — Designer Module ✅ Done
 
-**Goal:** Customers can design their product on a Fabric.js canvas, save the design, and include it in their order.
-
-| Step | Description                                                                                                                                                                                                          | Branch                         |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| 3.1  | Fabric.js canvas setup, t-shirt mockup background layer                                                                                                                                                              | `phase-3/canvas-setup`         |
-| 3.2  | Color picker: swatches in left toolbar update the t-shirt SVG fill color on the canvas                                                                                                                               | `phase-3/color-picker`         |
-| 3.3  | Clipart panel: `Clipart` Prisma model + migration; seed sample SVGs; API route to fetch figures; modal overlay catalog (customer clicks figure → modal closes → figure placed on canvas inside print area, movable/resizable) | `phase-3/clipart-panel`        |
-| 3.4  | Text tool: add/edit text on canvas, font and color options                                                                                                                                                           | `phase-3/text-tool`            |
-| 3.5  | Design serialization + product wiring: add `mockupType` to Product schema (migration); add `mug-mockup.svg`; designer loads correct mockup per product type; pass product/color/size via URL params from product page; default to "egyedi-polo" on direct `/designer` access; product icon button in toolbar navigates to `/products`; pre-create Design record on "add to cart"; pass `designId` in Stripe metadata; hide designer button on products with no `mockupType` | `phase-3/design-serialization` |
-| 3.6  | Server-side SVG export: triggered after webhook, uploaded to Supabase Storage `designs` bucket (45-day retention)                                                                                                    | `phase-3/svg-export`           |
-
-**Phase 3 complete when:** A designed product can be ordered end-to-end and the resulting SVG is visible in Supabase Storage after payment.
+Fabric.js canvas with t-shirt/mug mockup, color picker, clipart panel (Prisma model + Supabase Storage), text tool, design serialization (front/back), canvas JSON → Stripe metadata → webhook linkage, server-side SVG export to `designs` bucket.
 
 ---
 
-### Phase 4 — Admin Panel & Production
+### Phase 4 — Admin Panel & Production ✅ Done
 
-**Goal:** The business can manage orders and products, the app meets legal requirements, and it is deployed to production.
-
-| Step | Description                                                                                                                              | Branch                       |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| 4.1  | JWT admin auth: login page, middleware, HTTP-only cookie                                                                                 | `phase-4/jwt-auth`           |
-| 4.2  | Order dashboard: list all orders, update status, view design                                                                             | `phase-4/order-dashboard`    |
-| 4.3  | Product management: create, edit, toggle active/inactive                                                                                 | `phase-4/product-management` |
-| 4.4  | Clipart management: upload SVG to Supabase Storage `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive            | `phase-4/clipart-management` |
-| 4.5  | GDPR erasure function: null PII fields on demand                                                                                         | `phase-4/gdpr-erasure`       |
-| 4.6  | SEO: metadata per page, sitemap.xml, robots.txt                                                                                          | `phase-4/seo`                |
-| 4.7  | Production deployment: Vercel setup, env vars, custom domain                                                                             | `phase-4/deployment`         |
-| 4.8  | Supabase Storage lifecycle: verify 45-day auto-delete on `designs` bucket, post-launch verification                                      | `phase-4/deployment`         |
-
-**Phase 4 complete when:** The app is live on Vercel, a real order can be placed end-to-end, and the admin panel is functional.
+JWT admin auth (HTTP-only cookie), order dashboard with status management, local product CRUD, clipart management, GDPR erasure function, SEO (metadata/sitemap/robots), Vercel production deployment.
 
 ---
 
-### Phase 5 — Malfini API Integration
+### Phase 5 — Malfini API Integration ✅ Done
 
-**Goal:** Replace dummy products with live Malfini catalog data. Clothing products (t-shirts and sweatshirts for Phase 5) are fetched from the Malfini REST API; non-clothing products (mugs, etc.) continue to be managed locally. Full architecture documented in `MALFINI_REFACTOR.md`.
+**Goal:** Replace dummy products with live Malfini catalog data. Clothing products (t-shirts and sweatshirts for Phase 5) are fetched from the Malfini REST API; non-clothing products (mugs, etc.) continue to be managed locally. Full architecture documented in `ARCHITECTURE.md`.
 
 | Step | Description | Branch |
 | ---- | ----------- | ------ |
