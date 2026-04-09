@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Footer() {
   return (
@@ -7,7 +8,14 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           {/* Brand */}
           <div>
-            <p className="text-base font-bold text-charcoal">Varázskép</p>
+            <Image
+              src="/Fekvo-logo.svg"
+              alt="Varázskép"
+              width={100}
+              height={28}
+              unoptimized
+              className="h-7 w-auto"
+            />
             <p className="mt-2 text-sm text-muted">
               Egyedi ajándékok nyomtatással.
             </p>
@@ -43,7 +51,7 @@ export default function Footer() {
           </p>
           <Link
             href="/privacy"
-            className="text-xs text-muted underline-offset-2 hover:underline"
+            className="text-xs text-muted underline-offset-2 transition-colors hover:text-brand-blue hover:underline"
           >
             Adatvédelmi tájékoztató
           </Link>

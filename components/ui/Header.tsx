@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useCartStore } from "@/lib/cart/cartStore";
@@ -22,28 +23,36 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-border-light bg-white">
       <div className="mx-auto flex max-w-layout items-center justify-between px-4 py-4">
-        {/* Logo — replace src with /logo.svg once the asset is available */}
-        <Link
-          href="/"
-          className="text-xl font-bold tracking-tight text-charcoal"
-        >
-          Varázskép
+        <Link href="/" aria-label="Varázskép főoldal">
+          <Image
+            src="/Fekvo-logo.svg"
+            alt="Varázskép"
+            width={140}
+            height={40}
+            priority
+            unoptimized
+            className="h-10 w-auto"
+          />
         </Link>
 
         {/* Desktop navigation */}
-        <nav className="hidden items-center gap-8 md:flex">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`text-sm transition-colors hover:text-charcoal-dark ${
-                pathname === item.href
-                  ? "font-semibold text-charcoal underline underline-offset-4"
-                  : "font-medium text-charcoal"
-              }`}
-            >
-              {item.label}
-            </Link>
+        <nav className="hidden items-center md:flex">
+          {navItems.map((item, index) => (
+            <div key={item.href} className="flex items-center">
+              {index > 0 && (
+                <span className="mx-12 h-4 w-px bg-brand-violet" aria-hidden="true" />
+              )}
+              <Link
+                href={item.href}
+                className={`text-sm uppercase tracking-wide transition-colors hover:text-brand-violet focus:text-brand-violet ${
+                  pathname === item.href
+                    ? "font-bold text-brand-violet"
+                    : "font-bold text-brand-blue"
+                }`}
+              >
+                {item.label}
+              </Link>
+            </div>
           ))}
         </nav>
 
@@ -71,7 +80,7 @@ export default function Header() {
               <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
             </svg>
             {cartCount > 0 && (
-              <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-charcoal text-[10px] font-semibold text-white">
+              <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-brand-blue text-[10px] font-semibold text-white">
                 {cartCount}
               </span>
             )}
@@ -131,10 +140,10 @@ export default function Header() {
                 <Link
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  className={`block rounded px-3 py-2 text-sm transition-colors hover:bg-off-white ${
+                  className={`block rounded px-3 py-2 text-sm transition-colors hover:bg-off-white hover:text-brand-violet focus:text-brand-violet ${
                     pathname === item.href
-                      ? "font-semibold text-charcoal"
-                      : "font-medium text-charcoal"
+                      ? "font-semibold text-brand-blue"
+                      : "font-medium text-brand-blue"
                   }`}
                 >
                   {item.label}

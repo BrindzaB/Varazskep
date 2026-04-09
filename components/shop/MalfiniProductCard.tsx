@@ -33,7 +33,7 @@ export default function MalfiniProductCard({
   return (
     <Link
       href={`/products/malfini/${product.code}`}
-      className="group flex flex-col overflow-hidden rounded border border-border-light bg-white transition-shadow hover:shadow-card"
+      className="group flex flex-col overflow-hidden rounded border border-border-light bg-white transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-card"
     >
       {/* Product image — 1:1 aspect ratio */}
       <div className="relative aspect-square w-full overflow-hidden bg-white">
@@ -105,7 +105,7 @@ export default function MalfiniProductCard({
             )}
           </p>
 
-          <span className="rounded-sm bg-charcoal px-3 py-1.5 text-xs font-medium text-white transition-colors group-hover:bg-charcoal-dark">
+          <span className="rounded-sm bg-brand-blue px-3 py-1.5 text-xs font-medium text-white transition-colors group-hover:bg-brand-violet">
             Megnézem
           </span>
         </div>

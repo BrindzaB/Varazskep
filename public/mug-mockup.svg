@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
   <!-- Mug body — stroke hardcoded so the outline stays visible even on white canvas -->
   <rect x="50" y="30" width="170" height="220" rx="12" ry="12" fill="#9ca3af" stroke="#d1d5db" stroke-width="1.5"/>
   <!-- Handle — color is replaced by buildColoredDataUrl (darkened body color), always slightly darker than body -->
