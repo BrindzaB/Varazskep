@@ -122,8 +122,8 @@ export default function ProductsPageClient({
                 onClick={() => setGender(g)}
                 className={`rounded-sm px-4 py-2 text-sm font-medium transition-colors ${
                   gender === g
-                    ? "bg-charcoal text-white"
-                    : "border border-border-light bg-white text-charcoal hover:bg-off-white"
+                    ? "bg-brand-blue text-white"
+                    : "border border-border-medium bg-white text-charcoal hover:border-brand-blue hover:text-brand-blue"
                 }`}
               >
                 {g}
@@ -152,8 +152,8 @@ export default function ProductsPageClient({
                 onClick={() => setCategory(cat)}
                 className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
                   category === cat
-                    ? "border-charcoal text-charcoal"
-                    : "border-transparent text-muted hover:text-charcoal"
+                    ? "border-brand-blue text-brand-blue"
+                    : "border-transparent text-muted hover:text-brand-blue"
                 }`}
               >
                 {cat === "Összes" ? "Összes" : CATEGORY_LABEL[cat]}
@@ -193,8 +193,8 @@ export default function ProductsPageClient({
                   onClick={() => setPage(i)}
                   className={`h-9 w-9 rounded-sm text-sm font-medium transition-colors ${
                     page === i
-                      ? "bg-charcoal text-white"
-                      : "border border-border-light text-charcoal hover:bg-off-white"
+                      ? "bg-brand-blue text-white"
+                      : "border border-border-light text-charcoal hover:border-brand-blue hover:text-brand-blue"
                   }`}
                 >
                   {i + 1}

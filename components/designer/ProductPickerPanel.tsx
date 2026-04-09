@@ -70,7 +70,7 @@ export default function ProductPickerPanel({ products }: ProductPickerPanelProps
                 <li key={product.code}>
                   <button
                     onClick={() => router.push(`/designer?code=${product.code}`)}
-                    className="group flex w-full flex-col items-center gap-3 rounded-lg border border-border-light p-4 transition-all hover:border-charcoal hover:shadow-card"
+                    className="group flex w-full flex-col items-center gap-3 rounded-lg border border-border-light p-4 transition-all hover:border-brand-violet hover:shadow-card"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img

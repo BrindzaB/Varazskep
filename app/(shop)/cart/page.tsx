@@ -79,7 +79,7 @@ export default function CartPage() {
             {/* Checkout CTA — wired in Step 2.2 */}
             <Link
               href="/checkout"
-              className="mt-6 block rounded-sm bg-charcoal px-6 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-charcoal-dark"
+              className="mt-6 block rounded-sm bg-brand-blue px-6 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-brand-violet"
             >
               Tovább a fizetéshez
             </Link>
