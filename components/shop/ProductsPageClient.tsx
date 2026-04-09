@@ -115,12 +115,12 @@ export default function ProductsPageClient({
       {/* Gender filter + sort row */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         {clothingProducts.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 rounded">
             {GENDER_FILTERS.map((g) => (
               <button
                 key={g}
                 onClick={() => setGender(g)}
-                className={`rounded-sm px-4 py-2 text-sm font-medium transition-colors ${
+                className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
                   gender === g
                     ? "bg-brand-blue text-white"
                     : "border border-border-medium bg-white text-charcoal hover:border-brand-blue hover:text-brand-blue"
@@ -134,7 +134,7 @@ export default function ProductsPageClient({
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortOrder)}
-          className="rounded-sm border border-border-light bg-white px-3 py-2 text-sm text-charcoal focus:outline-none"
+          className="rounded border border-border-medium bg-white px-3 py-2 text-sm text-charcoal focus:outline-none"
         >
           <option value="default">Rendezés</option>
           <option value="asc">Ár: alacsonyabbtól magasabbig</option>
@@ -153,7 +153,7 @@ export default function ProductsPageClient({
                 className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
                   category === cat
                     ? "border-brand-blue text-brand-blue"
-                    : "border-transparent text-muted hover:text-brand-blue"
+                    : "border-transparent text-charcoal hover:text-brand-blue"
                 }`}
               >
                 {cat === "Összes" ? "Összes" : CATEGORY_LABEL[cat]}

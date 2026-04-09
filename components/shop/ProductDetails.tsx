@@ -65,9 +65,14 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
       </p>
 
       {product.description && (
-        <p className="mt-4 text-base leading-relaxed text-muted">
-          {product.description}
-        </p>
+        <ul className="mt-4 space-y-1">
+          {product.description.split(",").map((item) => item.trim()).filter(Boolean).map((item, i) => (
+            <li key={i} className="flex items-center gap-2 text-md text-muted">
+              <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-muted" />
+              {item}
+            </li>
+          ))}
+        </ul>
       )}
 
       <div className="mt-8 space-y-6">

@@ -18,11 +18,11 @@ export default function CartPage() {
     return (
       <section className="px-4 py-16">
         <div className="mx-auto max-w-layout">
-          <h1 className="text-3xl font-bold text-charcoal">Kosár</h1>
+          <h1 className="text-3xl font-bold text-brand-blue uppercase">Kosár</h1>
           <p className="mt-6 text-base text-muted">A kosara üres.</p>
           <Link
             href="/products"
-            className="mt-6 inline-block rounded-sm bg-charcoal px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-charcoal-dark"
+            className="mt-6 inline-block rounded-sm bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-violet"
           >
             Termékek böngészése
           </Link>

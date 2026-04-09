@@ -44,7 +44,7 @@ export default async function ProductsPage() {
   });
 
   return (
-    <section className="px-4 py-16">
+    <section className="px-4 py-10">
       <div className="mx-auto max-w-layout">
         <h1 className="mb-8 text-2xl font-bold text-brand-blue uppercase">Termékek</h1>
         <ProductsPageClient
