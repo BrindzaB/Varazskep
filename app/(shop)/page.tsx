@@ -49,20 +49,20 @@ export default async function HomePage() {
       {/* How it works */}
       <section className="bg-white px-4 py-20">
         <div className="mx-auto max-w-layout">
-          <h2 className="mb-12 text-center text-2xl font-semibold">
+          <h2 className="mb-12 text-center text-2xl font-semibold uppercase text-brand-blue">
             Hogyan működik?
           </h2>
           <div className="grid grid-cols-1 gap-10 sm:grid-cols-3">
             {/* Step 1 */}
             <div className="flex flex-col items-center text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-blue/10">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-violet/10">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="28"
                   height="28"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#0fa0e4"
+                  stroke="#e5197f"
                   strokeWidth="1.75"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -70,10 +70,10 @@ export default async function HomePage() {
                   <path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z" />
                 </svg>
               </div>
-              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-blue">
+              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-violet">
                 1. lépés
               </span>
-              <h3 className="mb-2 text-base font-semibold">
+              <h3 className="mb-2 text-base font-semibold text-brand-blue">
                 Válassz terméket
               </h3>
               <p className="text-sm text-muted">
@@ -84,14 +84,14 @@ export default async function HomePage() {
 
             {/* Step 2 */}
             <div className="flex flex-col items-center text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-blue/10">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-violet/10">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="28"
                   height="28"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#0fa0e4"
+                  stroke="#e5197f"
                   strokeWidth="1.75"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -100,10 +100,10 @@ export default async function HomePage() {
                   <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                 </svg>
               </div>
-              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-blue">
+              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-violet">
                 2. lépés
               </span>
-              <h3 className="mb-2 text-base font-semibold">Tervezd meg</h3>
+              <h3 className="mb-2 text-base font-semibold text-brand-blue">Tervezd meg</h3>
               <p className="text-sm text-muted">
                 Adj hozzá képet, szöveget vagy mintát a beépített
                 tervezőfelületen - pontosan ahogy elképzelted.
@@ -112,14 +112,14 @@ export default async function HomePage() {
 
             {/* Step 3 */}
             <div className="flex flex-col items-center text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-blue/10">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-violet/10">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="28"
                   height="28"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#0fa0e4"
+                  stroke="#e5197f"
                   strokeWidth="1.75"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -130,10 +130,10 @@ export default async function HomePage() {
                   <circle cx="18.5" cy="18.5" r="2.5" />
                 </svg>
               </div>
-              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-blue">
+              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-violet">
                 3. lépés
               </span>
-              <h3 className="mb-2 text-base font-semibold">Rendeld meg</h3>
+              <h3 className="mb-2 text-base font-semibold text-brand-blue">Rendeld meg</h3>
               <p className="text-sm text-muted">
                 Biztonságos online fizetés után gyorsan kiszállítjuk az egyedi
                 terméked.
@@ -146,7 +146,7 @@ export default async function HomePage() {
       {/* Product listing */}
       <section className="bg-off-white px-4 py-16">
         <div className="mx-auto max-w-layout">
-          <h2 className="mb-8 text-2xl font-semibold">Termékeink</h2>
+          <h2 className="mb-8 text-2xl font-semibold uppercase text-brand-blue">Termékeink</h2>
           <ProductGrid products={products} />
         </div>
       </section>
