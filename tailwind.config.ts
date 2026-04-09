@@ -6,12 +6,22 @@ const config: Config = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  safelist: [
+    {
+      pattern: /^(bg|text|border)-brand-(blue|violet)$/,
+      variants: ["hover", "focus", "group-hover"],
+    },
+  ],
   theme: {
     extend: {
       colors: {
-        // Primary brand colors (from DESIGN.md)
+        // Primary brand colors
+        brand: {
+          blue: "#0fa0e4",
+          violet: "#e5197f",
+        },
         charcoal: {
-          DEFAULT: "#32373c",
+          DEFAULT: "#4d4a48",
           dark: "#1d2124",
           light: "#464c52",
         },
@@ -43,7 +53,7 @@ const config: Config = {
         layout: "1200px",
       },
       boxShadow: {
-        card: "6px 6px 9px rgba(0, 0, 0, 0.2)",
+        card: "0px 8px 12px rgba(0, 0, 0, 0.2)",
         elevated: "12px 12px 50px rgba(0, 0, 0, 0.4)",
         sharp: "6px 6px 0px rgba(0, 0, 0, 0.2)",
       },

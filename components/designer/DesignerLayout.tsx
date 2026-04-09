@@ -399,8 +399,8 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
                 aria-pressed={size === selectedSize}
                 className={`rounded-sm border px-3 py-1.5 text-sm font-medium transition-colors ${
                   size === selectedSize
-                    ? "border-charcoal bg-charcoal text-white"
-                    : "border-border-medium text-charcoal hover:border-charcoal"
+                    ? "border-brand-blue bg-brand-blue text-white"
+                    : "border-border-medium text-charcoal hover:border-brand-blue hover:text-brand-blue"
                 }`}
               >
                 {size}
@@ -461,7 +461,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         <button
           onClick={handleAddToCart}
           disabled={!isInStock || !selectedVariant || isAddingToCart}
-          className="mt-6 w-full rounded-sm bg-charcoal px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-charcoal-dark disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-6 w-full rounded-sm bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-violet disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isAddingToCart ? "Mentés..." : "Kosárba"}
         </button>
@@ -648,12 +648,12 @@ function MalfiniDesignerLayout({
         )}
 
         {hasSides && (
-          <div className="mt-3 flex rounded-lg border border-border-light bg-white p-1">
+          <div className="mt-3 flex rounded-lg bg-white p-1 gap-2">
             <button
               onClick={() => setSide("front")}
               aria-pressed={side === "front"}
               className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "front" ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+                side === "front" ? "bg-brand-violet text-white border border-brand-violet" : "text-muted border border-border-medium hover:text-brand-violet hover:border-brand-violet"
               }`}
             >
               Elől
@@ -662,7 +662,7 @@ function MalfiniDesignerLayout({
               onClick={() => setSide("back")}
               aria-pressed={side === "back"}
               className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "back" ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+                side === "back" ? "bg-brand-violet text-white border border-brand-violet" : "text-muted border border-border-medium hover:text-brand-violet hover:border-brand-violet"
               }`}
             >
               Hátul
@@ -688,9 +688,9 @@ function MalfiniDesignerLayout({
                   disabled={!nomInStock}
                   className={`rounded-sm border px-3 py-1.5 text-sm font-medium transition-colors ${
                     isSelected
-                      ? "border-charcoal bg-charcoal text-white"
+                      ? "border-brand-blue bg-brand-blue text-white"
                       : nomInStock
-                        ? "border-border-medium text-charcoal hover:border-charcoal"
+                        ? "border-border-medium text-charcoal hover:border-brand-blue hover:text-brand-blue"
                         : "border-border-light text-muted line-through cursor-not-allowed"
                   }`}
                 >
@@ -756,7 +756,7 @@ function MalfiniDesignerLayout({
         <button
           onClick={handleAddToCart}
           disabled={!isInStock || !selectedNomenclature || isAddingToCart}
-          className="mt-6 w-full rounded-sm bg-charcoal px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-charcoal-dark disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-6 w-full rounded-sm bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-violet disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isAddingToCart ? "Mentés..." : "Kosárba"}
         </button>

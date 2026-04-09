@@ -1,3 +1,4 @@
+import Image from "next/image";
 import ProductGrid from "@/components/shop/ProductGrid";
 import { getActiveProducts } from "@/lib/services/product";
 
@@ -12,32 +13,140 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Hero */}
-      <section className="bg-charcoal px-4 py-16 text-white">
-        <div className="mx-auto max-w-layout">
-          <h1 className="text-balance text-4xl font-bold">
-            Egyedi ajándékok, <br className="hidden sm:block" />
+      {/* Hero — full-screen image with dark overlay */}
+      <section className="relative flex min-h-[85vh] items-center">
+        {/* Background image — place hero-bg.jpg in public/images/ */}
+        <Image
+          src="/images/hero-bg.jpg"
+          alt=""
+          fill
+          priority
+          className="object-cover"
+        />
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-black/55" />
+
+        {/* Content */}
+        <div className="relative z-10 mx-auto w-full max-w-layout px-6 py-24">
+          <h1 className="text-balance text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
+            Egyedi ajándékok,
+            <br />
             tervezve általad
           </h1>
-          <p className="mt-4 max-w-xl text-lg text-white/80">
-            Tervezze meg saját pólóját vagy bögrét a beépített tervezőfelületen.
+          <p className="mt-5 max-w-lg text-lg text-white/80">
+            Tervezd meg saját pólódat a beépített tervezőfelületen.
             Prémium minőség, egyedi minta, gyors szállítás.
           </p>
           <a
             href="/designer"
-            className="mt-8 inline-block rounded-sm bg-white px-6 py-3 text-sm font-semibold text-charcoal transition-colors hover:bg-off-white"
+            className="mt-8 inline-block rounded-sm bg-brand-blue px-8 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-violet"
           >
             Tervezés megkezdése
           </a>
         </div>
       </section>
 
-      {/* Product listing */}
-      <section className="px-4 py-16">
+      {/* How it works */}
+      <section className="bg-white px-4 py-20">
         <div className="mx-auto max-w-layout">
-          <h2 className="mb-8 text-2xl font-semibold text-charcoal">
-            Termékeink
+          <h2 className="mb-12 text-center text-2xl font-semibold">
+            Hogyan működik?
           </h2>
+          <div className="grid grid-cols-1 gap-10 sm:grid-cols-3">
+            {/* Step 1 */}
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-blue/10">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#0fa0e4"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.57a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.57a2 2 0 0 0-1.34-2.23z" />
+                </svg>
+              </div>
+              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-blue">
+                1. lépés
+              </span>
+              <h3 className="mb-2 text-base font-semibold">
+                Válassz terméket
+              </h3>
+              <p className="text-sm text-muted">
+                Böngéssz pólók, pulcsik és más termékek között, majd válaszd ki
+                a neked tetszőt.
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-blue/10">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#0fa0e4"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </div>
+              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-blue">
+                2. lépés
+              </span>
+              <h3 className="mb-2 text-base font-semibold">Tervezd meg</h3>
+              <p className="text-sm text-muted">
+                Adj hozzá képet, szöveget vagy mintát a beépített
+                tervezőfelületen - pontosan ahogy elképzelted.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-blue/10">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#0fa0e4"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="1" y="3" width="15" height="13" rx="1" />
+                  <path d="M16 8h4l3 5v3h-7V8z" />
+                  <circle cx="5.5" cy="18.5" r="2.5" />
+                  <circle cx="18.5" cy="18.5" r="2.5" />
+                </svg>
+              </div>
+              <span className="mb-2 text-xs font-semibold uppercase tracking-widest text-brand-blue">
+                3. lépés
+              </span>
+              <h3 className="mb-2 text-base font-semibold">Rendeld meg</h3>
+              <p className="text-sm text-muted">
+                Biztonságos online fizetés után gyorsan kiszállítjuk az egyedi
+                terméked.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Product listing */}
+      <section className="bg-off-white px-4 py-16">
+        <div className="mx-auto max-w-layout">
+          <h2 className="mb-8 text-2xl font-semibold">Termékeink</h2>
           <ProductGrid products={products} />
         </div>
       </section>

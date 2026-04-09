@@ -272,7 +272,7 @@ export default function CheckoutForm() {
           <button
             type="submit"
             disabled={submitting || items.length === 0}
-            className="mt-6 w-full rounded-sm bg-charcoal px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-charcoal-dark disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-6 w-full rounded-sm bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-violet disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? "Átirányítás..." : "Fizetés Stripe-on keresztül"}
           </button>

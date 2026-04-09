@@ -114,8 +114,8 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                   aria-pressed={isSelected}
                   className={`rounded-sm border px-4 py-2 text-sm font-medium transition-colors ${
                     isSelected
-                      ? "border-charcoal bg-charcoal text-white"
-                      : "border-border-medium text-charcoal hover:border-charcoal"
+                      ? "border-brand-blue bg-brand-blue text-white"
+                      : "border-border-medium text-charcoal hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed"
                   }`}
                 >
                   {size}
@@ -151,7 +151,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
             });
             router.push("/cart");
           }}
-          className="flex-1 rounded-sm bg-charcoal px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-charcoal-dark disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex-1 rounded-sm bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-violet disabled:cursor-not-allowed disabled:opacity-50"
         >
           Kosárba
         </button>
@@ -160,7 +160,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
         {product.mockupType && (
           <Link
             href={designerUrl}
-            className="flex-1 rounded-sm border border-charcoal px-6 py-3 text-center text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal hover:text-white"
+            className="flex-1 rounded-sm border border-brand-violet px-6 py-3 text-center text-sm font-semibold text-brand-violet transition-colors hover:bg-brand-violet hover:text-white"
           >
             Tervezőfelület megnyitása
           </Link>
