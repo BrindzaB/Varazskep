@@ -31,7 +31,7 @@ export default async function HomePage() {
           <h1 className="text-balance text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
             Egyedi ajándékok,
             <br />
-            tervezve általad
+            általad tervezve
           </h1>
           <p className="mt-5 max-w-lg text-lg text-white/80">
             Tervezd meg saját pólódat a beépített tervezőfelületen.
