@@ -1,6 +1,5 @@
 import Image from "next/image";
-import ProductGrid from "@/components/shop/ProductGrid";
-import { getActiveProducts } from "@/lib/services/product";
+import ProductSlider from "@/components/shop/ProductSlider";
 
 export const metadata = {
   title: "Varázskép – Egyedi ajándékok",
@@ -8,8 +7,7 @@ export const metadata = {
     "Tervezze meg saját egyedi pólóját vagy bögrét! Prémium minőség, gyors szállítás.",
 };
 
-export default async function HomePage() {
-  const products = await getActiveProducts();
+export default function HomePage() {
 
   return (
     <>
@@ -17,29 +15,29 @@ export default async function HomePage() {
       <section className="relative flex min-h-[85vh] items-center">
         {/* Background image — place hero-bg.jpg in public/images/ */}
         <Image
-          src="/images/hero-bg.jpg"
+          src="/images/hero-bg2.jpg"
           alt=""
           fill
           priority
           className="object-cover"
         />
         {/* Dark overlay */}
-        <div className="absolute inset-0 bg-black/55" />
+        <div className="absolute inset-0" />
 
         {/* Content */}
-        <div className="relative z-10 mx-auto w-full max-w-layout px-6 py-24">
-          <h1 className="text-balance text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
+        <div className="relative z-10 mx-auto w-full max-w-layout py-24">
+          <h1 className="text-balance text-4xl font-bold leading-tight text-brand-violet sm:text-5xl lg:text-6xl">
             Egyedi ajándékok,
             <br />
             általad tervezve
           </h1>
-          <p className="mt-5 max-w-lg text-lg text-white/80">
+          <p className="mt-5 max-w-lg text-lg text-charcoal">
             Tervezd meg saját pólódat a beépített tervezőfelületen.
             Prémium minőség, egyedi minta, gyors szállítás.
           </p>
           <a
             href="/designer"
-            className="mt-8 inline-block rounded-sm bg-brand-blue px-8 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-violet"
+            className="mt-8 inline-block rounded-sm bg-brand-blue px-8 py-3.5 text-sm font-semibold text-white transition-transform druation-100 ease-in-out hover:bg-brand-violet hover:scale-105"
           >
             Tervezés megkezdése
           </a>
@@ -47,7 +45,7 @@ export default async function HomePage() {
       </section>
 
       {/* How it works */}
-      <section className="bg-white px-4 py-20">
+      <section className="bg-white px-4 pt-10 pb-20">
         <div className="mx-auto max-w-layout">
           <h2 className="mb-12 text-center text-2xl font-semibold uppercase text-brand-blue">
             Hogyan működik?
@@ -144,11 +142,11 @@ export default async function HomePage() {
       </section>
 
       {/* Product listing */}
-      <section className="bg-off-white px-4 py-16">
-        <div className="mx-auto max-w-layout">
-          <h2 className="mb-8 text-2xl font-semibold uppercase text-brand-blue">Termékeink</h2>
-          <ProductGrid products={products} />
+      <section className="bg-white pt-8 pb-16">
+        <div className="mx-auto max-w-layout px-4 flex justify-center">
+          <h2 className="mb-6 text-2xl font-semibold uppercase text-brand-blue">Termékeink</h2>
         </div>
+        <ProductSlider />
       </section>
     </>
   );
