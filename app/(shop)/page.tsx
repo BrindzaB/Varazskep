@@ -25,7 +25,7 @@ export default function HomePage() {
         <div className="absolute inset-0" />
 
         {/* Content */}
-        <div className="relative z-10 mx-auto w-full max-w-layout py-24 px-6 md:px-0">
+        <div className="relative z-10 mx-auto w-full max-w-layout py-24 px-6 xl:px-0">
           <h1 className="text-balance text-4xl font-bold leading-tight text-brand-violet sm:text-5xl lg:text-6xl">
             Egyedi ajándékok,
             <br />
