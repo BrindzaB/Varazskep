@@ -34,7 +34,7 @@ export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   "polo-shirts": {
     // Slightly narrower and shorter than t-shirts due to the collar and button placket
     printArea: { width: 200, height: 300, centerX: 250, centerY: 310 },
-    hasSides: false,
+    hasSides: true,
   },
 };
 
