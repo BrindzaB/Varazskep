@@ -102,19 +102,47 @@ export default function ProductsPageClient({
     return items;
   }, [clothingProducts, localProducts, gender, category, sort]);
 
+  // Reset gender when switching to a non-clothing category.
+  useEffect(() => {
+    if (category === "local") setGender("Összes");
+  }, [category]);
+
   // Reset to page 0 whenever filters or sort change.
   useEffect(() => {
     setPage(0);
   }, [gender, category, sort]);
+
+  const showGenderFilter = category !== "local" && clothingProducts.length > 0;
 
   const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
   const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <>
+      {/* Category tabs */}
+      {availableCategories.length > 2 && (
+        <div className="mb-6 border-b border-border-light">
+          <div className="flex">
+            {availableCategories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
+                  category === cat
+                    ? "border-brand-blue text-brand-blue"
+                    : "border-transparent text-charcoal hover:text-brand-blue"
+                }`}
+              >
+                {cat === "Összes" ? "Összes" : CATEGORY_LABEL[cat]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Gender filter + sort row */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        {clothingProducts.length > 0 && (
+        {showGenderFilter && (
           <div className="flex flex-wrap gap-2 rounded">
             {GENDER_FILTERS.map((g) => (
               <button
@@ -141,27 +169,6 @@ export default function ProductsPageClient({
           <option value="desc">Ár: magasabbtól alacsonyabbig</option>
         </select>
       </div>
-
-      {/* Category tabs */}
-      {availableCategories.length > 2 && (
-        <div className="mb-8 border-b border-border-light">
-          <div className="flex">
-            {availableCategories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
-                  category === cat
-                    ? "border-brand-blue text-brand-blue"
-                    : "border-transparent text-charcoal hover:text-brand-blue"
-                }`}
-              >
-                {cat === "Összes" ? "Összes" : CATEGORY_LABEL[cat]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Product grid */}
       {filtered.length === 0 ? (
