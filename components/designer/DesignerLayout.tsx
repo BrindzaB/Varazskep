@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import DesignerCanvas, { type DesignerCanvasRef } from "./DesignerCanvas";
+import DesignerCanvas, { CANVAS_WIDTH, CANVAS_HEIGHT, type DesignerCanvasRef } from "./DesignerCanvas";
 import { type ColorEntry } from "./ColorPicker";
 import ClipartPanel from "./ClipartPanel";
 import TextOptionsBar, { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
@@ -28,6 +28,41 @@ function sortNomenclatures(nomenclatures: MalfiniNomenclature[]): MalfiniNomencl
   );
 }
 
+// ── Canvas scaling wrapper ────────────────────────────────────────────────────
+// Shrinks the canvas to fit the available container width on narrow screens.
+// Uses ResizeObserver so it reacts to layout changes without a window resize listener.
+// On desktop (container ≥ CANVAS_WIDTH) scale === 1 — no visual change.
+function ScaledCanvasWrapper({ children }: { children: ReactNode }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      setScale(Math.min(1, w / CANVAS_WIDTH));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div ref={wrapperRef} className="w-full overflow-hidden" style={{ height: CANVAS_HEIGHT * scale }}>
+      <div
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: "top center",
+          width: CANVAS_WIDTH,
+          margin: "0 auto",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ── Shared toolbar UI ─────────────────────────────────────────────────────────
 
 interface ToolbarProps {
@@ -44,7 +79,7 @@ function DesignerToolbar({
   isUploading,
 }: ToolbarProps) {
   return (
-    <aside className="hidden w-20 flex-shrink-0 flex-col items-center gap-6 bg-charcoal py-6 lg:flex">
+    <aside className="flex w-full flex-row justify-around bg-charcoal px-4 py-3 lg:w-20 lg:flex-shrink-0 lg:flex-col lg:items-center lg:justify-start lg:gap-6 lg:py-6 lg:px-0">
       <Link
         href="/designer"
         title="Termék váltása"
@@ -69,7 +104,7 @@ function DesignerToolbar({
         <span className="text-xs font-medium">Termékek</span>
       </Link>
 
-      <div className="w-10 border-t border-white/20" />
+      <div className="hidden w-10 border-t border-white/20 lg:block" />
 
       <button
         onClick={onClipartOpen}
@@ -96,7 +131,7 @@ function DesignerToolbar({
         <span className="text-xs font-medium">Motívum</span>
       </button>
 
-      <div className="w-10 border-t border-white/20" />
+      <div className="hidden w-10 border-t border-white/20 lg:block" />
 
       <button
         onClick={onImageUploadClick}
@@ -139,7 +174,7 @@ function DesignerToolbar({
         <span className="text-xs font-medium">Kép</span>
       </button>
 
-      <div className="w-10 border-t border-white/20" />
+      <div className="hidden w-10 border-t border-white/20 lg:block" />
 
       <button
         onClick={onAddText}
@@ -322,7 +357,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   }
 
   return (
-    <div className="flex bg-white">
+    <div className="flex flex-col lg:flex-row bg-white">
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
@@ -338,14 +373,16 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
       />
 
       <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
-        <DesignerCanvas
-          ref={canvasRef}
-          imageUrl={imageUrl}
-          side={side}
-          printArea={mockupConfig.printArea}
-          onActiveTextChange={handleActiveTextChange}
-          onPrintFeeChange={setPrintFee}
-        />
+        <ScaledCanvasWrapper>
+          <DesignerCanvas
+            ref={canvasRef}
+            imageUrl={imageUrl}
+            side={side}
+            printArea={mockupConfig.printArea}
+            onActiveTextChange={handleActiveTextChange}
+            onPrintFeeChange={setPrintFee}
+          />
+        </ScaledCanvasWrapper>
 
         {isTextSelected && (
           <div className="mt-3">
@@ -386,7 +423,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         )}
       </div>
 
-      <aside className="hidden w-72 flex-shrink-0 flex-col border-l border-border-light bg-white p-6 lg:flex">
+      <aside className="flex flex-col border-t border-border-light bg-white p-4 lg:w-72 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:p-6">
         <h2 className="text-lg font-semibold text-charcoal">{product.name}</h2>
 
         <div className="mt-4">
@@ -456,7 +493,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         )}
         {addToCartError && <p className="mt-2 text-sm text-error">{addToCartError}</p>}
 
-        <div className="flex-1" />
+        <div className="hidden flex-1 lg:block" />
 
         <button
           onClick={handleAddToCart}
@@ -607,7 +644,7 @@ function MalfiniDesignerLayout({
   }
 
   return (
-    <div className="flex bg-white">
+    <div className="flex flex-col lg:flex-row bg-white">
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
@@ -623,14 +660,16 @@ function MalfiniDesignerLayout({
       />
 
       <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
-        <DesignerCanvas
-          ref={canvasRef}
-          imageUrl={imageUrl}
-          side={side}
-          printArea={printArea}
-          onActiveTextChange={handleActiveTextChange}
-          onPrintFeeChange={setPrintFee}
-        />
+        <ScaledCanvasWrapper>
+          <DesignerCanvas
+            ref={canvasRef}
+            imageUrl={imageUrl}
+            side={side}
+            printArea={printArea}
+            onActiveTextChange={handleActiveTextChange}
+            onPrintFeeChange={setPrintFee}
+          />
+        </ScaledCanvasWrapper>
 
         {isTextSelected && (
           <div className="mt-3">
@@ -671,7 +710,7 @@ function MalfiniDesignerLayout({
         )}
       </div>
 
-      <aside className="hidden w-72 flex-shrink-0 flex-col border-l border-border-light bg-white p-6 lg:flex">
+      <aside className="flex flex-col border-t border-border-light bg-white p-4 lg:w-72 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:p-6">
         <h2 className="text-lg font-semibold text-charcoal">{malfiniProduct.name}</h2>
 
         <div className="mt-4">
@@ -751,7 +790,7 @@ function MalfiniDesignerLayout({
         )}
         {addToCartError && <p className="mt-2 text-sm text-error">{addToCartError}</p>}
 
-        <div className="flex-1" />
+        <div className="hidden flex-1 lg:block" />
 
         <button
           onClick={handleAddToCart}

@@ -5,9 +5,9 @@ import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
 import { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
 import type { PrintArea } from "@/lib/designer/mockupConfig";
 
-// Canvas dimensions (fixed — responsive scaling is a future concern)
-const CANVAS_WIDTH = 500;
-const CANVAS_HEIGHT = 600;
+// Canvas dimensions — exported so DesignerLayout can compute the CSS scale factor.
+export const CANVAS_WIDTH = 500;
+export const CANVAS_HEIGHT = 600;
 
 // Physical print area dimensions (cm) — used for coordinate display and print fee calculation.
 // The full printable area on a standard adult t-shirt is 38×48 cm.
