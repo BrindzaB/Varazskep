@@ -121,8 +121,27 @@ async function main() {
     },
   });
 
+  // ── Pillow ─────────────────────────────────────────────────────────────────
+  const pillow = await prisma.product.create({
+    data: {
+      name: "Párna",
+      slug: "parna",
+      description:
+        "Egyedi nyomtatású díszpárna, 40×40 cm. Puha, tartós anyagból, mosható huzattal.",
+      imageUrl: "/pillow-mockup.png",
+      active: true,
+      mockupType: "pillow",
+      variants: {
+        create: [
+          { color: "Fehér", size: "40x40 cm", price: 3990, stock: 50 },
+        ],
+      },
+    },
+  });
+
   console.log(`✓ Created product: ${tshirt.name} (${tshirt.slug})`);
   console.log(`✓ Created product: ${mug.name} (${mug.slug})`);
+  console.log(`✓ Created product: ${pillow.name} (${pillow.slug})`);
 
   // ── Clipart ────────────────────────────────────────────────────────────────
   const assetsDir = path.join(__dirname, "seed-assets", "clipart");
