@@ -42,6 +42,8 @@ export interface MalfiniProduct {
   trademark?: string;
   type?: string;
   variants: MalfiniVariant[];
+  sizeChartPdf?: string | null;
+  productCardPdf?: string | null;
 }
 
 export interface MalfiniAvailability {
