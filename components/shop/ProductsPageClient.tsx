@@ -9,8 +9,11 @@ import type { ProductWithVariants } from "@/lib/services/product";
 export type ClothingProduct = MalfiniProduct & { minPrice: number };
 
 type GenderFilter = "Összes" | "Férfi" | "Női" | "Gyerek";
-type CategoryFilter = "Összes" | "t-shirts" | "sweatshirts" | "polo-shirts" | "local";
+type CategoryFilter = "Összes" | "t-shirts" | "sweatshirts" | "polo-shirts" | "mug" | "pillow";
 type SortOrder = "default" | "asc" | "desc";
+
+// Local mockup types that get their own category tab
+const LOCAL_CATEGORIES = new Set<string>(["mug", "pillow"]);
 
 const GENDER_FILTERS: GenderFilter[] = ["Összes", "Férfi", "Női", "Gyerek"];
 
@@ -28,7 +31,8 @@ const CATEGORY_LABEL: Record<string, string> = {
   "t-shirts": "Pólók",
   sweatshirts: "Pulóverek",
   "polo-shirts": "Galléros pólók",
-  local: "Bögrék",
+  mug: "Bögrék",
+  pillow: "Párnák",
 };
 
 const PAGE_SIZE = 30;
@@ -58,7 +62,10 @@ export default function ProductsPageClient({
     if (clothingCats.has("t-shirts")) cats.push("t-shirts");
     if (clothingCats.has("sweatshirts")) cats.push("sweatshirts");
     if (clothingCats.has("polo-shirts")) cats.push("polo-shirts");
-    if (localProducts.length > 0) cats.push("local");
+    // Each local mockup type gets its own tab (mug, pillow, …)
+    const localTypes = new Set(localProducts.map((p) => p.mockupType).filter(Boolean));
+    if (localTypes.has("mug")) cats.push("mug");
+    if (localTypes.has("pillow")) cats.push("pillow");
     return cats;
   }, [clothingProducts, localProducts]);
 
@@ -83,9 +90,10 @@ export default function ProductsPageClient({
       }
     }
 
-    // Local products — always shown regardless of gender filter.
-    if (category === "Összes" || category === "local") {
+    // Local products — filter by mockupType when a local category tab is active.
+    if (category === "Összes" || LOCAL_CATEGORIES.has(category)) {
       for (const p of localProducts) {
+        if (LOCAL_CATEGORIES.has(category) && p.mockupType !== category) continue;
         items.push({ type: "local", product: p });
       }
     }
@@ -104,7 +112,7 @@ export default function ProductsPageClient({
 
   // Reset gender when switching to a non-clothing category.
   useEffect(() => {
-    if (category === "local") setGender("Összes");
+    if (LOCAL_CATEGORIES.has(category)) setGender("Összes");
   }, [category]);
 
   // Reset to page 0 whenever filters or sort change.
@@ -112,7 +120,7 @@ export default function ProductsPageClient({
     setPage(0);
   }, [gender, category, sort]);
 
-  const showGenderFilter = category !== "local" && clothingProducts.length > 0;
+  const showGenderFilter = !LOCAL_CATEGORIES.has(category) && clothingProducts.length > 0;
 
   const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
   const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
