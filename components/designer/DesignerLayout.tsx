@@ -34,27 +34,30 @@ function sortNomenclatures(nomenclatures: MalfiniNomenclature[]): MalfiniNomencl
 // On desktop (container ≥ CANVAS_WIDTH) scale === 1 — no visual change.
 function ScaledCanvasWrapper({ children }: { children: ReactNode }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [containerWidth, setContainerWidth] = useState(CANVAS_WIDTH);
 
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width;
-      setScale(Math.min(1, w / CANVAS_WIDTH));
+      setContainerWidth(entry.contentRect.width);
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
+  const scale = Math.min(1, containerWidth / CANVAS_WIDTH);
+  // margin: auto doesn't center an element wider than its container — compute the
+  // translateX offset explicitly so the scaled canvas is always perfectly centered.
+  const offsetX = (containerWidth - CANVAS_WIDTH * scale) / 2;
+
   return (
     <div ref={wrapperRef} className="w-full overflow-hidden" style={{ height: CANVAS_HEIGHT * scale }}>
       <div
         style={{
-          transform: `scale(${scale})`,
-          transformOrigin: "top center",
+          transform: `translateX(${offsetX}px) scale(${scale})`,
+          transformOrigin: "top left",
           width: CANVAS_WIDTH,
-          margin: "0 auto",
         }}
       >
         {children}
