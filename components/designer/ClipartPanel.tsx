@@ -36,13 +36,17 @@ export default function ClipartPanel({ onSelect, onClose }: ClipartPanelProps) {
       .catch(() => setLoading(false));
   }, []);
 
-  // Close on Escape key
+  // Close on Escape key + lock body scroll while open
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = "";
+    };
   }, [onClose]);
 
   const visibleItems = activeCategory
@@ -57,11 +61,11 @@ export default function ClipartPanel({ onSelect, onClose }: ClipartPanelProps) {
     >
       {/* Panel — stop click propagation so clicking inside doesn't close */}
       <div
-        className="flex h-[70vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-elevated"
+        className="flex h-[80vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-elevated"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border-light px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-border-light px-6 py-4">
           <h2 className="text-lg font-semibold text-charcoal">Motívumok</h2>
           <button
             onClick={onClose}
@@ -72,59 +76,56 @@ export default function ClipartPanel({ onSelect, onClose }: ClipartPanelProps) {
           </button>
         </div>
 
-        {/* Category tabs */}
-        {categories.length > 0 && (
-          <div className="flex gap-2 border-b border-border-light px-6 py-3">
+        {/* Body: category sidebar + clipart grid */}
+        <div className="flex min-h-0 flex-1">
+          {/* Category sidebar */}
+          <div className="flex w-44 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border-light p-3">
             {categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                className={`rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                   activeCategory === cat
                     ? "bg-charcoal text-white"
-                    : "bg-off-white text-muted hover:bg-border-light hover:text-charcoal"
+                    : "text-muted hover:bg-off-white hover:text-charcoal"
                 }`}
               >
                 {cat}
               </button>
             ))}
           </div>
-        )}
 
-        {/* Grid */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <p className="text-center text-sm text-muted">Betöltés…</p>
-          ) : visibleItems.length === 0 ? (
-            <p className="text-center text-sm text-muted">Nincs elérhető motívum.</p>
-          ) : (
-            <ul className="grid grid-cols-4 gap-4 sm:grid-cols-5 md:grid-cols-6">
-              {visibleItems.map((item) => (
-                <li key={item.id}>
-                  <button
-                    onClick={() => {
-                      onSelect(item.svgUrl);
-                      onClose();
-                    }}
-                    title={item.name}
-                    aria-label={item.name}
-                    className="group flex w-full flex-col items-center gap-2 rounded-lg border border-border-light p-3 transition-all hover:border-charcoal hover:shadow-card"
-                  >
-                    {/* Render SVG as an <img> — Supabase Storage serves it with correct MIME type */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.svgUrl}
-                      alt={item.name}
-                      className="h-12 w-12 object-contain"
-                    />
-                    <span className="text-xs text-muted group-hover:text-charcoal">
-                      {item.name}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          {/* Clipart grid */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {loading ? (
+              <p className="text-center text-sm text-muted">Betöltés…</p>
+            ) : visibleItems.length === 0 ? (
+              <p className="text-center text-sm text-muted">Nincs elérhető motívum.</p>
+            ) : (
+              <ul className="grid grid-cols-3 gap-3">
+                {visibleItems.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      onClick={() => {
+                        onSelect(item.svgUrl);
+                        onClose();
+                      }}
+                      title={item.name}
+                      aria-label={item.name}
+                      className="group flex aspect-square w-full items-center justify-center rounded-lg border border-border-light p-3 transition-all hover:border-charcoal hover:shadow-card"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.svgUrl}
+                        alt={item.name}
+                        className="h-full w-full object-contain"
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     </div>
