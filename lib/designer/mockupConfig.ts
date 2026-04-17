@@ -16,6 +16,8 @@ export interface MockupConfig {
   printArea: PrintArea;
   // Whether the product has a "front" and "back" side that the user can toggle
   hasSides: boolean;
+  // false for static PNG mockups — skips SVG fetch + CSS color replacement in LocalDesignerLayout
+  colorReplaceable?: boolean;
 }
 
 export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
@@ -37,6 +39,15 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
     // area. Print area uses comfortable margins inside that body.
     printArea: { width: 150, height: 190, centerX: 228, centerY: 285 },
     hasSides: false,
+  },
+  pillow: {
+    svgPaths: {
+      front: "/pillow-mockup.png",
+    },
+    // Print area centered on the pillow face — tune after visual check in designer.
+    printArea: { width: 260, height: 260, centerX: CX, centerY: 320 },
+    hasSides: false,
+    colorReplaceable: false,
   },
 };
 

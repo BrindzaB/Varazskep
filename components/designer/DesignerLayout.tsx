@@ -260,12 +260,22 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   const canvasRef = useRef<DesignerCanvasRef>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Compute imageUrl by fetching the SVG and applying color replacement.
-  // Cached per side to avoid redundant fetches.
-  const [imageUrl, setImageUrl] = useState<string>("");
+  // Static PNG mockups (colorReplaceable === false) are used directly as imageUrl.
+  // SVG mockups are fetched and color-replaced via buildColoredDataUrl.
+  const isColorReplaceable = mockupConfig.colorReplaceable !== false;
+
+  const [imageUrl, setImageUrl] = useState<string>(
+    !isColorReplaceable
+      ? (mockupConfig.svgPaths[side] ?? mockupConfig.svgPaths.front)
+      : "",
+  );
   const svgCacheRef = useRef<Partial<Record<"front" | "back", string>>>({});
 
   useEffect(() => {
+    if (!isColorReplaceable) {
+      setImageUrl(mockupConfig.svgPaths[side] ?? mockupConfig.svgPaths.front);
+      return;
+    }
     let cancelled = false;
     const svgPath = mockupConfig.svgPaths[side] ?? mockupConfig.svgPaths.front;
 

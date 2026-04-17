@@ -21,6 +21,7 @@ const MOCKUP_OPTIONS = [
   { value: "", label: "Nincs (nem tervezhető)" },
   { value: "tshirt", label: "Póló" },
   { value: "mug", label: "Bögre" },
+  { value: "pillow", label: "Párna" },
 ];
 
 const DEFAULT_VALUES: ProductFormValues = {
