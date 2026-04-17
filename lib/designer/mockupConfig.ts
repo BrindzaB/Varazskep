@@ -45,7 +45,7 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
       front: "/pillow-mockup.png",
     },
     // Print area centered on the pillow face — tune after visual check in designer.
-    printArea: { width: 260, height: 260, centerX: CX, centerY: CY },
+    printArea: { width: 260, height: 260, centerX: CX, centerY: 320 },
     hasSides: false,
     colorReplaceable: false,
   },
