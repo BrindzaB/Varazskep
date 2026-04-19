@@ -12,7 +12,7 @@ export default function HomePage() {
   return (
     <>
       {/* Hero — full-screen image with dark overlay */}
-      <section className="relative flex min-h-[85vh] items-center">
+      <section className="relative flex min-h-[45vh] sm:min-h-[65vh] lg:min-h-[85vh] items-center">
         {/* Background image — place hero-bg.jpg in public/images/ */}
         <Image
           src="/images/hero-bg2.jpg"
@@ -25,7 +25,7 @@ export default function HomePage() {
         <div className="absolute inset-0" />
 
         {/* Content */}
-        <div className="relative z-10 mx-auto w-full max-w-layout py-24 px-6 xl:px-0">
+        <div className="relative z-10 mx-auto w-full max-w-layout py-10 sm:py-16 lg:py-24 px-6 xl:px-0">
           <h1 className="text-balance text-4xl font-bold leading-tight text-brand-violet sm:text-5xl lg:text-6xl">
             Egyedi ajándékok,
             <br />
