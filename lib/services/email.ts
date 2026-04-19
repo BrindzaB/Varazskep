@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { render } from "@react-email/components";
 import OrderConfirmation from "@/emails/OrderConfirmation";
 import { formatHuf } from "@/lib/utils/format";
+import type { ShippingMethod } from "@/lib/generated/prisma/client";
 
 const FROM_ADDRESS = "Varázskép <rendeles@varazskep.hu>";
 
@@ -19,6 +20,10 @@ interface SendOrderConfirmationInput {
     postalCode: string;
     country: string;
   };
+  shippingMethod: ShippingMethod;
+  shippingCost: number;
+  pickupPointName?: string;
+  pickupPointAddress?: string;
 }
 
 export async function sendOrderConfirmationEmail(
@@ -41,6 +46,10 @@ export async function sendOrderConfirmationEmail(
         city: input.shippingAddress.city,
         postalCode: input.shippingAddress.postalCode,
       },
+      shippingMethod: input.shippingMethod,
+      shippingCost: formatHuf(input.shippingCost),
+      pickupPointName: input.pickupPointName,
+      pickupPointAddress: input.pickupPointAddress,
     }),
   );
 

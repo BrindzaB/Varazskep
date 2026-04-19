@@ -69,6 +69,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // amount_total is in fillér (smallest unit) — convert back to whole HUF for storage.
   const totalAmount = Math.round((session.amount_total ?? 0) / 100);
 
+  const shippingMethod =
+    meta.shippingMethod === "FOXPOST_LOCKER" ? "FOXPOST_LOCKER" : "MPL_HOME_DELIVERY";
+  const shippingCost = parseInt(meta.shippingCost ?? "0", 10);
+
   try {
     await createOrder({
       stripeSessionId: session.id,
@@ -90,6 +94,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       shippingAddress,
       totalAmount,
       gdprConsent: meta.gdprConsent === "true",
+      shippingMethod,
+      shippingCost,
+      ...(meta.pickupPointId ? { pickupPointId: meta.pickupPointId } : {}),
+      ...(meta.pickupPointName ? { pickupPointName: meta.pickupPointName } : {}),
+      ...(meta.pickupPointAddress ? { pickupPointAddress: meta.pickupPointAddress } : {}),
     });
   } catch (err) {
     console.error("[webhook] createOrder failed:", err);
@@ -122,6 +131,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         variantSize: fullOrder.sizeName,
         totalAmount: fullOrder.totalAmount,
         shippingAddress,
+        shippingMethod: fullOrder.shippingMethod,
+        shippingCost: fullOrder.shippingCost,
+        pickupPointName: fullOrder.pickupPointName ?? undefined,
+        pickupPointAddress: fullOrder.pickupPointAddress ?? undefined,
       });
     }
   } catch (err) {

@@ -21,9 +21,18 @@ interface CustomerInfo {
   };
 }
 
+interface ShippingInfo {
+  method: "FOXPOST_LOCKER" | "MPL_HOME_DELIVERY";
+  cost: number; // HUF
+  pickupPointId?: string;
+  pickupPointName?: string;
+  pickupPointAddress?: string;
+}
+
 interface CheckoutRequestBody {
   items: CartItem[];
   customer: CustomerInfo;
+  shipping: ShippingInfo;
   gdprConsent: boolean;
 }
 
@@ -65,14 +74,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (!parsed.customer || !parsed.gdprConsent) {
+  if (!parsed.customer || !parsed.gdprConsent || !parsed.shipping) {
     return NextResponse.json(
       { error: "Hiányzó adatok." },
       { status: 400 },
     );
   }
 
-  const { items, customer, gdprConsent } = parsed as CheckoutRequestBody;
+  const { items, customer, shipping, gdprConsent } = parsed as CheckoutRequestBody;
+
+  // Validate shipping cost against server-side config to prevent tampering.
+  const { SHIPPING_PRICES } = await import("@/lib/shipping/config");
+  const expectedShippingCost = SHIPPING_PRICES[shipping.method];
+  if (!expectedShippingCost || shipping.cost !== expectedShippingCost) {
+    return NextResponse.json({ error: "Érvénytelen szállítási díj." }, { status: 400 });
+  }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
 
   // Fetch Malfini prices in one batch call before iterating items.
@@ -179,6 +195,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     cartItemsMeta.push(meta);
   }
 
+  // Add shipping as a separate line item.
+  const { SHIPPING_LABELS } = await import("@/lib/shipping/config");
+  lineItems.push({
+    price_data: {
+      currency: "huf",
+      product_data: { name: SHIPPING_LABELS[shipping.method] },
+      unit_amount: shipping.cost * 100,
+    },
+    quantity: 1,
+  });
+
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     line_items: lineItems,
@@ -191,9 +218,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       customerPhone: customer.phone,
       shippingAddress: JSON.stringify(customer.shippingAddress),
       gdprConsent: String(gdprConsent),
-      // cartItems carries source, IDs, and denormalized display fields.
-      // Webhook reads this to create the Order — no re-fetching needed.
       cartItems: JSON.stringify(cartItemsMeta),
+      shippingMethod: shipping.method,
+      shippingCost: String(shipping.cost),
+      ...(shipping.pickupPointId ? { pickupPointId: shipping.pickupPointId } : {}),
+      ...(shipping.pickupPointName ? { pickupPointName: shipping.pickupPointName } : {}),
+      ...(shipping.pickupPointAddress ? { pickupPointAddress: shipping.pickupPointAddress } : {}),
     },
     success_url: `${appUrl}/order/{CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/checkout`,

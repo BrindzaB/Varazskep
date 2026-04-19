@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getOrderBySessionId } from "@/lib/services/order";
 import { formatHuf } from "@/lib/utils/format";
+import { SHIPPING_LABELS } from "@/lib/shipping/config";
 import CartClearer from "@/components/shop/CartClearer";
 
 export const metadata: Metadata = {
@@ -97,15 +98,25 @@ export default async function OrderConfirmationPage({ params }: Props) {
               </p>
             </div>
 
-            {/* Shipping address */}
+            {/* Shipping method */}
             <div>
               <p className="mb-1 text-sm font-medium text-charcoal">
-                Szállítási cím
+                Szállítási mód
               </p>
               <p className="text-sm text-muted">
-                {shippingAddress.postalCode} {shippingAddress.city},{" "}
-                {shippingAddress.address}
+                {SHIPPING_LABELS[order.shippingMethod]} — {formatHuf(order.shippingCost)}
               </p>
+              {order.shippingMethod === "FOXPOST_LOCKER" && order.pickupPointName ? (
+                <p className="mt-0.5 text-sm text-muted">
+                  {order.pickupPointName}
+                  {order.pickupPointAddress && ` · ${order.pickupPointAddress}`}
+                </p>
+              ) : (
+                <p className="mt-0.5 text-sm text-muted">
+                  {shippingAddress.postalCode} {shippingAddress.city},{" "}
+                  {shippingAddress.address}
+                </p>
+              )}
             </div>
 
             {/* Total */}

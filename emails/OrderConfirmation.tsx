@@ -22,6 +22,10 @@ interface OrderConfirmationProps {
     city: string;
     postalCode: string;
   };
+  shippingMethod: "FOXPOST_LOCKER" | "MPL_HOME_DELIVERY";
+  shippingCost: string; // pre-formatted, e.g. "990 Ft"
+  pickupPointName?: string;
+  pickupPointAddress?: string;
 }
 
 export default function OrderConfirmation({
@@ -32,7 +36,13 @@ export default function OrderConfirmation({
   variantSize,
   totalAmount,
   shippingAddress,
+  shippingMethod,
+  shippingCost,
+  pickupPointName,
+  pickupPointAddress,
 }: OrderConfirmationProps) {
+  const isFoxpost = shippingMethod === "FOXPOST_LOCKER";
+
   return (
     <Html lang="hu">
       <Head />
@@ -67,11 +77,28 @@ export default function OrderConfirmation({
           <Hr style={hr} />
 
           <Section>
-            <Text style={label}>Szállítási cím</Text>
+            <Text style={label}>Szállítási mód</Text>
             <Text style={value}>
-              {shippingAddress.postalCode} {shippingAddress.city},{" "}
-              {shippingAddress.address}
+              {isFoxpost ? "Foxpost csomagautomata" : "MPL házhozszállítás"} – {shippingCost}
             </Text>
+
+            {isFoxpost && pickupPointName ? (
+              <>
+                <Text style={label}>Átvételi pont</Text>
+                <Text style={value}>
+                  {pickupPointName}
+                  {pickupPointAddress ? `\n${pickupPointAddress}` : ""}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={label}>Szállítási cím</Text>
+                <Text style={value}>
+                  {shippingAddress.postalCode} {shippingAddress.city},{" "}
+                  {shippingAddress.address}
+                </Text>
+              </>
+            )}
           </Section>
 
           <Hr style={hr} />

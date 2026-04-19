@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCartStore, itemKey } from "@/lib/cart/cartStore";
 import { formatHuf } from "@/lib/utils/format";
+import { SHIPPING_PRICES, SHIPPING_LABELS, type ShippingMethodKey } from "@/lib/shipping/config";
+import FoxpostWidget, { type FoxpostLocker } from "@/components/shop/FoxpostWidget";
 
 interface FormFields {
   name: string;
@@ -32,9 +34,14 @@ interface FieldError {
   city?: string;
   postalCode?: string;
   gdprConsent?: string;
+  locker?: string;
 }
 
-function validate(fields: FormFields): FieldError {
+function validate(
+  fields: FormFields,
+  shippingMethod: ShippingMethodKey,
+  selectedLocker: FoxpostLocker | null,
+): FieldError {
   const errors: FieldError = {};
   if (!fields.name.trim()) errors.name = "A név megadása kötelező.";
   if (!fields.email.trim()) {
@@ -42,23 +49,32 @@ function validate(fields: FormFields): FieldError {
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)) {
     errors.email = "Érvénytelen e-mail cím.";
   }
-  if (!fields.address.trim()) errors.address = "A cím megadása kötelező.";
-  if (!fields.city.trim()) errors.city = "A város megadása kötelező.";
-  if (!fields.postalCode.trim()) {
-    errors.postalCode = "Az irányítószám megadása kötelező.";
-  } else if (!/^\d{4}$/.test(fields.postalCode.trim())) {
-    errors.postalCode = "Az irányítószám 4 számjegyből áll.";
+
+  if (shippingMethod === "MPL_HOME_DELIVERY") {
+    if (!fields.address.trim()) errors.address = "A cím megadása kötelező.";
+    if (!fields.city.trim()) errors.city = "A város megadása kötelező.";
+    if (!fields.postalCode.trim()) {
+      errors.postalCode = "Az irányítószám megadása kötelező.";
+    } else if (!/^\d{4}$/.test(fields.postalCode.trim())) {
+      errors.postalCode = "Az irányítószám 4 számjegyből áll.";
+    }
   }
-  if (!fields.gdprConsent)
+
+  if (shippingMethod === "FOXPOST_LOCKER" && !selectedLocker) {
+    errors.locker = "Válasszon csomagautomatát.";
+  }
+
+  if (!fields.gdprConsent) {
     errors.gdprConsent =
       "Az adatkezelési hozzájárulás elfogadása kötelező a rendelés leadásához.";
+  }
   return errors;
 }
 
 export default function CheckoutForm() {
   const router = useRouter();
   const items = useCartStore((state) => state.items);
-  const totalPrice = useCartStore((state) =>
+  const itemsTotal = useCartStore((state) =>
     state.items.reduce((sum, i) => sum + (i.price + (i.printFee ?? 0)) * i.quantity, 0),
   );
 
@@ -66,6 +82,11 @@ export default function CheckoutForm() {
   const [errors, setErrors] = useState<FieldError>({});
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethodKey>("MPL_HOME_DELIVERY");
+  const [selectedLocker, setSelectedLocker] = useState<FoxpostLocker | null>(null);
+
+  const shippingCost = SHIPPING_PRICES[shippingMethod];
+  const grandTotal = itemsTotal + shippingCost;
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value, type, checked } = e.target;
@@ -73,13 +94,17 @@ export default function CheckoutForm() {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
-    // Clear the error for this field as the user types
     setErrors((prev) => ({ ...prev, [name]: undefined }));
+  }
+
+  function handleShippingMethodChange(method: ShippingMethodKey) {
+    setShippingMethod(method);
+    setErrors((prev) => ({ ...prev, address: undefined, city: undefined, postalCode: undefined, locker: undefined }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationErrors = validate(fields);
+    const validationErrors = validate(fields, shippingMethod, selectedLocker);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
@@ -87,6 +112,24 @@ export default function CheckoutForm() {
 
     setSubmitting(true);
     setServerError(null);
+
+    // Build the shipping address payload.
+    // For Foxpost, use the locker's address fields so the DB shippingAddress
+    // column has the same structure regardless of shipping method.
+    const shippingAddress =
+      shippingMethod === "FOXPOST_LOCKER" && selectedLocker
+        ? {
+            address: selectedLocker.streetAddress,
+            city: selectedLocker.city,
+            postalCode: selectedLocker.zip,
+            country: "HU",
+          }
+        : {
+            address: fields.address.trim(),
+            city: fields.city.trim(),
+            postalCode: fields.postalCode.trim(),
+            country: "HU",
+          };
 
     try {
       const res = await fetch("/api/stripe/checkout", {
@@ -98,30 +141,32 @@ export default function CheckoutForm() {
             name: fields.name.trim(),
             email: fields.email.trim(),
             phone: fields.phone.trim(),
-            shippingAddress: {
-              address: fields.address.trim(),
-              city: fields.city.trim(),
-              postalCode: fields.postalCode.trim(),
-              country: "HU",
-            },
+            shippingAddress,
+          },
+          shipping: {
+            method: shippingMethod,
+            cost: shippingCost,
+            ...(shippingMethod === "FOXPOST_LOCKER" && selectedLocker
+              ? {
+                  pickupPointId: selectedLocker.id,
+                  pickupPointName: selectedLocker.name,
+                  pickupPointAddress: `${selectedLocker.zip} ${selectedLocker.city}, ${selectedLocker.streetAddress}`,
+                }
+              : {}),
           },
           gdprConsent: fields.gdprConsent,
         }),
       });
 
       if (!res.ok) {
-        setServerError(
-          "Hiba történt a fizetés elindításakor. Kérjük, próbálja újra.",
-        );
+        setServerError("Hiba történt a fizetés elindításakor. Kérjük, próbálja újra.");
         return;
       }
 
       const { url } = (await res.json()) as { url: string };
       router.push(url);
     } catch {
-      setServerError(
-        "Hiba történt a fizetés elindításakor. Kérjük, próbálja újra.",
-      );
+      setServerError("Hiba történt a fizetés elindításakor. Kérjük, próbálja újra.");
     } finally {
       setSubmitting(false);
     }
@@ -168,45 +213,94 @@ export default function CheckoutForm() {
             </div>
           </fieldset>
 
-          {/* Shipping address */}
+          {/* Shipping method */}
           <fieldset className="rounded border border-border-light bg-white p-6">
             <legend className="px-1 text-base font-semibold text-charcoal">
-              Szállítási cím
+              Szállítási mód
             </legend>
 
-            <div className="mt-4 space-y-4">
-              <Field
-                label="Utca, házszám"
-                name="address"
-                type="text"
-                value={fields.address}
-                error={errors.address}
-                autoComplete="street-address"
-                onChange={handleChange}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <Field
-                  label="Irányítószám"
-                  name="postalCode"
-                  type="text"
-                  value={fields.postalCode}
-                  error={errors.postalCode}
-                  autoComplete="postal-code"
-                  onChange={handleChange}
-                />
-                <Field
-                  label="Város"
-                  name="city"
-                  type="text"
-                  value={fields.city}
-                  error={errors.city}
-                  autoComplete="address-level2"
-                  onChange={handleChange}
-                />
-              </div>
-              <p className="text-sm text-muted">Ország: Magyarország</p>
+            <div className="mt-4 space-y-3">
+              {(["MPL_HOME_DELIVERY", "FOXPOST_LOCKER"] as const).map((method) => (
+                <label
+                  key={method}
+                  className={`flex cursor-pointer items-center justify-between rounded border p-4 transition-colors ${
+                    shippingMethod === method
+                      ? "border-charcoal bg-gray-50"
+                      : "border-border-medium hover:border-charcoal"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="shippingMethod"
+                      value={method}
+                      checked={shippingMethod === method}
+                      onChange={() => handleShippingMethodChange(method)}
+                      className="accent-charcoal"
+                    />
+                    <span className="text-sm font-medium text-charcoal">
+                      {SHIPPING_LABELS[method]}
+                    </span>
+                  </div>
+                  <span className="text-sm font-semibold text-charcoal">
+                    {formatHuf(SHIPPING_PRICES[method])}
+                  </span>
+                </label>
+              ))}
             </div>
+
+            {/* Foxpost locker selector */}
+            {shippingMethod === "FOXPOST_LOCKER" && (
+              <div className="mt-4">
+                <FoxpostWidget selected={selectedLocker} onSelect={setSelectedLocker} />
+                {errors.locker && (
+                  <p className="mt-2 text-sm text-error">{errors.locker}</p>
+                )}
+              </div>
+            )}
           </fieldset>
+
+          {/* Shipping address — only for home delivery */}
+          {shippingMethod === "MPL_HOME_DELIVERY" && (
+            <fieldset className="rounded border border-border-light bg-white p-6">
+              <legend className="px-1 text-base font-semibold text-charcoal">
+                Szállítási cím
+              </legend>
+
+              <div className="mt-4 space-y-4">
+                <Field
+                  label="Utca, házszám"
+                  name="address"
+                  type="text"
+                  value={fields.address}
+                  error={errors.address}
+                  autoComplete="street-address"
+                  onChange={handleChange}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <Field
+                    label="Irányítószám"
+                    name="postalCode"
+                    type="text"
+                    value={fields.postalCode}
+                    error={errors.postalCode}
+                    autoComplete="postal-code"
+                    onChange={handleChange}
+                  />
+                  <Field
+                    label="Város"
+                    name="city"
+                    type="text"
+                    value={fields.city}
+                    error={errors.city}
+                    autoComplete="address-level2"
+                    onChange={handleChange}
+                  />
+                </div>
+                <p className="text-sm text-muted">Ország: Magyarország</p>
+              </div>
+            </fieldset>
+          )}
 
           {/* GDPR consent */}
           <div className="rounded border border-border-light bg-white p-6">
@@ -255,12 +349,17 @@ export default function CheckoutForm() {
                 </span>
               </div>
             ))}
+
+            <div className="flex justify-between text-sm">
+              <span className="text-muted">{SHIPPING_LABELS[shippingMethod]}</span>
+              <span className="text-charcoal">{formatHuf(shippingCost)}</span>
+            </div>
           </div>
 
           <div className="mt-4 border-t border-border-light pt-4">
             <div className="flex justify-between text-base font-semibold text-charcoal">
               <span>Összesen</span>
-              <span>{formatHuf(totalPrice)}</span>
+              <span>{formatHuf(grandTotal)}</span>
             </div>
             <p className="mt-1 text-xs text-muted">Az ár tartalmazza az ÁFÁ-t</p>
           </div>
@@ -282,7 +381,6 @@ export default function CheckoutForm() {
   );
 }
 
-// Small inline helper to avoid repeating label+input+error markup
 interface FieldProps {
   label: string;
   name: string;

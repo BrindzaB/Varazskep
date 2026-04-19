@@ -52,34 +52,46 @@ model Design {
 }
 
 model Order {
-  id              String      @id @default(cuid())
-  stripeSessionId String      @unique
-  status          OrderStatus @default(PENDING)
+  id              String         @id @default(cuid())
+  stripeSessionId String         @unique
+  status          OrderStatus    @default(PENDING)
   // Local products (mugs, etc.) — null for Malfini orders
   variantId       String?
-  variant         Variant?    @relation(fields: [variantId], references: [id])
+  variant         Variant?       @relation(fields: [variantId], references: [id])
   // Malfini products (clothing) — null for local orders
-  productSizeCode String?     // 7-char SKU e.g. "M150XM0"
-  productCode     String?     // 3-char product code e.g. "150"
+  productSizeCode String?        // 7-char SKU e.g. "M150XM0"
+  productCode     String?        // 3-char product code e.g. "150"
   // Denormalized display fields — always set for both sources
   // Required for 8-year retention even if product is later removed
-  productName     String      @default("")
-  colorName       String      @default("")
-  sizeName        String      @default("")
+  productName     String         @default("")
+  colorName       String         @default("")
+  sizeName        String         @default("")
   // Design (optional — not all products require a custom design)
-  designId        String?     @unique
-  design          Design?     @relation(fields: [designId], references: [id])
+  designId        String?        @unique
+  design          Design?        @relation(fields: [designId], references: [id])
   // Customer info — retained 8 years per Hungarian tax law (Számviteli törvény)
   customerName    String
   customerEmail   String
-  shippingAddress Json // { street, city, zip, country }
-  totalAmount     Int // in HUF
+  shippingAddress Json           // { address, city, postalCode, country }
+  totalAmount     Int            // in HUF (includes shipping cost)
   gdprConsent     Boolean
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  // Shipping method and cost
+  shippingMethod  ShippingMethod @default(MPL_HOME_DELIVERY)
+  shippingCost    Int            @default(0) // in HUF
+  // Foxpost locker details — null for home delivery
+  pickupPointId   String?        // Foxpost OperatorCode
+  pickupPointName String?        // human-readable locker name
+  pickupPointAddress String?     // formatted locker address for display
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 // ─── Enums ─────────────────────────────────────────────────────────────────
+
+enum ShippingMethod {
+  FOXPOST_LOCKER
+  MPL_HOME_DELIVERY
+}
 
 enum OrderStatus {
   PENDING // Stripe session created, payment not yet confirmed

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { OrderStatus } from "@/lib/generated/prisma/client";
+import type { OrderStatus, ShippingMethod } from "@/lib/generated/prisma/client";
 
 export interface CreateOrderInput {
   stripeSessionId: string;
@@ -21,8 +21,13 @@ export interface CreateOrderInput {
     postalCode: string;
     country: string;
   };
-  totalAmount: number; // HUF integer
+  totalAmount: number; // HUF integer (includes shipping cost)
   gdprConsent: boolean;
+  shippingMethod: ShippingMethod;
+  shippingCost: number; // HUF integer
+  pickupPointId?: string;
+  pickupPointName?: string;
+  pickupPointAddress?: string;
 }
 
 /**
@@ -74,6 +79,11 @@ export async function createOrder(input: CreateOrderInput) {
       shippingAddress: input.shippingAddress,
       totalAmount: input.totalAmount,
       gdprConsent: input.gdprConsent,
+      shippingMethod: input.shippingMethod,
+      shippingCost: input.shippingCost,
+      ...(input.pickupPointId ? { pickupPointId: input.pickupPointId } : {}),
+      ...(input.pickupPointName ? { pickupPointName: input.pickupPointName } : {}),
+      ...(input.pickupPointAddress ? { pickupPointAddress: input.pickupPointAddress } : {}),
     },
   });
 }
