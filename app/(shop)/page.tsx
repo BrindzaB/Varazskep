@@ -26,21 +26,23 @@ export default function HomePage() {
 
         {/* Content */}
         <div className="relative z-10 mx-auto w-full max-w-layout py-10 sm:py-16 lg:py-24 px-6 xl:px-0">
-          <h1 className="text-balance text-4xl font-bold leading-tight text-brand-violet sm:text-5xl lg:text-6xl">
-            Egyedi ajándékok,
-            <br />
-            általad tervezve
-          </h1>
-          <p className="mt-5 max-w-lg text-lg text-charcoal">
-            Tervezd meg saját pólódat a beépített tervezőfelületen.
-            Prémium minőség, egyedi minta, gyors szállítás.
-          </p>
-          <a
-            href="/designer"
-            className="mt-8 inline-block rounded-sm bg-brand-blue px-8 py-3.5 text-sm font-semibold text-white transition-transform druation-100 ease-in-out hover:bg-brand-violet hover:scale-105"
-          >
-            Tervezés megkezdése
-          </a>
+          <div className="inline-block bg-white/60 backdrop-blur-sm rounded-lg p-6 lg:bg-transparent lg:backdrop-blur-0 lg:rounded-none lg:p-0">
+            <h1 className="text-balance text-4xl font-bold leading-tight text-brand-violet sm:text-5xl lg:text-6xl">
+              Egyedi ajándékok,
+              <br />
+              általad tervezve
+            </h1>
+            <p className="mt-5 max-w-lg text-lg text-charcoal">
+              Tervezd meg saját pólódat a beépített tervezőfelületen.
+              Prémium minőség, egyedi minta, gyors szállítás.
+            </p>
+            <a
+              href="/designer"
+              className="mt-8 inline-block rounded-sm bg-brand-blue px-8 py-3.5 text-sm font-semibold text-white transition-transform druation-100 ease-in-out hover:bg-brand-violet hover:scale-105"
+            >
+              Tervezés megkezdése
+            </a>
+          </div>
         </div>
       </section>
 

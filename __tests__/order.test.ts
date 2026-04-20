@@ -39,6 +39,8 @@ const baseInput = {
   },
   totalAmount: 4990,
   gdprConsent: true,
+  shippingMethod: "MPL_HOME_DELIVERY" as const,
+  shippingCost: 1490,
 };
 
 describe("createOrder", () => {

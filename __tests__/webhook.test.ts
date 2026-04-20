@@ -78,6 +78,8 @@ function makeSession(overrides: Record<string, unknown> = {}): object {
         sizeName: "330ml",
         quantity: 1,
       }]),
+      shippingMethod: "MPL_HOME_DELIVERY",
+      shippingCost: "1490",
     },
     ...overrides,
   };
@@ -155,6 +157,8 @@ describe("POST /api/stripe/webhook", () => {
       },
       totalAmount: 4990,
       gdprConsent: true,
+      shippingMethod: "MPL_HOME_DELIVERY",
+      shippingCost: 1490,
     });
   });
 

@@ -4,7 +4,8 @@ import AdminNav from "@/components/admin/AdminNav";
 import OrderStatusUpdater from "@/components/admin/OrderStatusUpdater";
 import { getOrderById, PII_ERASED_SENTINEL } from "@/lib/services/order";
 import GdprEraseButton from "@/components/admin/GdprEraseButton";
-import type { OrderStatus } from "@/lib/generated/prisma/client";
+import type { OrderStatus, ShippingMethod } from "@/lib/generated/prisma/client";
+import { SHIPPING_LABELS } from "@/lib/shipping/config";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING: "Függőben",
@@ -257,6 +258,43 @@ export default async function AdminOrderDetailPage({
               </div>
             </dl>
           </div>
+        </div>
+
+        {/* Shipping info */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Szállítás</h2>
+          <dl className="space-y-1 text-sm">
+            <div className="flex gap-2">
+              <dt className="text-gray-500 w-36 shrink-0">Módszer:</dt>
+              <dd className="text-gray-900">
+                {SHIPPING_LABELS[order.shippingMethod as ShippingMethod]}
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-gray-500 w-36 shrink-0">Szállítási díj:</dt>
+              <dd className="text-gray-900">{order.shippingCost.toLocaleString("hu-HU")} Ft</dd>
+            </div>
+            {order.shippingMethod === "FOXPOST_LOCKER" && order.pickupPointName && (
+              <>
+                <div className="flex gap-2">
+                  <dt className="text-gray-500 w-36 shrink-0">Automata neve:</dt>
+                  <dd className="text-gray-900">{order.pickupPointName}</dd>
+                </div>
+                {order.pickupPointId && (
+                  <div className="flex gap-2">
+                    <dt className="text-gray-500 w-36 shrink-0">Automata kód:</dt>
+                    <dd className="font-mono text-xs text-gray-600">{order.pickupPointId}</dd>
+                  </div>
+                )}
+                {order.pickupPointAddress && (
+                  <div className="flex gap-2">
+                    <dt className="text-gray-500 w-36 shrink-0">Automata cím:</dt>
+                    <dd className="text-gray-900">{order.pickupPointAddress}</dd>
+                  </div>
+                )}
+              </>
+            )}
+          </dl>
         </div>
 
         {/* Design preview */}
