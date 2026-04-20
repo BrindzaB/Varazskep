@@ -56,6 +56,8 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 | `lib/services/design.ts` | Design serialization + SVG export |
 | `lib/services/order.ts` | Order business logic |
 | `lib/cart/cartStore.ts` | Zustand cart (`source: "local" \| "malfini"`) |
+| `lib/shipping/config.ts` | `SHIPPING_PRICES`, `SHIPPING_LABELS`, `ShippingMethodKey` — single source of truth for shipping costs |
+| `components/shop/FoxpostWidget.tsx` | Foxpost APT Finder iframe embed; no API key needed; locker selection via `postMessage` JSON string |
 | `components/designer/DesignerLayout.tsx` | Designer state, toolbar, canvas, panels (both product modes) |
 | `components/designer/DesignerCanvas.tsx` | Fabric.js canvas ref: `addClipart`, `addImage`, `addText`, `getCanvasJson` |
 | `app/(shop)/designer/page.tsx` | Routes `?code` → Malfini, `?slug` → local, no params → product picker |

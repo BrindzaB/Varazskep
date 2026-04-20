@@ -77,8 +77,9 @@ main                          # Always stable and deployable
 │   ├── phase-4/seo
 │   └── phase-4/deployment
 ├── phase-6/malfini-integration   # all Phase 5 steps committed here (branch kept original name)
-├── phase-7/customer-image-upload # Phase 6 step 6.1
-└── phase-7/redis-cache           # Phase 6 step 6.2
+├── phase-7/customer-image-upload  # Phase 6 step 6.1
+├── phase-7/redis-cache            # Phase 6 step 6.2
+└── feature/shipping-integration   # Shipping method selection + Foxpost widget
 ```
 
 ### Rules
@@ -154,6 +155,22 @@ JWT admin auth (HTTP-only cookie), order dashboard with status management, local
 | 6.2  | Upstash Redis shared cache: L1 (module-level) + L2 (Redis, 25h TTL) for Malfini catalog; `warmupMalfiniCache()` export; warmup cron writes to Redis unconditionally | `phase-7/redis-cache` |
 
 **Phase 6 complete when:** Customers can upload their own images in the designer, and the Malfini catalog cold start is eliminated across all serverless instances. ✅ Done.
+
+---
+
+### Shipping Integration ✅ Done
+
+**Goal:** Add Foxpost locker and MPL home delivery as shipping options at checkout.
+
+| Step | Description | Branch |
+| ---- | ----------- | ------ |
+| S.1 | `lib/shipping/config.ts` — `SHIPPING_PRICES`, `SHIPPING_LABELS`, `ShippingMethodKey` | `feature/shipping-integration` |
+| S.2 | DB migration — add `shippingMethod`, `shippingCost`, `pickupPointId`, `pickupPointName`, `pickupPointAddress` to `Order`; new `ShippingMethod` enum | `feature/shipping-integration` |
+| S.3 | `CheckoutForm.tsx` — shipping method radio selector; conditional address fields (MPL) or Foxpost widget; server-side shipping cost validation in checkout route | `feature/shipping-integration` |
+| S.4 | `FoxpostWidget.tsx` — Foxpost APT Finder embedded as iframe; lazy load on modal open; `postMessage` JSON string handler mapping `operator_id`/`name`/`street`/`city`/`zip` | `feature/shipping-integration` |
+| S.5 | Stripe checkout + webhook — shipping as Stripe line item; all shipping fields embedded in session metadata and persisted to `Order` | `feature/shipping-integration` |
+| S.6 | Order confirmation email + success page + admin order detail — all show shipping method, cost, and Foxpost pickup point details where applicable | `feature/shipping-integration` |
+| S.7 | Hero mobile backdrop — semi-transparent white box behind hero text on screens below `lg` | `feature/shipping-integration` |
 
 ---
 
@@ -237,7 +254,7 @@ A **phase** is done when:
 
 > Update this section at the start of each session to reflect where we are.
 
-**Current phase:** Phase 7 — Frontend UI Redesign (complete)
-**Last approved step:** 7.9 — Mug mockup SVG fix
-**Next step:** TBD — hero background photo still needed at `public/images/hero-bg.jpg`
+**Current phase:** Shipping Integration (complete)
+**Last approved step:** S.7 — Hero mobile backdrop
+**Next step:** TBD
 

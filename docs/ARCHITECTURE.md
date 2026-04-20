@@ -47,7 +47,8 @@ varazskep/
 │   │   ├── MalfiniProductDetails.tsx    # Client component for Malfini product detail
 │   │   ├── ProductDetails.tsx           # Client component for local product detail
 │   │   ├── CartItem.tsx
-│   │   └── CheckoutForm.tsx
+│   │   ├── CheckoutForm.tsx             # Shipping method selector + address fields + Foxpost widget
+│   │   └── FoxpostWidget.tsx            # Foxpost APT Finder iframe embed + postMessage handler
 │   ├── admin/
 │   │   ├── OrderStatusUpdater.tsx
 │   │   ├── GdprEraseButton.tsx
@@ -64,6 +65,8 @@ varazskep/
 │   │   │                                # buildPriceMap(), buildAvailabilityMap(), warmupMalfiniCache()
 │   │   ├── pricing.ts                   # convertEurToHuf()
 │   │   └── categoryConfig.ts            # categoryCode → { printArea, hasSides }
+│   ├── shipping/
+│   │   └── config.ts                    # SHIPPING_PRICES, SHIPPING_LABELS, ShippingMethodKey type
 │   ├── services/
 │   │   ├── order.ts                     # Order business logic
 │   │   ├── product.ts                   # Local product queries
@@ -134,28 +137,34 @@ model Design {
 }
 
 model Order {
-  id              String      @id @default(cuid())
-  stripeSessionId String      @unique
-  status          OrderStatus @default(PENDING)
-  variantId       String?     // local orders only
-  variant         Variant?    @relation(fields: [variantId], references: [id])
-  productSizeCode String?     // Malfini orders only — 7-char SKU e.g. "M150XM0"
-  productCode     String?     // Malfini orders only — 3-char e.g. "M150"
-  productName     String      // always set (8-year retention)
-  colorName       String
-  sizeName        String
-  designId        String?     @unique
-  design          Design?     @relation(fields: [designId], references: [id])
-  customerName    String
-  customerEmail   String
-  shippingAddress Json
-  totalAmount     Int         // HUF integer
-  gdprConsent     Boolean
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id                 String         @id @default(cuid())
+  stripeSessionId    String         @unique
+  status             OrderStatus    @default(PENDING)
+  variantId          String?        // local orders only
+  variant            Variant?       @relation(fields: [variantId], references: [id])
+  productSizeCode    String?        // Malfini orders only — 7-char SKU e.g. "M150XM0"
+  productCode        String?        // Malfini orders only — 3-char e.g. "M150"
+  productName        String         // always set (8-year retention)
+  colorName          String
+  sizeName           String
+  designId           String?        @unique
+  design             Design?        @relation(fields: [designId], references: [id])
+  customerName       String
+  customerEmail      String
+  shippingAddress    Json           // { address, city, postalCode, country }
+  totalAmount        Int            // HUF integer (includes shipping)
+  gdprConsent        Boolean
+  shippingMethod     ShippingMethod @default(MPL_HOME_DELIVERY)
+  shippingCost       Int            @default(0)  // HUF integer
+  pickupPointId      String?        // Foxpost operator_id (e.g. "hu1175")
+  pickupPointName    String?        // Foxpost locker display name
+  pickupPointAddress String?        // Foxpost locker formatted address
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 }
 
-enum OrderStatus { PENDING PAID IN_PRODUCTION SHIPPED COMPLETE CANCELLED }
+enum OrderStatus    { PENDING PAID IN_PRODUCTION SHIPPED COMPLETE CANCELLED }
+enum ShippingMethod { FOXPOST_LOCKER MPL_HOME_DELIVERY }
 ```
 
 **Key rules:** Prices in HUF integers. Design JSON stored as JSONB — never stringify manually. Orders only created in `stripe/webhook`.
@@ -319,6 +328,33 @@ Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L →
 - **Products:** local product CRUD + read-only Malfini catalog browser
 - **Clipart:** upload SVG to `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive
 - **GDPR erasure:** nulls `customerName`, `customerEmail`, `shippingAddress` — order row retained 8 years
+
+---
+
+## Shipping
+
+Two shipping methods, configured in `lib/shipping/config.ts`:
+
+| Key | Label | Price |
+|-----|-------|-------|
+| `FOXPOST_LOCKER` | Foxpost csomagautomata | 990 HUF |
+| `MPL_HOME_DELIVERY` | MPL házhozszállítás | 1 490 HUF |
+
+Shipping cost is validated server-side in the checkout route — the client-supplied cost is compared against `SHIPPING_PRICES[method]` to prevent tampering. Shipping is added as a separate Stripe line item.
+
+### Foxpost APT Finder widget
+
+- `components/shop/FoxpostWidget.tsx` embeds `https://cdn.foxpost.hu/apt-finder/v1/app/` as an `<iframe>` — no registration or API key required for the map widget
+- The iframe is loaded lazily on first modal open (so the container is visible when the widget initialises)
+- Locker selection is communicated via `postMessage` from origin `https://cdn.foxpost.hu` as a **JSON string**
+- Relevant fields from the payload: `operator_id` (stored as `pickupPointId`), `name`, `street`, `city`, `zip`
+- For Foxpost orders, `shippingAddress` in the DB uses the locker's address so all orders have the same `shippingAddress` shape regardless of method
+
+### Order confirmation email
+
+`emails/OrderConfirmation.tsx` shows shipping method and:
+- **MPL:** delivery address
+- **Foxpost:** locker name + formatted address
 
 ---
 
