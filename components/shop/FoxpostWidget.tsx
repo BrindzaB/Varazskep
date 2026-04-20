@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useCallback, useRef, useState } from "react";
+import { useEffect, useCallback, useState } from "react";
 
 export interface FoxpostLocker {
-  id: string;           // OperatorCode from Foxpost
-  name: string;         // machine name
+  id: string;
+  name: string;
   streetAddress: string;
   city: string;
   zip: string;
@@ -15,47 +15,33 @@ interface FoxpostWidgetProps {
   onSelect: (locker: FoxpostLocker) => void;
 }
 
-// Foxpost APT Finder widget — no API key required for the public map embed.
-// After registering as a business partner you receive credentials for order
-// submission (label generation), but the map widget itself is freely embeddable.
-// Widget docs: https://webapi.foxpost.hu/swagger-ui/index.html
-const WIDGET_SCRIPT_URL = "https://cdn.foxpost.hu/apt-finder/v1/app/";
-const CONTAINER_ID = "foxpost-apt-finder";
+// The APT Finder is a standalone web app embedded as an iframe.
+// It communicates via postMessage when the user picks a locker.
+const APT_FINDER_URL = "https://cdn.foxpost.hu/apt-finder/v1/app/";
 
 export default function FoxpostWidget({ selected, onSelect }: FoxpostWidgetProps) {
   const [open, setOpen] = useState(false);
-  const scriptLoaded = useRef(false);
 
-  // Load the Foxpost widget script once per page
-  useEffect(() => {
-    if (scriptLoaded.current || document.getElementById("foxpost-widget-script")) {
-      scriptLoaded.current = true;
-      return;
-    }
-    const script = document.createElement("script");
-    script.id = "foxpost-widget-script";
-    script.src = WIDGET_SCRIPT_URL;
-    script.async = true;
-    document.head.appendChild(script);
-    scriptLoaded.current = true;
-  }, []);
+  const handleMessage = useCallback(
+    (e: MessageEvent) => {
+      if (!e.origin.includes("foxpost.hu")) return;
 
-  const handleMachineSelected = useCallback(
-    (e: Event) => {
-      const detail = (e as CustomEvent<{
-        OperatorCode: string;
-        Name: string;
-        Address: string;
-        City: string;
-        Zip: string;
-      }>).detail;
+      // Foxpost sends the payload as a JSON string.
+      let d: { operator_id?: string; name?: string; street?: string; city?: string; zip?: string };
+      try {
+        d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+      } catch {
+        return;
+      }
+
+      if (!d?.operator_id) return;
 
       onSelect({
-        id: detail.OperatorCode,
-        name: detail.Name,
-        streetAddress: detail.Address,
-        city: detail.City,
-        zip: detail.Zip,
+        id: d.operator_id,
+        name: d.name ?? "",
+        streetAddress: d.street ?? "",
+        city: d.city ?? "",
+        zip: d.zip ?? "",
       });
       setOpen(false);
     },
@@ -63,11 +49,9 @@ export default function FoxpostWidget({ selected, onSelect }: FoxpostWidgetProps
   );
 
   useEffect(() => {
-    document.addEventListener("fp.aptFinder.machine.selected", handleMachineSelected);
-    return () => {
-      document.removeEventListener("fp.aptFinder.machine.selected", handleMachineSelected);
-    };
-  }, [handleMachineSelected]);
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [handleMessage]);
 
   const displayAddress = selected
     ? `${selected.zip} ${selected.city}, ${selected.streetAddress}`
@@ -75,25 +59,32 @@ export default function FoxpostWidget({ selected, onSelect }: FoxpostWidgetProps
 
   return (
     <>
-      {/* Widget container — kept in DOM so the widget script can always find it */}
-      <div className={open ? "fixed inset-0 z-50 flex items-center justify-center bg-black/60" : "hidden"}>
-        <div className="relative flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-            <h3 className="font-semibold text-charcoal">Foxpost csomagautomata kiválasztása</h3>
-            <button
-              type="button"
-              aria-label="Bezárás"
-              onClick={() => setOpen(false)}
-              className="text-xl leading-none text-gray-400 hover:text-charcoal"
-            >
-              ✕
-            </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="relative flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <h3 className="font-semibold text-charcoal">
+                Foxpost csomagautomata kiválasztása
+              </h3>
+              <button
+                type="button"
+                aria-label="Bezárás"
+                onClick={() => setOpen(false)}
+                className="text-xl leading-none text-gray-400 hover:text-charcoal"
+              >
+                ✕
+              </button>
+            </div>
+            <iframe
+              src={APT_FINDER_URL}
+              className="flex-1 border-0"
+              style={{ minHeight: "600px" }}
+              title="Foxpost csomagautomata kereső"
+            />
           </div>
-          <div id={CONTAINER_ID} className="flex-1 overflow-auto" />
         </div>
-      </div>
+      )}
 
-      {/* Trigger button */}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -102,7 +93,6 @@ export default function FoxpostWidget({ selected, onSelect }: FoxpostWidgetProps
         {selected ? "Automata módosítása" : "Csomagautomata kiválasztása →"}
       </button>
 
-      {/* Selected locker summary */}
       {selected && (
         <div className="mt-2 rounded bg-gray-50 px-3 py-2 text-sm">
           <p className="font-medium text-charcoal">{selected.name}</p>
