@@ -9,4 +9,17 @@ export const COLOR_MAP: Record<string, string> = {
   Kék: "#3b82f6",
   Zöld: "#16a34a",
   Sárga: "#facc15",
+  // Mug colors
+  Bordó: "#800020",
+  Középkék: "#2563eb",
+  Lila: "#7c3aed",
+  Menta: "#6ee7b7",
+  Napsárga: "#fbbf24",
+  Narancs: "#f97316",
+  Rózsaszín: "#f9a8d4",
+  Sötétzöld: "#166534",
+  Türkiz: "#06b6d4",
+  "Világos zöld": "#86efac",
+  Világoskék: "#93c5fd",
+  Barna: "#92400e",
 };

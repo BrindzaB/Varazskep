@@ -18,9 +18,10 @@ function sortSizes(sizes: string[]): string[] {
 
 interface ProductDetailsProps {
   product: ProductWithVariants;
+  onColorChange?: (color: string) => void;
 }
 
-export default function ProductDetails({ product }: ProductDetailsProps) {
+export default function ProductDetails({ product, onColorChange }: ProductDetailsProps) {
   const { variants } = product;
   const addItem = useCartStore((state) => state.addItem);
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
     setSelectedColor(color);
     const firstSize = variants.find((v) => v.color === color)?.size ?? "";
     setSelectedSize(firstSize);
+    onColorChange?.(color);
   }
 
   // The specific variant matching the current selection

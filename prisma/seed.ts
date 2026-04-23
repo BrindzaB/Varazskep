@@ -102,21 +102,40 @@ async function main() {
     },
   });
 
-  // ── Mug ───────────────────────────────────────────────────────────────────
+  // ── Sima Bögre ────────────────────────────────────────────────────────────
+  const basicMugColors = [
+    "Fehér", "Fekete", "Sötétkék", "Piros", "Bordó", "Középkék",
+    "Lila", "Menta", "Napsárga", "Narancs", "Rózsaszín", "Sárga",
+    "Sötétzöld", "Türkiz", "Világos zöld", "Világoskék",
+  ];
   const mug = await prisma.product.create({
     data: {
-      name: "Egyedi bögre",
-      slug: "egyedi-bogre",
+      name: "Sima Bögre",
+      slug: "basic-mug",
       description:
         "Kerámia bögre egyedi nyomtatással, 330 ml. Mosogatógépben mosható, tartós felirattal.",
-      imageUrl: null,
+      imageUrl: "/mugs/basic_mug/Feh%C3%A9r.jpg",
       active: true,
-      mockupType: "mug",
+      mockupType: "basic_mug",
       variants: {
-        create: [
-          { color: "Fehér", size: "330ml", price: 3490, stock: 100 },
-          { color: "Fekete", size: "330ml", price: 3990, stock: 50 },
-        ],
+        create: basicMugColors.map((color) => ({ color, size: "330ml", price: 2990, stock: 50 })),
+      },
+    },
+  });
+
+  // ── Kanalas Bögre ─────────────────────────────────────────────────────────
+  const spoonMugColors = ["Barna", "Kék", "Narancs", "Piros", "Rózsaszín", "Sárga", "Zöld", "Fekete"];
+  const spoonMug = await prisma.product.create({
+    data: {
+      name: "Kanalas Bögre",
+      slug: "mug-with-spoon",
+      description:
+        "Kerámia bögre kanállal és egyedi nyomtatással, 330 ml. Mosogatógépben mosható.",
+      imageUrl: "/mugs/mug_with_spoon/Kanalas_K%C3%A9k.jpg",
+      active: true,
+      mockupType: "mug_with_spoon",
+      variants: {
+        create: spoonMugColors.map((color) => ({ color, size: "330ml", price: 3990, stock: 50 })),
       },
     },
   });
@@ -141,6 +160,7 @@ async function main() {
 
   console.log(`✓ Created product: ${tshirt.name} (${tshirt.slug})`);
   console.log(`✓ Created product: ${mug.name} (${mug.slug})`);
+  console.log(`✓ Created product: ${spoonMug.name} (${spoonMug.slug})`);
   console.log(`✓ Created product: ${pillow.name} (${pillow.slug})`);
 
   // ── Clipart ────────────────────────────────────────────────────────────────

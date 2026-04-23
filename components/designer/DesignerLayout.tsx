@@ -397,6 +397,19 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
           />
         </ScaledCanvasWrapper>
 
+        {mockupConfig.colorImages && mockupConfig.colorImages[shirtColorName] && (
+          <div className="mt-4 flex flex-col items-center">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+              Kiválasztott szín
+            </p>
+            <img
+              src={mockupConfig.colorImages[shirtColorName]}
+              alt={shirtColorName}
+              className="h-80 rounded object-contain"
+            />
+          </div>
+        )}
+
         {isTextSelected && (
           <div className="mt-3">
             <TextOptionsBar
