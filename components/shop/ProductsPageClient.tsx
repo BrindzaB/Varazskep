@@ -12,6 +12,9 @@ type GenderFilter = "Összes" | "Férfi" | "Női" | "Gyerek";
 type CategoryFilter = "Összes" | "t-shirts" | "sweatshirts" | "polo-shirts" | "mug" | "pillow";
 type SortOrder = "default" | "asc" | "desc";
 
+// All mockupType values that map to the "Bögrék" tab
+const MUG_TYPES = new Set<string>(["mug", "basic_mug", "mug_with_spoon"]);
+
 // Local mockup types that get their own category tab
 const LOCAL_CATEGORIES = new Set<string>(["mug", "pillow"]);
 
@@ -64,7 +67,7 @@ export default function ProductsPageClient({
     if (clothingCats.has("polo-shirts")) cats.push("polo-shirts");
     // Each local mockup type gets its own tab (mug, pillow, …)
     const localTypes = new Set(localProducts.map((p) => p.mockupType).filter(Boolean));
-    if (localTypes.has("mug")) cats.push("mug");
+    if (localProducts.some((p) => MUG_TYPES.has(p.mockupType ?? ""))) cats.push("mug");
     if (localTypes.has("pillow")) cats.push("pillow");
     return cats;
   }, [clothingProducts, localProducts]);
@@ -93,7 +96,8 @@ export default function ProductsPageClient({
     // Local products — filter by mockupType when a local category tab is active.
     if (category === "Összes" || LOCAL_CATEGORIES.has(category)) {
       for (const p of localProducts) {
-        if (LOCAL_CATEGORIES.has(category) && p.mockupType !== category) continue;
+        if (category === "mug" && !MUG_TYPES.has(p.mockupType ?? "")) continue;
+        if (category === "pillow" && p.mockupType !== "pillow") continue;
         items.push({ type: "local", product: p });
       }
     }

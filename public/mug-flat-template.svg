@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="600" viewBox="0 0 500 600">
+  <!-- Background -->
+  <rect width="500" height="600" fill="#f9fafb"/>
+
+  <!-- Mug surface (unrolled wrap) -->
+  <rect x="28" y="245" width="422" height="210" rx="4" ry="4"
+        fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+
+  <!-- Handle silhouette -->
+  <path d="M450 285 Q490 285 490 325 Q490 365 450 365" fill="none" stroke="#d1d5db" stroke-width="1.5"/>
+  <path d="M450 295 Q478 295 478 325 Q478 355 450 355" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- Label -->
+  <text x="250" y="236" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
+        font-size="11" fill="#9ca3af" letter-spacing="0.08em">TERVEZÉSI FELÜLET</text>
+</svg>

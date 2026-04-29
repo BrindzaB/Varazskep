@@ -1,6 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { formatHuf, getMinPrice } from "@/lib/utils/format";
 import { COLOR_MAP } from "@/lib/utils/colors";
+import { getMockupConfig } from "@/lib/designer/mockupConfig";
 import type { ProductWithVariants } from "@/lib/services/product";
 
 interface ProductCardProps {
@@ -10,6 +14,23 @@ interface ProductCardProps {
 export default function ProductCard({ product }: ProductCardProps) {
   const minPrice = getMinPrice(product.variants);
   const uniqueColors = Array.from(new Set(product.variants.map((v) => v.color)));
+  const colorImages = product.mockupType
+    ? (getMockupConfig(product.mockupType).colorImages ?? null)
+    : null;
+
+  const defaultImage = colorImages
+    ? (colorImages[uniqueColors[0] ?? ""] ?? product.imageUrl ?? null)
+    : (product.imageUrl ?? null);
+
+  const [displayImageUrl, setDisplayImageUrl] = useState<string | null>(defaultImage);
+
+  function handleSwatchEnter(color: string) {
+    if (colorImages?.[color]) setDisplayImageUrl(colorImages[color]);
+  }
+
+  function handleSwatchLeave() {
+    setDisplayImageUrl(defaultImage);
+  }
 
   return (
     <Link
@@ -17,16 +38,15 @@ export default function ProductCard({ product }: ProductCardProps) {
       className="group flex flex-col overflow-hidden rounded border border-border-light bg-white transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-card"
     >
       {/* Product image — 1:1 aspect ratio */}
-      <div className="relative aspect-square w-full overflow-hidden bg-off-white">
-        {product.imageUrl ? (
+      <div className="relative aspect-square w-full overflow-hidden bg-white">
+        {displayImageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={product.imageUrl}
+            src={displayImageUrl}
             alt={product.name}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          // Placeholder shown until real product photos are uploaded
           <div className="flex h-full w-full items-center justify-center">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -62,7 +82,9 @@ export default function ProductCard({ product }: ProductCardProps) {
                 key={color}
                 title={color}
                 style={{ backgroundColor: COLOR_MAP[color] ?? "#9ca3af" }}
-                className="h-4 w-4 rounded-full border border-border-light"
+                className="h-4 w-4 rounded-full border border-border-light cursor-pointer"
+                onMouseEnter={() => handleSwatchEnter(color)}
+                onMouseLeave={handleSwatchLeave}
               />
             ))}
             {uniqueColors.length > 4 && (
@@ -85,7 +107,6 @@ export default function ProductCard({ product }: ProductCardProps) {
             )}
           </p>
 
-          {/* Visual CTA — actual navigation handled by the wrapping Link */}
           <span className="rounded-sm bg-brand-blue px-3 py-1.5 text-xs font-medium text-white transition-colors group-hover:bg-brand-violet">
             Megnézem
           </span>

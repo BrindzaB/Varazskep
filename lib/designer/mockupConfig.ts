@@ -18,6 +18,8 @@ export interface MockupConfig {
   hasSides: boolean;
   // false for static PNG mockups — skips SVG fetch + CSS color replacement in LocalDesignerLayout
   colorReplaceable?: boolean;
+  // Per-color product photo paths shown as a preview below the canvas (mugs, etc.)
+  colorImages?: Record<string, string>;
 }
 
 export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
@@ -48,6 +50,47 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
     printArea: { width: 260, height: 260, centerX: CX, centerY: 320 },
     hasSides: false,
     colorReplaceable: false,
+  },
+  basic_mug: {
+    svgPaths: { front: "/mug-flat-template.svg" },
+    // Flat wrap template: printable band centered in the SVG surface rectangle.
+    printArea: { width: 382, height: 170, centerX: 239, centerY: 350 },
+    hasSides: false,
+    colorReplaceable: false,
+    colorImages: {
+      Fehér: "/mugs/basic_mug/Feh%C3%A9r.jpg",
+      Fekete: "/mugs/basic_mug/Fekete.jpg",
+      Sötétkék: "/mugs/basic_mug/S%C3%B6t%C3%A9tk%C3%A9k.jpg",
+      Piros: "/mugs/basic_mug/Piros.jpg",
+      Bordó: "/mugs/basic_mug/Bord%C3%B3.jpg",
+      Középkék: "/mugs/basic_mug/K%C3%B6z%C3%A9pk%C3%A9k.jpg",
+      Lila: "/mugs/basic_mug/Lila.jpg",
+      Menta: "/mugs/basic_mug/Menta.jpg",
+      Napsárga: "/mugs/basic_mug/Naps%C3%A1rga.jpg",
+      Narancs: "/mugs/basic_mug/Narancs.jpg",
+      Rózsaszín: "/mugs/basic_mug/R%C3%B3zsasz%C3%ADn.jpg",
+      Sárga: "/mugs/basic_mug/S%C3%A1rga.jpg",
+      Sötétzöld: "/mugs/basic_mug/S%C3%B6t%C3%A9tz%C3%B6ld.jpg",
+      Türkiz: "/mugs/basic_mug/T%C3%BCrkiz.jpg",
+      "Világos zöld": "/mugs/basic_mug/Vil%C3%A1gos%20z%C3%B6ld.jpg",
+      Világoskék: "/mugs/basic_mug/Vil%C3%A1gosk%C3%A9k.jpg",
+    },
+  },
+  mug_with_spoon: {
+    svgPaths: { front: "/mug-flat-template.svg" },
+    printArea: { width: 382, height: 170, centerX: 239, centerY: 350 },
+    hasSides: false,
+    colorReplaceable: false,
+    colorImages: {
+      Barna: "/mugs/mug_with_spoon/Kanalas_Barna.jpg",
+      Kék: "/mugs/mug_with_spoon/Kanalas_K%C3%A9k.jpg",
+      Narancs: "/mugs/mug_with_spoon/Kanalas_Narancs.jpg",
+      Piros: "/mugs/mug_with_spoon/Kanalas_Piros.jpg",
+      Rózsaszín: "/mugs/mug_with_spoon/Kanalas_R%C3%B3zsasz%C3%ADn.jpg",
+      Sárga: "/mugs/mug_with_spoon/Kanalas_S%C3%A1rga.jpg",
+      Zöld: "/mugs/mug_with_spoon/Kanalas_Z%C3%B6ld.jpg",
+      Fekete: "/mugs/mug_with_spoon/Kanalas_fekete.jpg",
+    },
   },
 };
 
