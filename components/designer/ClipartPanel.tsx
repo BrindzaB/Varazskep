@@ -62,8 +62,8 @@ export default function ClipartPanel({ onSelect, onClose, productColorHex }: Cli
     ? items.filter((item) => item.category === activeCategory)
     : items;
 
-  // Show toggle only when the current category has at least one dark variant
-  const categoryHasDarkVariants = visibleItems.some((item) => item.darkSvgUrl);
+  // Show toggle as soon as any clipart has a dark variant — stays visible across all categories
+  const hasDarkVariants = items.some((item) => item.darkSvgUrl);
 
   function resolveUrl(item: Clipart): string {
     return showDark && item.darkSvgUrl ? item.darkSvgUrl : item.svgUrl;
@@ -82,7 +82,7 @@ export default function ClipartPanel({ onSelect, onClose, productColorHex }: Cli
         <div className="flex shrink-0 items-center justify-between border-b border-border-light px-6 py-4">
           <h2 className="text-lg font-semibold text-charcoal">Motívumok</h2>
           <div className="flex items-center gap-3">
-            {categoryHasDarkVariants && (
+            {hasDarkVariants && (
               <button
                 onClick={() => setShowDark((d) => !d)}
                 title={showDark ? "Váltás világos alapra" : "Váltás sötét alapra"}
