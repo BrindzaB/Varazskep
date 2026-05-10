@@ -51,7 +51,8 @@ function applyMockupLayout(img: FabricImage, canvas: Canvas, canvasWidth: number
 
 // Public API exposed to DesignerLayout via ref
 export interface DesignerCanvasRef {
-  addClipart: (svgUrl: string) => Promise<void>;
+  addClipart: (url: string, lightUrl: string, darkUrl: string | null) => Promise<void>;
+  swapClipartVariants: (useDark: boolean) => Promise<void>;
   addImage: (url: string) => Promise<void>;
   addText: () => Promise<void>;
   setTextFont: (font: string) => void;
@@ -72,13 +73,15 @@ interface DesignerCanvasProps {
   onActiveTextChange?: (isText: boolean, font: string, color: string) => void;
   // Called whenever the total print fee changes (sum of per-object fees across both sides)
   onPrintFeeChange?: (fee: number) => void;
+  // Called when the presence of dark-variant-capable cliparts on canvas changes
+  onDarkClipartChange?: (hasDark: boolean) => void;
   // Override canvas height for landscape products (e.g. mugs). Defaults to CANVAS_HEIGHT.
   canvasHeight?: number;
 }
 
 const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
   function DesignerCanvas(
-    { imageUrl, side = "front", printArea, onActiveTextChange, onPrintFeeChange, canvasHeight },
+    { imageUrl, side = "front", printArea, onActiveTextChange, onPrintFeeChange, onDarkClipartChange, canvasHeight },
     ref,
   ) {
     const actualCanvasHeight = canvasHeight ?? CANVAS_HEIGHT;
@@ -117,6 +120,9 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
     const onPrintFeeChangeRef = useRef(onPrintFeeChange);
     useEffect(() => { onPrintFeeChangeRef.current = onPrintFeeChange; }, [onPrintFeeChange]);
 
+    const onDarkClipartChangeRef = useRef(onDarkClipartChange);
+    useEffect(() => { onDarkClipartChangeRef.current = onDarkClipartChange; }, [onDarkClipartChange]);
+
     // Stable ref to the recalc function — set once the canvas is initialised.
     const recalcPrintFeeRef = useRef<(() => void) | null>(null);
 
@@ -136,12 +142,12 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 
     // ── Expose canvas API to DesignerLayout ───────────────────────────────────
     useImperativeHandle(ref, () => ({
-      async addClipart(svgUrl: string) {
+      async addClipart(url: string, lightUrl: string, darkUrl: string | null) {
         const canvas = fabricRef.current;
         if (!canvas) return;
 
         const { FabricImage, Control } = await import("fabric");
-        const img = await FabricImage.fromURL(svgUrl, { crossOrigin: "anonymous" });
+        const img = await FabricImage.fromURL(url, { crossOrigin: "anonymous" });
 
         const CLIPART_INITIAL_SIZE = 80;
         const longestSide = Math.max(img.width ?? 1, img.height ?? 1);
@@ -155,6 +161,9 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           originX: "center",
           originY: "center",
         });
+        // Store both variants so swapClipartVariants can replace the image later
+        (img as any)._clipartLight = lightUrl;
+        (img as any)._clipartDark = darkUrl;
 
         img.controls = {
           ...img.controls,
@@ -163,6 +172,59 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 
         canvas.add(img);
         canvas.setActiveObject(img);
+        canvas.renderAll();
+      },
+
+      async swapClipartVariants(useDark: boolean) {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+        const { FabricImage, Control } = await import("fabric");
+
+        const replaceObj = async (obj: FabricObject, onCanvas: boolean) => {
+          const light = (obj as any)._clipartLight as string;
+          const dark = (obj as any)._clipartDark as string | null;
+          if (!dark) return obj;
+          const targetUrl = useDark ? dark : light;
+          const newImg = await FabricImage.fromURL(targetUrl, { crossOrigin: "anonymous" });
+          newImg.set({
+            left: obj.left,
+            top: obj.top,
+            scaleX: obj.scaleX,
+            scaleY: obj.scaleY,
+            angle: (obj as any).angle ?? 0,
+            originX: obj.originX,
+            originY: obj.originY,
+          });
+          (newImg as any)._clipartLight = light;
+          (newImg as any)._clipartDark = dark;
+          newImg.controls = { ...obj.controls, deleteControl: buildDeleteControl(Control) };
+          if (onCanvas) {
+            canvas.remove(obj);
+            canvas.add(newImg);
+          }
+          return newImg;
+        };
+
+        // Swap objects currently on the canvas
+        const canvasCliparts = canvas
+          .getObjects()
+          .filter((o) => o.selectable !== false && (o as any)._clipartDark);
+        for (const obj of [...canvasCliparts]) {
+          await replaceObj(obj, true);
+        }
+
+        // Swap objects stored off-canvas (other side)
+        const otherSide = currentSideRef.current === "front" ? "back" : "front";
+        const newOther: FabricObject[] = [];
+        for (const obj of sideObjectsRef.current[otherSide]) {
+          if ((obj as any)._clipartDark) {
+            newOther.push(await replaceObj(obj, false));
+          } else {
+            newOther.push(obj);
+          }
+        }
+        sideObjectsRef.current[otherSide] = newOther;
+
         canvas.renderAll();
       },
 
@@ -380,6 +442,17 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         };
         recalcPrintFeeRef.current = recalcPrintFee;
 
+        const recalcDarkClipart = () => {
+          const c = fabricRef.current;
+          if (!c) return;
+          const currentHas = c
+            .getObjects()
+            .some((o) => o.selectable !== false && (o as any)._clipartDark);
+          const otherSide = currentSideRef.current === "front" ? "back" : "front";
+          const otherHas = sideObjectsRef.current[otherSide].some((o) => (o as any)._clipartDark);
+          onDarkClipartChangeRef.current?.(currentHas || otherHas);
+        };
+
         const lastGoodState = new WeakMap<FabricObject, {
           scaleX: number; scaleY: number; left: number; top: number;
         }>();
@@ -394,10 +467,14 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
             top: obj.top ?? 0,
           });
           recalcPrintFee();
+          recalcDarkClipart();
         });
 
         canvas.on("object:removed", (e) => {
-          if (e.target && e.target.selectable !== false) recalcPrintFee();
+          if (e.target && e.target.selectable !== false) {
+            recalcPrintFee();
+            recalcDarkClipart();
+          }
         });
 
         canvas.on("object:modified", (e) => {

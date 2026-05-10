@@ -239,6 +239,8 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   const [isTextSelected, setIsTextSelected] = useState(false);
   const [activeFont, setActiveFont] = useState<string>(DEFAULT_TEXT_FONT);
   const [activeColor, setActiveColor] = useState<string>(DEFAULT_TEXT_COLOR);
+  const [hasClipartsWithDark, setHasClipartsWithDark] = useState(false);
+  const [showDark, setShowDark] = useState(false);
 
   const sizesForColor = product.variants
     .filter((v) => v.color === shirtColorName)
@@ -292,8 +294,8 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
     return () => { cancelled = true; };
   }, [side, shirtColorHex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleClipartSelect(svgUrl: string) {
-    canvasRef.current?.addClipart(svgUrl);
+  function handleClipartSelect(svgUrl: string, darkSvgUrl: string | null) {
+    canvasRef.current?.addClipart(svgUrl, svgUrl, darkSvgUrl);
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -386,6 +388,29 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
       />
 
       <div className="flex flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-2 py-4">
+        {hasClipartsWithDark && (
+          <div className="mb-2 flex rounded-lg border border-border-light bg-white p-1">
+            <button
+              onClick={() => { setShowDark(false); canvasRef.current?.swapClipartVariants(false); }}
+              aria-pressed={!showDark}
+              className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
+                !showDark ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+              }`}
+            >
+              Világos alap
+            </button>
+            <button
+              onClick={() => { setShowDark(true); canvasRef.current?.swapClipartVariants(true); }}
+              aria-pressed={showDark}
+              className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
+                showDark ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+              }`}
+            >
+              Sötét alap
+            </button>
+          </div>
+        )}
+
         <div className="flex w-full flex-col items-center">
           <ScaledCanvasWrapper canvasHeight={mockupConfig.canvasHeight}>
             <DesignerCanvas
@@ -395,6 +420,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
               printArea={mockupConfig.printArea}
               onActiveTextChange={handleActiveTextChange}
               onPrintFeeChange={setPrintFee}
+              onDarkClipartChange={setHasClipartsWithDark}
               canvasHeight={mockupConfig.canvasHeight}
             />
           </ScaledCanvasWrapper>
@@ -533,14 +559,13 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         <ClipartPanel
           onSelect={handleClipartSelect}
           onClose={() => setIsClipartOpen(false)}
-          productColorHex={shirtColorHex}
         />
       )}
     </div>
   );
 }
 
-// ── Malfini mode ──────────────────────────────────────────────────────────────
+// ── Malfini mode ─────────────────────────────────────────────────────────────
 
 function MalfiniDesignerLayout({
   malfiniProduct,
@@ -567,6 +592,8 @@ function MalfiniDesignerLayout({
   const [isTextSelected, setIsTextSelected] = useState(false);
   const [activeFont, setActiveFont] = useState<string>(DEFAULT_TEXT_FONT);
   const [activeColor, setActiveColor] = useState<string>(DEFAULT_TEXT_COLOR);
+  const [hasClipartsWithDark, setHasClipartsWithDark] = useState(false);
+  const [showDark, setShowDark] = useState(false);
   const [printFee, setPrintFee] = useState(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
@@ -686,6 +713,29 @@ function MalfiniDesignerLayout({
       />
 
       <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
+        {hasClipartsWithDark && (
+          <div className="mb-2 flex rounded-lg border border-border-light bg-white p-1">
+            <button
+              onClick={() => { setShowDark(false); canvasRef.current?.swapClipartVariants(false); }}
+              aria-pressed={!showDark}
+              className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
+                !showDark ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+              }`}
+            >
+              Világos alap
+            </button>
+            <button
+              onClick={() => { setShowDark(true); canvasRef.current?.swapClipartVariants(true); }}
+              aria-pressed={showDark}
+              className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
+                showDark ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+              }`}
+            >
+              Sötét alap
+            </button>
+          </div>
+        )}
+
         <ScaledCanvasWrapper>
           <DesignerCanvas
             ref={canvasRef}
@@ -694,6 +744,7 @@ function MalfiniDesignerLayout({
             printArea={printArea}
             onActiveTextChange={handleActiveTextChange}
             onPrintFeeChange={setPrintFee}
+            onDarkClipartChange={setHasClipartsWithDark}
           />
         </ScaledCanvasWrapper>
 
@@ -829,9 +880,8 @@ function MalfiniDesignerLayout({
 
       {isClipartOpen && (
         <ClipartPanel
-          onSelect={(svgUrl) => canvasRef.current?.addClipart(svgUrl)}
+          onSelect={(svgUrl, darkSvgUrl) => canvasRef.current?.addClipart(svgUrl, svgUrl, darkSvgUrl)}
           onClose={() => setIsClipartOpen(false)}
-          productColorHex={COLOR_MAP[selectedVariant.name]}
         />
       )}
     </div>
