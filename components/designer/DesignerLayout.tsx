@@ -533,6 +533,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         <ClipartPanel
           onSelect={handleClipartSelect}
           onClose={() => setIsClipartOpen(false)}
+          productColorHex={shirtColorHex}
         />
       )}
     </div>
@@ -830,6 +831,7 @@ function MalfiniDesignerLayout({
         <ClipartPanel
           onSelect={(svgUrl) => canvasRef.current?.addClipart(svgUrl)}
           onClose={() => setIsClipartOpen(false)}
+          productColorHex={COLOR_MAP[selectedVariant.name]}
         />
       )}
     </div>

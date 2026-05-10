@@ -34,12 +34,13 @@ model Variant {
 }
 
 model Clipart {
-  id        String   @id @default(cuid())
-  name      String
-  category  String
-  svgUrl    String   // Supabase Storage public URL (clipart bucket — permanent)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  svgUrl      String   // Supabase Storage public URL (clipart bucket — permanent)
+  darkSvgUrl  String?  // Dark-background variant URL — null if no dark version exists
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
 }
 
 model Design {
