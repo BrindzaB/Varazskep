@@ -30,12 +30,12 @@ const MOCKUP_NATURAL_WIDTH = 300;
 const MOCKUP_NATURAL_HEIGHT = 350;
 
 // Scales and centers a FabricImage on the canvas.
-function applyMockupLayout(img: FabricImage, canvas: Canvas): void {
+function applyMockupLayout(img: FabricImage, canvas: Canvas, canvasWidth: number, canvasHeight: number): void {
   const naturalWidth = img.width || MOCKUP_NATURAL_WIDTH;
   const naturalHeight = img.height || MOCKUP_NATURAL_HEIGHT;
   const scale = Math.min(
-    (CANVAS_WIDTH * MOCKUP_SCALE_FACTOR) / naturalWidth,
-    (CANVAS_HEIGHT * MOCKUP_SCALE_FACTOR) / naturalHeight,
+    (canvasWidth * MOCKUP_SCALE_FACTOR) / naturalWidth,
+    (canvasHeight * MOCKUP_SCALE_FACTOR) / naturalHeight,
   );
   img.set({
     selectable: false,
@@ -72,13 +72,16 @@ interface DesignerCanvasProps {
   onActiveTextChange?: (isText: boolean, font: string, color: string) => void;
   // Called whenever the total print fee changes (sum of per-object fees across both sides)
   onPrintFeeChange?: (fee: number) => void;
+  // Override canvas height for landscape products (e.g. mugs). Defaults to CANVAS_HEIGHT.
+  canvasHeight?: number;
 }
 
 const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
   function DesignerCanvas(
-    { imageUrl, side = "front", printArea, onActiveTextChange, onPrintFeeChange },
+    { imageUrl, side = "front", printArea, onActiveTextChange, onPrintFeeChange, canvasHeight },
     ref,
   ) {
+    const actualCanvasHeight = canvasHeight ?? CANVAS_HEIGHT;
     const canvasElRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<Canvas | null>(null);
     const shirtImageRef = useRef<FabricImage | null>(null);
@@ -298,7 +301,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 
         const canvas = new Canvas(canvasElRef.current, {
           width: CANVAS_WIDTH,
-          height: CANVAS_HEIGHT,
+          height: actualCanvasHeight,
           backgroundColor: "#ffffff",
           preserveObjectStacking: true,
         });
@@ -541,7 +544,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         if (cancelled) return;
 
         if (shirtImageRef.current) canvas.remove(shirtImageRef.current);
-        applyMockupLayout(newImg, canvas);
+        applyMockupLayout(newImg, canvas, CANVAS_WIDTH, actualCanvasHeight);
         shirtImageRef.current = newImg;
 
         if (sideChanged) {

@@ -32,7 +32,7 @@ function sortNomenclatures(nomenclatures: MalfiniNomenclature[]): MalfiniNomencl
 // Shrinks the canvas to fit the available container width on narrow screens.
 // Uses ResizeObserver so it reacts to layout changes without a window resize listener.
 // On desktop (container ≥ CANVAS_WIDTH) scale === 1 — no visual change.
-function ScaledCanvasWrapper({ children }: { children: ReactNode }) {
+function ScaledCanvasWrapper({ children, canvasHeight = CANVAS_HEIGHT }: { children: ReactNode; canvasHeight?: number }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(CANVAS_WIDTH);
 
@@ -52,7 +52,7 @@ function ScaledCanvasWrapper({ children }: { children: ReactNode }) {
   const offsetX = (containerWidth - CANVAS_WIDTH * scale) / 2;
 
   return (
-    <div ref={wrapperRef} className="w-full overflow-hidden" style={{ height: CANVAS_HEIGHT * scale }}>
+    <div ref={wrapperRef} className="w-full overflow-hidden" style={{ height: canvasHeight * scale }}>
       <div
         style={{
           transform: `translateX(${offsetX}px) scale(${scale})`,
@@ -370,7 +370,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   }
 
   return (
-    <div className="flex flex-col lg:flex-row bg-white">
+    <div className="mx-auto flex w-full max-w-layout flex-col bg-white lg:flex-row">
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
@@ -385,30 +385,29 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         onChange={handleFileChange}
       />
 
-      <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
-        <ScaledCanvasWrapper>
-          <DesignerCanvas
-            ref={canvasRef}
-            imageUrl={imageUrl}
-            side={side}
-            printArea={mockupConfig.printArea}
-            onActiveTextChange={handleActiveTextChange}
-            onPrintFeeChange={setPrintFee}
-          />
-        </ScaledCanvasWrapper>
+      <div className="flex flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-2 py-4">
+        <div className="flex w-full flex-col items-center">
+          <ScaledCanvasWrapper canvasHeight={mockupConfig.canvasHeight}>
+            <DesignerCanvas
+              ref={canvasRef}
+              imageUrl={imageUrl}
+              side={side}
+              printArea={mockupConfig.printArea}
+              onActiveTextChange={handleActiveTextChange}
+              onPrintFeeChange={setPrintFee}
+              canvasHeight={mockupConfig.canvasHeight}
+            />
+          </ScaledCanvasWrapper>
 
-        {mockupConfig.colorImages && mockupConfig.colorImages[shirtColorName] && (
-          <div className="mt-4 flex flex-col items-center">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-              Kiválasztott szín
-            </p>
+          {mockupConfig.colorImages && mockupConfig.colorImages[shirtColorName] && (
             <img
               src={mockupConfig.colorImages[shirtColorName]}
               alt={shirtColorName}
-              className="h-80 rounded object-contain"
+              className="mt-4 max-w-full rounded object-contain"
+              style={{ height: mockupConfig.canvasHeight ?? CANVAS_HEIGHT }}
             />
-          </div>
-        )}
+          )}
+        </div>
 
         {isTextSelected && (
           <div className="mt-3">
@@ -670,7 +669,7 @@ function MalfiniDesignerLayout({
   }
 
   return (
-    <div className="flex flex-col lg:flex-row bg-white">
+    <div className="mx-auto flex w-full max-w-layout flex-col bg-white lg:flex-row">
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}

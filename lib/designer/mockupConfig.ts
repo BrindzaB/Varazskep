@@ -18,8 +18,10 @@ export interface MockupConfig {
   hasSides: boolean;
   // false for static PNG mockups — skips SVG fetch + CSS color replacement in LocalDesignerLayout
   colorReplaceable?: boolean;
-  // Per-color product photo paths shown as a preview below the canvas (mugs, etc.)
+  // Per-color product photo paths shown beside the canvas (mugs, etc.)
   colorImages?: Record<string, string>;
+  // Override canvas height (px) — use for landscape products like mugs (default: 600)
+  canvasHeight?: number;
 }
 
 export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
@@ -53,10 +55,11 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
   },
   basic_mug: {
     svgPaths: { front: "/mug-flat-template.svg" },
-    // Flat wrap template: printable band centered in the SVG surface rectangle.
-    printArea: { width: 382, height: 170, centerX: 239, centerY: 350 },
+    // Flat wrap template: printable band centered in the SVG surface rectangle (y=50, h=210 → centerY=155).
+    printArea: { width: 382, height: 170, centerX: 239, centerY: 155 },
     hasSides: false,
     colorReplaceable: false,
+    canvasHeight: 310,
     colorImages: {
       Fehér: "/mugs/basic_mug/Feh%C3%A9r.jpg",
       Fekete: "/mugs/basic_mug/Fekete.jpg",
@@ -78,9 +81,10 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
   },
   mug_with_spoon: {
     svgPaths: { front: "/mug-flat-template.svg" },
-    printArea: { width: 382, height: 170, centerX: 239, centerY: 350 },
+    printArea: { width: 382, height: 170, centerX: 239, centerY: 155 },
     hasSides: false,
     colorReplaceable: false,
+    canvasHeight: 310,
     colorImages: {
       Barna: "/mugs/mug_with_spoon/Kanalas_Barna.jpg",
       Kék: "/mugs/mug_with_spoon/Kanalas_K%C3%A9k.jpg",
