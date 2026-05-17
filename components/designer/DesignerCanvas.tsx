@@ -29,6 +29,11 @@ const MOCKUP_SCALE_FACTOR = 0.95;
 const MOCKUP_NATURAL_WIDTH = 300;
 const MOCKUP_NATURAL_HEIGHT = 350;
 
+interface ClipartFabricImage extends FabricImage {
+  _clipartLight: string;
+  _clipartDark: string | null;
+}
+
 // Scales and centers a FabricImage on the canvas.
 function applyMockupLayout(img: FabricImage, canvas: Canvas, canvasWidth: number, canvasHeight: number): void {
   const naturalWidth = img.width || MOCKUP_NATURAL_WIDTH;
@@ -162,8 +167,8 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           originY: "center",
         });
         // Store both variants so swapClipartVariants can replace the image later
-        (img as any)._clipartLight = lightUrl;
-        (img as any)._clipartDark = darkUrl;
+        (img as ClipartFabricImage)._clipartLight = lightUrl;
+        (img as ClipartFabricImage)._clipartDark = darkUrl;
 
         img.controls = {
           ...img.controls,
@@ -181,8 +186,8 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         const { FabricImage, Control } = await import("fabric");
 
         const replaceObj = async (obj: FabricObject, onCanvas: boolean) => {
-          const light = (obj as any)._clipartLight as string;
-          const dark = (obj as any)._clipartDark as string | null;
+          const light = (obj as ClipartFabricImage)._clipartLight as string;
+          const dark = (obj as ClipartFabricImage)._clipartDark as string | null;
           if (!dark) return obj;
           const targetUrl = useDark ? dark : light;
           const newImg = await FabricImage.fromURL(targetUrl, { crossOrigin: "anonymous" });
@@ -191,12 +196,12 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
             top: obj.top,
             scaleX: obj.scaleX,
             scaleY: obj.scaleY,
-            angle: (obj as any).angle ?? 0,
+            angle: (obj as FabricObject & { angle?: number }).angle ?? 0,
             originX: obj.originX,
             originY: obj.originY,
           });
-          (newImg as any)._clipartLight = light;
-          (newImg as any)._clipartDark = dark;
+          (newImg as ClipartFabricImage)._clipartLight = light;
+          (newImg as ClipartFabricImage)._clipartDark = dark;
           newImg.controls = { ...obj.controls, deleteControl: buildDeleteControl(Control) };
           if (onCanvas) {
             canvas.remove(obj);
@@ -208,7 +213,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         // Swap objects currently on the canvas
         const canvasCliparts = canvas
           .getObjects()
-          .filter((o) => o.selectable !== false && (o as any)._clipartDark);
+          .filter((o) => o.selectable !== false && (o as ClipartFabricImage)._clipartDark);
         for (const obj of [...canvasCliparts]) {
           await replaceObj(obj, true);
         }
@@ -217,7 +222,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         const otherSide = currentSideRef.current === "front" ? "back" : "front";
         const newOther: FabricObject[] = [];
         for (const obj of sideObjectsRef.current[otherSide]) {
-          if ((obj as any)._clipartDark) {
+          if ((obj as ClipartFabricImage)._clipartDark) {
             newOther.push(await replaceObj(obj, false));
           } else {
             newOther.push(obj);
@@ -447,9 +452,9 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           if (!c) return;
           const currentHas = c
             .getObjects()
-            .some((o) => o.selectable !== false && (o as any)._clipartDark);
+            .some((o) => o.selectable !== false && (o as ClipartFabricImage)._clipartDark);
           const otherSide = currentSideRef.current === "front" ? "back" : "front";
-          const otherHas = sideObjectsRef.current[otherSide].some((o) => (o as any)._clipartDark);
+          const otherHas = sideObjectsRef.current[otherSide].some((o) => (o as ClipartFabricImage)._clipartDark);
           onDarkClipartChangeRef.current?.(currentHas || otherHas);
         };
 
