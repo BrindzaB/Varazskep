@@ -71,15 +71,17 @@ export default function ClipartPanel({ onSelect, onClose }: ClipartPanelProps) {
           </button>
         </div>
 
-        {/* Body: category sidebar + clipart grid */}
-        <div className="flex min-h-0 flex-1">
-          {/* Category sidebar */}
-          <div className="flex w-44 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border-light p-3">
+        {/* Body: category nav + clipart grid.
+            Mobile: stacked — categories in a horizontal, scrollable row on top.
+            Desktop (lg+): side-by-side — categories as a left sidebar. */}
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          {/* Categories */}
+          <div className="flex shrink-0 flex-row gap-2 overflow-x-auto border-b border-border-light p-3 lg:w-44 lg:flex-col lg:gap-1 lg:overflow-x-visible lg:overflow-y-auto lg:border-b-0 lg:border-r">
             {categories.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                   activeCategory === cat
                     ? "bg-charcoal text-white"
                     : "text-muted hover:bg-off-white hover:text-charcoal"
@@ -91,13 +93,13 @@ export default function ClipartPanel({ onSelect, onClose }: ClipartPanelProps) {
           </div>
 
           {/* Clipart grid */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="min-w-0 flex-1 overflow-y-auto p-4">
             {loading ? (
               <p className="text-center text-sm text-muted">Betöltés…</p>
             ) : visibleItems.length === 0 ? (
               <p className="text-center text-sm text-muted">Nincs elérhető motívum.</p>
             ) : (
-              <ul className="grid grid-cols-3 gap-3">
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {visibleItems.map((item) => (
                   <li key={item.id}>
                     <button
