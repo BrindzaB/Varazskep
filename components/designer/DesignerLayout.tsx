@@ -295,7 +295,11 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   }, [side, shirtColorHex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleClipartSelect(svgUrl: string, darkSvgUrl: string | null) {
-    canvasRef.current?.addClipart(svgUrl, svgUrl, darkSvgUrl);
+    // Insert the clipart in whichever variant the light/dark toggle currently
+    // shows, so a newly added motif matches the active mode. Falls back to the
+    // light variant when the clipart has no dark version.
+    const displayUrl = showDark && darkSvgUrl ? darkSvgUrl : svgUrl;
+    canvasRef.current?.addClipart(displayUrl, svgUrl, darkSvgUrl);
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -880,7 +884,12 @@ function MalfiniDesignerLayout({
 
       {isClipartOpen && (
         <ClipartPanel
-          onSelect={(svgUrl, darkSvgUrl) => canvasRef.current?.addClipart(svgUrl, svgUrl, darkSvgUrl)}
+          onSelect={(svgUrl, darkSvgUrl) => {
+            // Insert in the currently-selected variant so the new motif matches
+            // the active light/dark mode (falls back to light if no dark exists).
+            const displayUrl = showDark && darkSvgUrl ? darkSvgUrl : svgUrl;
+            canvasRef.current?.addClipart(displayUrl, svgUrl, darkSvgUrl);
+          }}
           onClose={() => setIsClipartOpen(false)}
         />
       )}
