@@ -4,6 +4,10 @@ import { prisma } from "@/lib/db";
 import { getRecommendedPrices, buildPriceMap } from "@/lib/malfini/client";
 import { convertEurToHuf } from "@/lib/malfini/pricing";
 import type { CartItem } from "@/lib/cart/cartStore";
+import { resolveParcelWeightGrams } from "@/lib/services/shipping";
+import { getShippingQuote } from "@/lib/kvikk/pricing";
+import { COURIER_LABELS } from "@/lib/shipping/display";
+import type { KvikkCourier } from "@/lib/kvikk/types";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-03-25.dahlia",
@@ -22,11 +26,14 @@ interface CustomerInfo {
 }
 
 interface ShippingInfo {
-  method: "FOXPOST_LOCKER" | "MPL_HOME_DELIVERY";
-  cost: number; // HUF
-  pickupPointId?: string;
-  pickupPointName?: string;
-  pickupPointAddress?: string;
+  deliveryType: "HOME_DELIVERY" | "DELIVERY_POINT";
+  courier: KvikkCourier;
+  cost: number; // gross HUF (incl. VAT), customer-facing
+  // Delivery-point orders only:
+  deliveryPointType?: string;
+  deliveryPointId?: string;
+  pointName?: string;
+  pointAddress?: string;
 }
 
 interface CheckoutRequestBody {
@@ -68,28 +75,38 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     !Array.isArray(parsed.items) ||
     parsed.items.length === 0
   ) {
-    return NextResponse.json(
-      { error: "A kosár üres." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "A kosár üres." }, { status: 400 });
   }
 
   if (!parsed.customer || !parsed.gdprConsent || !parsed.shipping) {
+    return NextResponse.json({ error: "Hiányzó adatok." }, { status: 400 });
+  }
+
+  const { items, customer, shipping, gdprConsent } =
+    parsed as CheckoutRequestBody;
+
+  // Basic shipping-shape validation. The cost is validated against live Kvikk pricing
+  // after the parcel weight is known (see below the item loop).
+  if (
+    shipping.deliveryType !== "HOME_DELIVERY" &&
+    shipping.deliveryType !== "DELIVERY_POINT"
+  ) {
     return NextResponse.json(
-      { error: "Hiányzó adatok." },
-      { status: 400 },
+      { error: "Érvénytelen szállítási mód." },
+      { status: 400 }
     );
   }
-
-  const { items, customer, shipping, gdprConsent } = parsed as CheckoutRequestBody;
-
-  // Validate shipping cost against server-side config to prevent tampering.
-  const { SHIPPING_PRICES } = await import("@/lib/shipping/config");
-  const expectedShippingCost = SHIPPING_PRICES[shipping.method];
-  if (!expectedShippingCost || shipping.cost !== expectedShippingCost) {
-    return NextResponse.json({ error: "Érvénytelen szállítási díj." }, { status: 400 });
+  if (
+    shipping.deliveryType === "DELIVERY_POINT" &&
+    (!shipping.deliveryPointType || !shipping.deliveryPointId)
+  ) {
+    return NextResponse.json(
+      { error: "Hiányzó átvételi pont." },
+      { status: 400 }
+    );
   }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+  let totalWeightGrams = 0;
 
   // Fetch Malfini prices in one batch call before iterating items.
   // Pass 3-char product codes — the API filters by product code, not nomenclature code.
@@ -116,7 +133,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (!item.variantId) {
         return NextResponse.json(
           { error: "Hiányzó variáns azonosító." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       // Look up the variant price from the DB — do not trust the client-provided price.
@@ -127,25 +144,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (!variant) {
         return NextResponse.json(
           { error: "A termék változat nem található." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       unitPriceHuf = variant.price;
+      totalWeightGrams +=
+        (await resolveParcelWeightGrams({
+          source: "local",
+          variantId: item.variantId,
+        })) * item.quantity;
     } else {
       // source === "malfini"
       if (!item.productSizeCode) {
         return NextResponse.json(
           { error: "Hiányzó termék méretkód." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       unitPriceHuf = malfiniPriceMap[item.productSizeCode] ?? 0;
       if (unitPriceHuf === 0) {
         return NextResponse.json(
           { error: "Nem sikerült lekérni a termék árát." },
-          { status: 400 },
+          { status: 400 }
         );
       }
+      totalWeightGrams +=
+        (await resolveParcelWeightGrams({
+          source: "malfini",
+          productCode: item.productCode ?? "",
+          productSizeCode: item.productSizeCode,
+        })) * item.quantity;
     }
 
     lineItems.push({
@@ -165,7 +193,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (item.printFee % 500 !== 0 || item.printFee > maxAllowed) {
         return NextResponse.json(
           { error: "Érvénytelen nyomtatási díj." },
-          { status: 400 },
+          { status: 400 }
         );
       }
       lineItems.push({
@@ -195,12 +223,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     cartItemsMeta.push(meta);
   }
 
+  // Validate the shipping cost against live Kvikk pricing for the resolved parcel weight.
+  // Recomputing server-side prevents a tampered client price.
+  const shippingQuote = await getShippingQuote({
+    courier: shipping.courier,
+    deliveryPointType:
+      shipping.deliveryType === "DELIVERY_POINT"
+        ? shipping.deliveryPointType
+        : undefined,
+    weightGrams: totalWeightGrams,
+  });
+  if (!shippingQuote || shippingQuote.grossHuf !== shipping.cost) {
+    return NextResponse.json(
+      { error: "Érvénytelen szállítási díj." },
+      { status: 400 }
+    );
+  }
+
   // Add shipping as a separate line item.
-  const { SHIPPING_LABELS } = await import("@/lib/shipping/config");
+  const shippingLabel = `${COURIER_LABELS[shipping.courier] ?? shipping.courier} ${
+    shipping.deliveryType === "DELIVERY_POINT"
+      ? "átvételi pont"
+      : "házhozszállítás"
+  }`;
   lineItems.push({
     price_data: {
       currency: "huf",
-      product_data: { name: SHIPPING_LABELS[shipping.method] },
+      product_data: { name: shippingLabel },
       unit_amount: shipping.cost * 100,
     },
     quantity: 1,
@@ -219,11 +268,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       shippingAddress: JSON.stringify(customer.shippingAddress),
       gdprConsent: String(gdprConsent),
       cartItems: JSON.stringify(cartItemsMeta),
-      shippingMethod: shipping.method,
+      shippingCourier: shipping.courier,
+      deliveryType: shipping.deliveryType,
       shippingCost: String(shipping.cost),
-      ...(shipping.pickupPointId ? { pickupPointId: shipping.pickupPointId } : {}),
-      ...(shipping.pickupPointName ? { pickupPointName: shipping.pickupPointName } : {}),
-      ...(shipping.pickupPointAddress ? { pickupPointAddress: shipping.pickupPointAddress } : {}),
+      ...(shipping.deliveryPointType
+        ? { deliveryPointType: shipping.deliveryPointType }
+        : {}),
+      ...(shipping.deliveryPointId
+        ? { deliveryPointId: shipping.deliveryPointId }
+        : {}),
+      ...(shipping.pointName ? { pointName: shipping.pointName } : {}),
+      ...(shipping.pointAddress ? { pointAddress: shipping.pointAddress } : {}),
     },
     success_url: `${appUrl}/order/{CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/checkout`,
@@ -232,7 +287,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!session.url) {
     return NextResponse.json(
       { error: "Nem sikerült létrehozni a fizetési munkamenetet." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 

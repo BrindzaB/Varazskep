@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db";
-import type { OrderStatus, ShippingMethod } from "@/lib/generated/prisma/client";
+import type { DeliveryType, OrderStatus } from "@/lib/generated/prisma/client";
 
 export interface CreateOrderInput {
   stripeSessionId: string;
   // One of these must be set — never both.
-  variantId?: string;       // local products (mugs, etc.)
+  variantId?: string; // local products (mugs, etc.)
   productSizeCode?: string; // Malfini products — 7-char SKU
-  productCode?: string;     // Malfini products — 3-char product code
+  productCode?: string; // Malfini products — 3-char product code
   // Denormalized display fields — always set regardless of source.
   // Required for 8-year retention even if the product is later removed.
   productName: string;
@@ -23,10 +23,13 @@ export interface CreateOrderInput {
   };
   totalAmount: number; // HUF integer (includes shipping cost)
   gdprConsent: boolean;
-  shippingMethod: ShippingMethod;
   shippingCost: number; // HUF integer
-  pickupPointId?: string;
-  pickupPointName?: string;
+  // Kvikk shipping
+  shippingCourier: string; // Kvikk courier slug (mpl, gls, foxpost, ...)
+  deliveryType: DeliveryType; // HOME_DELIVERY | DELIVERY_POINT
+  deliveryPointType?: string; // set for delivery-point orders
+  deliveryPointId?: string;
+  pickupPointName?: string; // point display name (delivery-point orders)
   pickupPointAddress?: string;
 }
 
@@ -67,7 +70,9 @@ export async function createOrder(input: CreateOrderInput) {
       status: "PAID",
       // Source-specific identifiers — one or the other, never both.
       ...(input.variantId ? { variantId: input.variantId } : {}),
-      ...(input.productSizeCode ? { productSizeCode: input.productSizeCode } : {}),
+      ...(input.productSizeCode
+        ? { productSizeCode: input.productSizeCode }
+        : {}),
       ...(input.productCode ? { productCode: input.productCode } : {}),
       // Denormalized display fields — always written for both sources.
       productName: input.productName,
@@ -79,11 +84,21 @@ export async function createOrder(input: CreateOrderInput) {
       shippingAddress: input.shippingAddress,
       totalAmount: input.totalAmount,
       gdprConsent: input.gdprConsent,
-      shippingMethod: input.shippingMethod,
       shippingCost: input.shippingCost,
-      ...(input.pickupPointId ? { pickupPointId: input.pickupPointId } : {}),
-      ...(input.pickupPointName ? { pickupPointName: input.pickupPointName } : {}),
-      ...(input.pickupPointAddress ? { pickupPointAddress: input.pickupPointAddress } : {}),
+      shippingCourier: input.shippingCourier,
+      deliveryType: input.deliveryType,
+      ...(input.deliveryPointType
+        ? { deliveryPointType: input.deliveryPointType }
+        : {}),
+      ...(input.deliveryPointId
+        ? { deliveryPointId: input.deliveryPointId }
+        : {}),
+      ...(input.pickupPointName
+        ? { pickupPointName: input.pickupPointName }
+        : {}),
+      ...(input.pickupPointAddress
+        ? { pickupPointAddress: input.pickupPointAddress }
+        : {}),
     },
   });
 }
@@ -94,7 +109,7 @@ export async function createOrder(input: CreateOrderInput) {
  */
 export async function updateOrderStatus(
   orderId: string,
-  newStatus: OrderStatus,
+  newStatus: OrderStatus
 ) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new Error(`Order not found: ${orderId}`);
@@ -102,7 +117,7 @@ export async function updateOrderStatus(
   const allowed = allowedTransitions[order.status];
   if (!allowed.includes(newStatus)) {
     throw new Error(
-      `Invalid status transition: ${order.status} → ${newStatus}`,
+      `Invalid status transition: ${order.status} → ${newStatus}`
     );
   }
 

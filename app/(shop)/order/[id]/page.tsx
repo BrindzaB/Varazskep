@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getOrderBySessionId } from "@/lib/services/order";
 import { formatHuf } from "@/lib/utils/format";
-import { SHIPPING_LABELS } from "@/lib/shipping/config";
+import { describeShipping } from "@/lib/shipping/display";
 import CartClearer from "@/components/shop/CartClearer";
 
 export const metadata: Metadata = {
@@ -49,6 +49,8 @@ export default async function OrderConfirmationPage({ params }: Props) {
     country: string;
   };
 
+  const shipping = describeShipping(order);
+
   return (
     <section className="px-4 py-16">
       <CartClearer />
@@ -74,7 +76,9 @@ export default async function OrderConfirmationPage({ params }: Props) {
             <h2 className="text-base font-semibold text-charcoal">
               Rendelés részletei
             </h2>
-            <span className="text-xs text-muted">#{order.id.slice(-8).toUpperCase()}</span>
+            <span className="text-xs text-muted">
+              #{order.id.slice(-8).toUpperCase()}
+            </span>
           </div>
 
           <div className="space-y-4">
@@ -104,12 +108,12 @@ export default async function OrderConfirmationPage({ params }: Props) {
                 Szállítási mód
               </p>
               <p className="text-sm text-muted">
-                {SHIPPING_LABELS[order.shippingMethod]} — {formatHuf(order.shippingCost)}
+                {shipping.methodLabel} — {formatHuf(order.shippingCost)}
               </p>
-              {order.shippingMethod === "FOXPOST_LOCKER" && order.pickupPointName ? (
+              {shipping.isDeliveryPoint && shipping.pointName ? (
                 <p className="mt-0.5 text-sm text-muted">
-                  {order.pickupPointName}
-                  {order.pickupPointAddress && ` · ${order.pickupPointAddress}`}
+                  {shipping.pointName}
+                  {shipping.pointAddress && ` · ${shipping.pointAddress}`}
                 </p>
               ) : (
                 <p className="mt-0.5 text-sm text-muted">

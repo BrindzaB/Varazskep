@@ -22,10 +22,11 @@ interface OrderConfirmationProps {
     city: string;
     postalCode: string;
   };
-  shippingMethod: "FOXPOST_LOCKER" | "MPL_HOME_DELIVERY";
+  methodLabel: string; // e.g. "GLS átvételi pont", "MPL házhozszállítás"
   shippingCost: string; // pre-formatted, e.g. "990 Ft"
-  pickupPointName?: string;
-  pickupPointAddress?: string;
+  isDeliveryPoint: boolean;
+  pointName?: string;
+  pointAddress?: string;
 }
 
 export default function OrderConfirmation({
@@ -36,13 +37,12 @@ export default function OrderConfirmation({
   variantSize,
   totalAmount,
   shippingAddress,
-  shippingMethod,
+  methodLabel,
   shippingCost,
-  pickupPointName,
-  pickupPointAddress,
+  isDeliveryPoint,
+  pointName,
+  pointAddress,
 }: OrderConfirmationProps) {
-  const isFoxpost = shippingMethod === "FOXPOST_LOCKER";
-
   return (
     <Html lang="hu">
       <Head />
@@ -51,9 +51,7 @@ export default function OrderConfirmation({
         <Container style={container}>
           <Heading style={heading}>Köszönjük a rendelésed!</Heading>
 
-          <Text style={text}>
-            Kedves {customerName}!
-          </Text>
+          <Text style={text}>Kedves {customerName}!</Text>
 
           <Text style={text}>
             Rendelésedet megkaptuk és hamarosan elkezdjük a feldolgozást.
@@ -79,15 +77,15 @@ export default function OrderConfirmation({
           <Section>
             <Text style={label}>Szállítási mód</Text>
             <Text style={value}>
-              {isFoxpost ? "Foxpost csomagautomata" : "MPL házhozszállítás"} – {shippingCost}
+              {methodLabel} – {shippingCost}
             </Text>
 
-            {isFoxpost && pickupPointName ? (
+            {isDeliveryPoint && pointName ? (
               <>
                 <Text style={label}>Átvételi pont</Text>
                 <Text style={value}>
-                  {pickupPointName}
-                  {pickupPointAddress ? `\n${pickupPointAddress}` : ""}
+                  {pointName}
+                  {pointAddress ? `\n${pointAddress}` : ""}
                 </Text>
               </>
             ) : (
@@ -106,9 +104,7 @@ export default function OrderConfirmation({
           <Text style={footer}>
             Kérdés esetén keress minket a varazskep.hu oldalon.
           </Text>
-          <Text style={footer}>
-            Varázs-kép Kft. – Dunaújváros
-          </Text>
+          <Text style={footer}>Varázs-kép Kft. – Dunaújváros</Text>
         </Container>
       </Body>
     </Html>
@@ -117,7 +113,8 @@ export default function OrderConfirmation({
 
 const body: React.CSSProperties = {
   backgroundColor: "#f8f9fa",
-  fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontFamily:
+    "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 };
 
 const container: React.CSSProperties = {

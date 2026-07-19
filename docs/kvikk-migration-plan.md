@@ -163,11 +163,18 @@ Approved customer options (HU): **home** = MPL, GLS; **points (map)** = Foxpost 
   map widget can only be verified on the production deploy; on localhost it shows the text
   fallback. Home delivery + pricing + fallback handling ARE locally verifiable.
 
-### 8.6 — Checkout API (`stripe/checkout`)
-- Server-side validate the selected point via `GET points-api…/map/point`.
-- Recompute shipping cost server-side via `getShippingQuote` (never trust client).
-- Embed courier / deliveryType / deliveryPointType / deliveryPointID (+ display name)
-  in Stripe session metadata.
+### 8.6 — Coordinated checkout migration ✅ Done (runtime verification pending on deploy)
+Done together so the flow never half-breaks: `CheckoutForm` (fetches `/api/shipping/quote`,
+home-courier radios vs Kvikk Map point, new submit shape) + `stripe/checkout` (server-side
+weight + live-price validation, new metadata) + `stripe/webhook` (new fields → `createOrder`)
++ `lib/shipping/display.ts` `describeShipping()` used by the success page, admin detail, and
+email (new fields with legacy fallback). Tests updated; tsc/eslint/vitest green.
+- **No shipment creation yet** — `POST /shipment` + label is step 8.7. After 8.6 the order
+  stores the Kvikk shipping choice; label/dispatch remains manual (as before). App stays working.
+- **No points-api pre-validation** — the point is validated at shipment creation (8.7) via the
+  documented error codes, avoiding an unverified points-api key dependency.
+- Runtime (checkout → Stripe → webhook → display, + the Map widget) verifies on the
+  `varazskep.vercel.app` deploy.
 
 ### 8.7 — Create shipment on payment (`stripe/webhook`)
 - After the order is created, call `POST /shipment` (single parcel; `cod: 0`; `value` =
