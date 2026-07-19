@@ -8,7 +8,11 @@
 // On any error, functions return safe empty fallbacks and log server-side.
 
 import { clearCachedToken, getMalfiniToken } from "./auth";
-import { getRedisClient, REDIS_KEY_CATALOG, REDIS_CATALOG_TTL_SECONDS } from "@/lib/redis";
+import {
+  getRedisClient,
+  REDIS_KEY_CATALOG,
+  REDIS_CATALOG_TTL_SECONDS,
+} from "@/lib/redis";
 import type {
   MalfiniAvailability,
   MalfiniProduct,
@@ -19,7 +23,11 @@ const BASE = () => process.env.MALFINI_API_URL ?? "https://api.malfini.com";
 
 // Typed fetch with Bearer token injection and automatic 401 retry.
 // Uses Next.js ISR revalidation for small, cacheable responses.
-async function malfiniGet<T>(path: string, revalidate: number, attempt = 0): Promise<T> {
+async function malfiniGet<T>(
+  path: string,
+  revalidate: number,
+  attempt = 0
+): Promise<T> {
   const token = await getMalfiniToken();
 
   const res = await fetch(`${BASE()}${path}`, {
@@ -72,7 +80,11 @@ export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
       const cached = await redis.get<MalfiniProduct[]>(REDIS_KEY_CATALOG);
       if (cached) {
         // Populate L1 from Redis so subsequent requests in this instance are instant
-        productsCache = { data: cached, language, expiresAt: now + 3600 * 1000 };
+        productsCache = {
+          data: cached,
+          language,
+          expiresAt: now + 3600 * 1000,
+        };
         return cached;
       }
     } catch (err) {
@@ -87,18 +99,17 @@ export async function getProducts(language = "hu"): Promise<MalfiniProduct[]> {
 // Fetches fresh catalog from Malfini and writes to both L1 and L2.
 // Called by getProducts() on a cache miss, and directly by the warmup cron
 // to unconditionally refresh both caches.
-async function fetchAndCacheProducts(language = "hu"): Promise<MalfiniProduct[]> {
+async function fetchAndCacheProducts(
+  language = "hu"
+): Promise<MalfiniProduct[]> {
   const now = Date.now();
 
   try {
     const token = await getMalfiniToken();
-    const res = await fetch(
-      `${BASE()}/api/v4/product?language=${language}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      },
-    );
+    const res = await fetch(`${BASE()}/api/v4/product?language=${language}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
 
     if (res.status === 401) {
       clearCachedToken();
@@ -119,7 +130,9 @@ async function fetchAndCacheProducts(language = "hu"): Promise<MalfiniProduct[]>
     const redis = getRedisClient();
     if (redis) {
       try {
-        await redis.set(REDIS_KEY_CATALOG, result, { ex: REDIS_CATALOG_TTL_SECONDS });
+        await redis.set(REDIS_KEY_CATALOG, result, {
+          ex: REDIS_CATALOG_TTL_SECONDS,
+        });
       } catch (err) {
         console.error("[Malfini] Redis write failed:", err);
       }
@@ -143,7 +156,7 @@ export async function warmupMalfiniCache(language = "hu"): Promise<void> {
 // Fetches the full list (from Data Cache) and filters — no per-product endpoint.
 export async function getProduct(
   code: string,
-  language = "hu",
+  language = "hu"
 ): Promise<MalfiniProduct | null> {
   try {
     const products = await getProducts(language);
@@ -154,19 +167,39 @@ export async function getProduct(
   }
 }
 
+// Returns the per-piece GROSS weight (in kg) for a Malfini SKU, or null if not found.
+// Looks the SKU up in the cached catalog by its 7-char productSizeCode. Falls back to
+// netWeight if grossWeight is absent. Used to source Kvikk parcel weights for clothing.
+export async function getNomenclatureGrossWeightKg(
+  productCode: string,
+  productSizeCode: string
+): Promise<number | null> {
+  const product = await getProduct(productCode);
+  if (!product) return null;
+  for (const variant of product.variants) {
+    const nomenclature = variant.nomenclatures.find(
+      (n) => n.productSizeCode === productSizeCode
+    );
+    if (nomenclature) {
+      return nomenclature.grossWeight ?? nomenclature.netWeight ?? null;
+    }
+  }
+  return null;
+}
+
 // Returns real-time stock availability for the given 3-char product codes (e.g. "M150").
 // The API `productCodes` param filters by product code, not nomenclature code.
 // Response items use `productSizeCode` (7-char) as the SKU key.
 // includeFuture=true includes incoming warehouse shipments. Revalidated every 5 minutes.
 export async function getAvailabilities(
-  productCodes: string[],
+  productCodes: string[]
 ): Promise<MalfiniAvailability[]> {
   if (productCodes.length === 0) return [];
   try {
     const query = productCodes.join(",");
     const data = await malfiniGet<MalfiniAvailability[]>(
       `/api/v4/product/availabilities?productCodes=${encodeURIComponent(query)}&includeFuture=true`,
-      300,
+      300
     );
     return Array.isArray(data) ? data : [];
   } catch (err) {
@@ -180,14 +213,14 @@ export async function getAvailabilities(
 // Response items use `productSizeCode` (7-char) as the SKU key.
 // Revalidated every 5 minutes via ISR.
 export async function getRecommendedPrices(
-  productCodes: string[],
+  productCodes: string[]
 ): Promise<MalfiniRecommendedPrice[]> {
   if (productCodes.length === 0) return [];
   try {
     const query = productCodes.join(",");
     const data = await malfiniGet<MalfiniRecommendedPrice[]>(
       `/api/v4/product/recommended-prices?productCodes=${encodeURIComponent(query)}`,
-      300,
+      300
     );
     return Array.isArray(data) ? data : [];
   } catch (err) {
@@ -201,20 +234,20 @@ export async function getRecommendedPrices(
 // Rounds to nearest 10 HUF.
 export function buildPriceMap(
   prices: MalfiniRecommendedPrice[],
-  convertEurToHuf: (eur: number) => number,
+  convertEurToHuf: (eur: number) => number
 ): Record<string, number> {
   return Object.fromEntries(
     prices.map((p) => {
       const huf = p.currency === "HUF" ? p.price : convertEurToHuf(p.price);
       return [p.productSizeCode, Math.round(huf / 10) * 10];
-    }),
+    })
   );
 }
 
 // Convenience: build a Record<productSizeCode, quantity> map.
 // Sums all availability records per SKU (multiple dates may exist for inbound stock).
 export function buildAvailabilityMap(
-  availabilities: MalfiniAvailability[],
+  availabilities: MalfiniAvailability[]
 ): Record<string, number> {
   const map: Record<string, number> = {};
   for (const a of availabilities) {

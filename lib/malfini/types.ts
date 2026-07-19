@@ -6,13 +6,18 @@ export interface MalfiniNomenclature {
   size: string;
   sizeName: string;
   sizeCode: string;
+  // Per-piece weights in KILOGRAMS (Malfini `ProductSizeModel`). Optional because not
+  // every catalog entry is guaranteed to carry them. Used for Kvikk parcel weight —
+  // prefer `grossWeight` (includes packaging). Convert to grams via lib/kvikk/weight.ts.
+  netWeight?: number;
+  grossWeight?: number;
 }
 
 export interface MalfiniVariant {
-  code: string;           // variant identifier (used as colorCode in URL params)
-  colorCode: string;      // color identifier
-  colorIconLink: string;  // URL to a small color swatch icon image
-  name: string;           // color display name
+  code: string; // variant identifier (used as colorCode in URL params)
+  colorCode: string; // color identifier
+  colorIconLink: string; // URL to a small color swatch icon image
+  name: string; // color display name
   images: MalfiniImage[];
   nomenclatures: MalfiniNomenclature[];
   attributes?: MalfiniAttribute[];
@@ -20,17 +25,17 @@ export interface MalfiniVariant {
 
 export interface MalfiniImage {
   viewCode: string; // lowercase: "a" = front, "b" = back, "c" = detail, etc.
-  link: string;     // full image URL, e.g. https://api.malfini.com/image/product/150/150_01_a~w400.jpg
+  link: string; // full image URL, e.g. https://api.malfini.com/image/product/150/150_01_a~w400.jpg
 }
 
 export interface MalfiniAttribute {
   code: string;
   title: string; // e.g. "Anyagösszetétel"
-  text: string;  // e.g. "100 % pamut"
+  text: string; // e.g. "100 % pamut"
 }
 
 export interface MalfiniProduct {
-  code: string;         // 3-char product code — used as the URL identifier
+  code: string; // 3-char product code — used as the URL identifier
   name: string;
   description: string;
   subtitle?: string;
@@ -54,7 +59,6 @@ export interface MalfiniAvailability {
 
 export interface MalfiniRecommendedPrice {
   productSizeCode: string;
-  price: number;    // currency-dependent — check `currency` field (may be HUF or EUR depending on account)
+  price: number; // currency-dependent — check `currency` field (may be HUF or EUR depending on account)
   currency: string;
 }
-

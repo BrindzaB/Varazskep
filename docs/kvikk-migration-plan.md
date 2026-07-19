@@ -90,19 +90,25 @@ explicit approval). Suggested branch: `phase-8/kvikk-shipping`.
 - `deliveryPointMap.ts` — `(courier, mapType) → deliveryPointType` lookup (§Decision 5).
 - No UI yet. Unit-testable in isolation.
 
-### 8.2 — Weight sourcing
-- Extend `MalfiniNomenclature` (+ parsing in `lib/malfini/client.ts`) to capture
-  `grossWeight`; add a `weightGrams` helper (kg → g, rounded).
-- Add `weightGrams Int?` to local `Variant` (with a fixed fallback for nulls, e.g. mug).
-- Central `resolveParcelWeight(item)` used by shipment creation.
+### 8.2 — Weight sourcing (no DB changes) ✅ Done
+- Extend `MalfiniNomenclature` to surface `netWeight`/`grossWeight` (kg) — already present
+  in the API response, just not typed. Add `getNomenclatureGrossWeightKg()` to the Malfini
+  client to look weight up by SKU.
+- `lib/kvikk/weight.ts` — pure helpers: `kgToGrams()`, `DEFAULT_PARCEL_WEIGHT_GRAMS`,
+  `resolveWeightGrams({ storedGrams, grossWeightKg })` (priority: stored → Malfini kg → default).
+- The local `Variant.weightGrams` column and the item-level `resolveParcelWeightGrams(item)`
+  resolver moved to 8.3, consolidated with the schema migration (single DB touch).
 
-### 8.3 — DB schema + migration
+### 8.3 — DB schema + migration (single migration for all schema changes)
+- `Variant`: add `weightGrams Int?` (nulls fall back via `weight.ts`).
 - Generalize `Order`: add `shippingCourier String?`, `deliveryType` enum
   (`HOME_DELIVERY | DELIVERY_POINT`), `deliveryPointType String?`, `deliveryPointId
   String?`; keep `pickupPointName`/`pickupPointAddress` for display; add
   `kvikkTrackingNumber String?`, `courierTrackingNumber String?`, `kvikkShipmentId
   String?`.
 - Extend `OrderStatus` with `RETURNED`.
+- `lib/services/shipping.ts` — `resolveParcelWeightGrams(item)` ties `Variant.weightGrams`
+  + Malfini gross weight + `weight.ts` together (DB access lives in the service layer).
 - **Retention:** existing orders must keep their historical shipping data — additive
   migration + backfill old `shippingMethod`/`pickupPoint*` into the new columns; do not
   drop columns destructively. Exact backfill mapping decided at this step.
