@@ -138,11 +138,30 @@ price model = **dynamic (courier + weight)** per client decision.
   specific source; the PDF is a dated reference/sanity-check snapshot only. Note the
   net 300 Ft admin fee for wrong weight/oversize — reinforces accurate weight (8.2).
 
-### 8.5 — Checkout UI (`KvikkMapWidget.tsx` + `CheckoutForm.tsx`)
-- New `KvikkMapWidget.tsx`: load the widget script, `open()` with configured couriers +
-  prices + brand colors + `hu`; handle both standard point and `fallbackInfo`.
-- `CheckoutForm`: delivery-type + courier selection; show selected point; keep the home
-  address branch; validate as today. Remove Foxpost widget usage.
+### 8.5 — Checkout UI (`KvikkMapWidget.tsx` + `CheckoutForm.tsx`) — split into 8.5a + 8.5b
+**8.5a ✅ Done** — `lib/kvikk/deliveryOptions.ts` (approved option set) + `POST
+/api/shipping/quote` (server-side weight × qty → per-option gross price via
+`getShippingQuote`). Logic verified against real pricing data; endpoint returns 200.
+Full-speed runtime + widget verified on the `varazskep.vercel.app` deploy (local dev egress
+to the Supabase transaction pooler / Upstash is impractically slow in this environment).
+**8.5b** — `KvikkMapWidget.tsx` (standalone, non-breaking) then the coordinated checkout
+migration (form + `stripe/checkout` + `stripe/webhook`) in 8.6 so the flow never half-breaks.
+
+Approved customer options (HU): **home** = MPL, GLS; **points (map)** = Foxpost automata
+(`foxpost`/`foxpost_foxpost`), Packeta Z-Box (`zbox`/`packeta_zbox`), MPL automata
+(`automata`/`mpl_automata`), GLS automata (`locker`/`gls_locker`) + csomagpont
+(`shop`/`gls_shop`), DPD csomagpont (`parcelshop`/`dpd_parcelshop`).
+- New server endpoint (e.g. `POST /api/shipping/quote`): takes the cart, resolves parcel
+  weight server-side (`resolveParcelWeightGrams` × quantity), returns the gross price per
+  offered option via `getShippingQuote` — feeds both the widget config and the home options.
+- New `KvikkMapWidget.tsx`: load the widget script, `open()` with the configured point
+  couriers + server-computed prices + brand colors + `hu`; handle standard point and
+  `fallbackInfo`.
+- `CheckoutForm`: delivery type = home (courier radio) vs point (map); show selected point;
+  keep the home address branch. Remove Foxpost widget usage.
+- **CONSTRAINT:** the Maps key is bound to `varazskep.vercel.app` only (no localhost). The
+  map widget can only be verified on the production deploy; on localhost it shows the text
+  fallback. Home delivery + pricing + fallback handling ARE locally verifiable.
 
 ### 8.6 — Checkout API (`stripe/checkout`)
 - Server-side validate the selected point via `GET points-api…/map/point`.
