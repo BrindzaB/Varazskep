@@ -16,31 +16,34 @@ model Product {
   description String?
   imageUrl    String?
   active      Boolean   @default(true)
-  mockupType  String?   // "tshirt" | "mug" — null means no designer for this product
+  mockupType  String? // "tshirt" | "mug" — null means no designer for this product
   variants    Variant[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
 
 model Variant {
-  id        String   @id @default(cuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  color     String
-  size      String
-  price     Int // price in HUF (forint), stored as integer — no decimals
-  stock     Int      @default(0)
-  orders    Order[]
+  id          String  @id @default(cuid())
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  color       String
+  size        String
+  price       Int // price in HUF (forint), stored as integer — no decimals
+  stock       Int     @default(0)
+  // Gross package weight in grams, used to source the Kvikk parcel weight.
+  // Null → falls back to a default (see lib/kvikk/weight.ts + lib/services/shipping.ts).
+  weightGrams Int?
+  orders      Order[]
 }
 
 model Clipart {
-  id          String   @id @default(cuid())
-  name        String
-  category    String
-  svgUrl      String   // Supabase Storage public URL (clipart bucket — permanent)
-  darkSvgUrl  String?  // Dark-background variant URL — null if no dark version exists
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  name       String
+  category   String
+  svgUrl     String // Supabase Storage public URL (clipart bucket — permanent)
+  darkSvgUrl String? // Dark-background variant URL — null if no dark version exists
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
 }
 
 model Design {
@@ -53,45 +56,61 @@ model Design {
 }
 
 model Order {
-  id              String         @id @default(cuid())
-  stripeSessionId String         @unique
-  status          OrderStatus    @default(PENDING)
+  id                    String         @id @default(cuid())
+  stripeSessionId       String         @unique
+  status                OrderStatus    @default(PENDING)
   // Local products (mugs, etc.) — null for Malfini orders
-  variantId       String?
-  variant         Variant?       @relation(fields: [variantId], references: [id])
+  variantId             String?
+  variant               Variant?       @relation(fields: [variantId], references: [id])
   // Malfini products (clothing) — null for local orders
-  productSizeCode String?        // 7-char SKU e.g. "M150XM0"
-  productCode     String?        // 3-char product code e.g. "150"
+  productSizeCode       String? // 7-char SKU e.g. "M150XM0"
+  productCode           String? // 3-char product code e.g. "150"
   // Denormalized display fields — always set for both sources
   // Required for 8-year retention even if product is later removed
-  productName     String         @default("")
-  colorName       String         @default("")
-  sizeName        String         @default("")
+  productName           String         @default("")
+  colorName             String         @default("")
+  sizeName              String         @default("")
   // Design (optional — not all products require a custom design)
-  designId        String?        @unique
-  design          Design?        @relation(fields: [designId], references: [id])
+  designId              String?        @unique
+  design                Design?        @relation(fields: [designId], references: [id])
   // Customer info — retained 8 years per Hungarian tax law (Számviteli törvény)
-  customerName    String
-  customerEmail   String
-  shippingAddress Json           // { address, city, postalCode, country }
-  totalAmount     Int            // in HUF (includes shipping cost)
-  gdprConsent     Boolean
+  customerName          String
+  customerEmail         String
+  shippingAddress       Json // { address, city, postalCode, country }
+  totalAmount           Int // in HUF (includes shipping cost)
+  gdprConsent           Boolean
   // Shipping method and cost
-  shippingMethod  ShippingMethod @default(MPL_HOME_DELIVERY)
-  shippingCost    Int            @default(0) // in HUF
+  shippingMethod        ShippingMethod @default(MPL_HOME_DELIVERY)
+  shippingCost          Int            @default(0) // in HUF
   // Foxpost locker details — null for home delivery
-  pickupPointId   String?        // Foxpost OperatorCode
-  pickupPointName String?        // human-readable locker name
-  pickupPointAddress String?     // formatted locker address for display
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  pickupPointId         String? // Foxpost OperatorCode (LEGACY — old Foxpost flow only)
+  pickupPointName       String? // human-readable point name (reused by Kvikk for display)
+  pickupPointAddress    String? // formatted point address for display (reused by Kvikk)
+  // Kvikk shipping (Phase 8) — null on legacy orders created before the Kvikk migration.
+  shippingCourier       String? // Kvikk courier slug: mpl | foxpost | packeta | famafutar | dpd | gls
+  deliveryType          DeliveryType? // home delivery vs delivery point
+  deliveryPointType     String? // Kvikk long code sent on create, e.g. "gls_locker"
+  deliveryPointId       String? // Kvikk/courier delivery point id
+  kvikkTrackingNumber   String? // Kvikk tracking number (e.g. "M123412341234")
+  courierTrackingNumber String? // courier's own tracking number
+  kvikkShipmentId       String? // Kvikk internal shipment id (for management/label re-fetch)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 }
 
 // ─── Enums ─────────────────────────────────────────────────────────────────
 
+// LEGACY — old Foxpost/MPL flow. Retained for historical orders; new orders use
+// `shippingCourier` + `deliveryType` (Kvikk). Do not use for new orders.
 enum ShippingMethod {
   FOXPOST_LOCKER
   MPL_HOME_DELIVERY
+}
+
+// Kvikk delivery type — whether the parcel goes to the customer's address or to a point.
+enum DeliveryType {
+  HOME_DELIVERY
+  DELIVERY_POINT
 }
 
 enum OrderStatus {
@@ -100,5 +119,6 @@ enum OrderStatus {
   IN_PRODUCTION // Admin has started processing
   SHIPPED // Package sent
   COMPLETE // Delivered
+  RETURNED // Shipment returned to sender (Kvikk `returned` event)
   CANCELLED // Cancelled before or after production
 }

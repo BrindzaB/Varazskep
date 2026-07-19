@@ -143,8 +143,9 @@ const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],
   IN_PRODUCTION: ["SHIPPED", "CANCELLED"],
-  SHIPPED: ["COMPLETE"],
+  SHIPPED: ["COMPLETE", "RETURNED"], // RETURNED set by the Kvikk webhook on a `returned` event
   COMPLETE: [],
+  RETURNED: [],
   CANCELLED: [],
 };
 

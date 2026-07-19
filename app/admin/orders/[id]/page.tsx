@@ -13,6 +13,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   IN_PRODUCTION: "Gyártásban",
   SHIPPED: "Kiszállítva",
   COMPLETE: "Teljesítve",
+  RETURNED: "Visszaküldve",
   CANCELLED: "Törölve",
 };
 
@@ -22,6 +23,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   IN_PRODUCTION: "bg-purple-100 text-purple-800",
   SHIPPED: "bg-orange-100 text-orange-800",
   COMPLETE: "bg-green-100 text-green-800",
+  RETURNED: "bg-red-100 text-red-800",
   CANCELLED: "bg-gray-100 text-gray-600",
 };
 

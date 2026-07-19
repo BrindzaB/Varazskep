@@ -10,6 +10,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   IN_PRODUCTION: "Gyártásban",
   SHIPPED: "Kiszállítva",
   COMPLETE: "Teljesítve",
+  RETURNED: "Visszaküldve",
   CANCELLED: "Törölve",
 };
 
@@ -19,15 +20,20 @@ const NEXT_STATUS_LABELS: Record<OrderStatus, string> = {
   IN_PRODUCTION: "Kiszállítva",
   SHIPPED: "Teljesítve",
   COMPLETE: "",
+  RETURNED: "",
   CANCELLED: "",
 };
 
+// Client-side mirror of the manually selectable transitions (buttons shown to the admin).
+// RETURNED is intentionally not a manual button — it is set by the Kvikk webhook — so it
+// is absent from SHIPPED's list here even though the server permits SHIPPED → RETURNED.
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],
   IN_PRODUCTION: ["SHIPPED", "CANCELLED"],
   SHIPPED: ["COMPLETE"],
   COMPLETE: [],
+  RETURNED: [],
   CANCELLED: [],
 };
 
