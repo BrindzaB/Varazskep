@@ -120,6 +120,13 @@ explicit approval). Suggested branch: `phase-8/kvikk-shipping`.
 - Decide customer-facing price model per §Decision 2; expose a single
   `getShippingQuote({ courier, weight })` used by both the Map widget config and the
   server-side checkout validation (one source of truth).
+- **VAT:** the official price list (`docs/kvikk-arlista-*.pdf`) is NET (ÁFA excluded);
+  our customer prices are gross ("Az ár tartalmazza az ÁFÁ-t"). If Kvikk cost is passed to
+  the customer, add 27% VAT. Confirm at this step whether `account-details` pricing is net
+  or gross. COD fees are irrelevant (COD is always 0 — Stripe is prepaid).
+- **Do NOT hardcode the PDF numbers.** `account-details` is the authoritative, account-
+  specific source; the PDF is a dated reference/sanity-check snapshot only. Note the
+  net 300 Ft admin fee for wrong weight/oversize — reinforces accurate weight (8.2).
 
 ### 8.5 — Checkout UI (`KvikkMapWidget.tsx` + `CheckoutForm.tsx`)
 - New `KvikkMapWidget.tsx`: load the widget script, `open()` with configured couriers +
@@ -154,6 +161,8 @@ explicit approval). Suggested branch: `phase-8/kvikk-shipping`.
 - New batch action: select paid/in-production orders → `POST /delivery-note` (choose
   `pickupFor` couriers + `pickupDate` honoring the working-day rules) → download the
   returned per-courier PDFs.
+- Note (from price list): MPL charges a 480 Ft pickup fee for 1–3 parcels, free for 4+;
+  other couriers' pickup is free. Surface this so MPL pickups can be batched to 4+.
 
 ### 8.10 — Emails
 - Update `OrderConfirmation.tsx`: courier + Kvikk `trackingLink`.
