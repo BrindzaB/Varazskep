@@ -4,9 +4,9 @@
 // The Map widget callback and GET/webhook responses use short type codes; the create-shipment
 // endpoint uses {courier}_{type} codes. This table bridges the two.
 //
-// NOTE: this table is provisional and MUST be verified with a real test shipment
-// (plan step 8.7). In particular, the docs spell the Foxpost value "foxost_foxpost"
-// (missing a 'p') — treated here as a typo and corrected to "foxpost_foxpost".
+// All target slugs verified against GET /account-details
+// (couriers[].deliveryPointTypes[].slug), 2026-07 — including "foxpost_foxpost"
+// (the docs' "foxost_foxpost" was indeed a typo).
 
 import type { KvikkCourier, KvikkDeliveryPointType } from "./types";
 

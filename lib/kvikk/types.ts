@@ -30,8 +30,7 @@ export type KvikkCourier =
 // Delivery-point type codes accepted by POST /shipment.
 // These are the LONG ({courier}_{type}) form — distinct from the SHORT form the Map
 // widget emits (e.g. "zbox") and that GET/webhook return. Convert with deliveryPointMap.ts.
-// NOTE: docs list "foxost_foxpost" (missing a 'p' — assumed typo, corrected here).
-// Verify the exact spelling with a real test shipment (plan step 8.7).
+// Verified against GET /account-details (couriers[].deliveryPointTypes[].slug), 2026-07.
 export type KvikkDeliveryPointType =
   | "mpl_posta"
   | "mpl_postapont"
@@ -224,27 +223,73 @@ export interface KvikkDeliveryPoint {
 
 // ─── Account details (GET /account-details) ───────────────────────────────────
 //
-// NOTE: the sub-shapes (couriers[], senders[], pricing) were not fully documented.
-// Modeled loosely (only the fields we know are guaranteed); refine against a live
-// response in plan step 8.4.
+// Shapes verified against a live GET /account-details response (2026-07).
 
 export interface KvikkSender {
   _id: string;
-  [key: string]: unknown;
+  name: string;
+  address: string;
+  city: string;
+  postcode: string;
+  country: string;
+  phone: string;
+  email: string;
+}
+
+// A delivery-point type offered by a courier. `slug` is the LONG deliveryPointType code
+// used on POST /shipment (e.g. "mpl_automata").
+export interface KvikkCourierPointType {
+  slug: string;
+  name: string; // display name, e.g. "Automata"
+  db: string; // points-api URL for this point type
+  supportedCountries: string[];
 }
 
 export interface KvikkAccountCourier {
-  active?: boolean;
-  [key: string]: unknown;
+  slug: KvikkCourier;
+  name: string;
+  status: "active" | "inactive"; // only `active` couriers can be used to create shipments
+  note: string;
+  pickupLimit: number;
+  supportLink: string;
+  supportedCountries: string[];
+  deliveryPointTypes: KvikkCourierPointType[];
 }
 
-// Pricing grouped by courier: shipping fees (range unit = grams) and COD fees
-// (range unit = HUF), each as net cost + fee across min/max ranges.
-export type KvikkPricing = Record<string, unknown>;
+// One weight-range row of a shipping price table. min/max in GRAMS, cost is NET HUF.
+export interface KvikkPriceRange {
+  min: number;
+  max: number;
+  cost: number;
+}
+
+// A shipping price table for one price key + country. `courier` here is the PRICE KEY:
+// the bare courier slug for home delivery (e.g. "mpl"), or a deliveryPointType slug for a
+// delivery point (e.g. "mpl_automata").
+export interface KvikkShippingPrice {
+  courier: string;
+  country: string;
+  prices: KvikkPriceRange[];
+}
+
+// One COD fee row. min/max in HUF. Informational only — we always send cod: 0 (prepaid).
+export interface KvikkCodPrice {
+  min: number;
+  max: number;
+  fee: number;
+  percentage: number;
+}
+
+export interface KvikkPricing {
+  from: string; // ISO — validity period start
+  to: string; // ISO — validity period end
+  shipping: KvikkShippingPrice[];
+  cod: KvikkCodPrice[];
+}
 
 export interface AccountDetailsData {
-  senders: KvikkSender[];
   couriers: KvikkAccountCourier[];
+  senders: KvikkSender[];
   pricing: KvikkPricing;
 }
 

@@ -118,7 +118,13 @@ kept untouched. `lib/services/shipping.ts` resolver added.
   drop columns destructively. Exact backfill mapping decided at this step.
 - `npx prisma migrate dev --name kvikk_shipping_fields`.
 
-### 8.4 — Pricing
+### 8.4 — Pricing ✅ Done
+Verified `account-details` shape against a live response (pricing keyed by price key +
+country: bare courier slug for home, deliveryPointType slug for point; `prices[]` =
+`{min,max,cost}`, grams/net-HUF). `lib/kvikk/account.ts` (cached account details + active
+couriers + sender id) and `lib/kvikk/pricing.ts` (`getShippingQuote` → net + gross with
+27% VAT, rounded to whole HUF) added; loose 8.1 types pinned down from real data. Customer
+price model = **dynamic (courier + weight)** per client decision.
 - `lib/kvikk/pricing.ts` — given courier + parcel weight, compute shipping cost from
   cached `GET /account-details` pricing. Cache account-details (Redis, short TTL).
 - Decide customer-facing price model per §Decision 2; expose a single

@@ -262,13 +262,27 @@ The `id` is the same as in the courier's own DB and is used directly as
 
 ### `GET /account-details` — Account information
 
-Returns `data` with:
-- **`senders[]`** — available senders; pass a sender's `_id` as `senderID` on create.
-- **`couriers[]`** — available couriers with `active` status. Only active couriers may
-  be used to create shipments.
-- **`pricing`** — current price list grouped by courier: shipping fee and COD fee, with
-  net cost + fee by `min`/`max` range. Range unit is **grams** for shipping, **HUF** for
-  COD. Use this to compute estimated shipping cost before creating a shipment.
+Returns `data` with `couriers[]`, `senders[]`, `pricing`. **Shapes below are verified
+against a live response (2026-07).**
+
+- **`senders[]`** — `{ _id, name, address, city, postcode, country, phone, email }`. Pass
+  a sender's `_id` as `senderID` on create. (This account has one sender.)
+- **`couriers[]`** — `{ slug, name, status ("active"|"inactive"), note, pickupLimit,
+  supportLink, supportedCountries[], deliveryPointTypes[] }`, where each
+  `deliveryPointTypes[]` is `{ slug, name, db, supportedCountries[] }`. Only `active`
+  couriers can create shipments. This account: **active** = mpl, packeta, gls, dpd,
+  foxpost; **inactive** = famafutar. The point-type `slug`s are exactly the
+  `deliveryPointType` values (confirms `foxpost_foxpost`).
+- **`pricing`** — `{ from, to, shipping[], cod[] }` (`from`/`to` = validity period, ISO).
+  - `shipping[]` = `{ courier, country, prices[] }` where `prices[]` = `{ min, max, cost }`.
+    `min`/`max` are **grams**, `cost` is **net HUF**.
+  - The `courier` field is a **price key**: the bare courier slug for **home delivery**
+    (e.g. `mpl` = MPL házhoz), or a `deliveryPointType` slug for a **delivery point**
+    (e.g. `mpl_automata`). For HU, all 18 keys are present (home + every point type).
+  - `cod[]` = `{ min, max, fee, percentage }` (HUF ranges). Irrelevant to us — we always
+    send `cod: 0` (Stripe prepaid).
+  - Use this to compute the shipping fee; add 27% VAT for the gross customer price. Prices
+    change monthly — always read live (cached briefly), never hardcode.
 
 ---
 
