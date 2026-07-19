@@ -99,7 +99,11 @@ explicit approval). Suggested branch: `phase-8/kvikk-shipping`.
 - The local `Variant.weightGrams` column and the item-level `resolveParcelWeightGrams(item)`
   resolver moved to 8.3, consolidated with the schema migration (single DB touch).
 
-### 8.3 — DB schema + migration (single migration for all schema changes)
+### 8.3 — DB schema + migration (single migration for all schema changes) ✅ Done
+Applied as migration `20260719103000_kvikk_shipping_fields` — purely additive (ADD COLUMN
+nullable, CREATE TYPE DeliveryType, ALTER TYPE OrderStatus ADD VALUE RETURNED). No backfill
+(legacy orders handled by display fallback in 8.9); legacy `ShippingMethod`/`pickupPointId`
+kept untouched. `lib/services/shipping.ts` resolver added.
 - `Variant`: add `weightGrams Int?` (nulls fall back via `weight.ts`).
 - Generalize `Order`: add `shippingCourier String?`, `deliveryType` enum
   (`HOME_DELIVERY | DELIVERY_POINT`), `deliveryPointType String?`, `deliveryPointId
