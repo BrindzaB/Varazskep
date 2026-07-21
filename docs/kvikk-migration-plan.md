@@ -209,9 +209,11 @@ tsc/eslint/vitest green.
 - Note (from price list): MPL charges a 480 Ft pickup fee for 1–3 parcels, free for 4+;
   other couriers' pickup is free. Surface this so MPL pickups can be batched to 4+.
 
-### 8.10 — Emails
-- Update `OrderConfirmation.tsx`: courier + Kvikk `trackingLink`.
-- Optional: a "shipped" email triggered from the Kvikk webhook on `shipped`.
+### 8.10 — Emails ✅ Done
+The confirmation email (sent at payment) shows courier + method via `describeShipping`, but
+has NO tracking link (no shipment exists yet). A separate "shipped" email
+(`emails/ShipmentNotification.tsx` + `sendShipmentNotificationEmail`) carries the Kvikk
+tracking link and is sent from the Kvikk webhook when the order first reaches SHIPPED.
 
 ### 8.11 — Cleanup
 - Remove `FoxpostWidget.tsx`, dead code in `lib/shipping/config.ts`, and the old

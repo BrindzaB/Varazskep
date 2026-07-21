@@ -2,9 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { createHmac } from "node:crypto";
 
-// Mock the order service — the webhook's only side effect.
+// Mock the order service — the webhook's main side effect.
 vi.mock("@/lib/services/order", () => ({
   applyShipmentStatus: vi.fn(),
+}));
+
+// Mock the email service — avoids importing the React Email templates + Resend.
+vi.mock("@/lib/services/email", () => ({
+  sendShipmentNotificationEmail: vi.fn(),
 }));
 
 import { POST } from "@/app/api/kvikk/webhook/route";

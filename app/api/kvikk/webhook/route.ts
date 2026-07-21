@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { applyShipmentStatus } from "@/lib/services/order";
+import { sendShipmentNotificationEmail } from "@/lib/services/email";
+import { COURIER_LABELS } from "@/lib/shipping/display";
 import type { KvikkWebhookPayload } from "@/lib/kvikk/types";
 
 // Kvikk pushes shipment status changes here. We verify the HMAC-SHA256 signature over the
@@ -55,7 +57,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    await applyShipmentStatus(trackingNumber, target);
+    const changed = await applyShipmentStatus(trackingNumber, target);
+    // Notify the customer once, when the shipment first reaches SHIPPED.
+    if (changed && target === "SHIPPED" && payload.email) {
+      try {
+        await sendShipmentNotificationEmail({
+          customerName: payload.name ?? "",
+          customerEmail: payload.email,
+          courierLabel: COURIER_LABELS[payload.courier] ?? payload.courier,
+          trackingNumber,
+          trackingLink:
+            payload.trackingLink ||
+            `https://tracking.kvikk.hu/#/${trackingNumber}`,
+        });
+      } catch (emailErr) {
+        console.error("[kvikk-webhook] shipment email failed:", emailErr);
+      }
+    }
   } catch (err) {
     console.error("[kvikk-webhook] applyShipmentStatus failed:", err);
   }
