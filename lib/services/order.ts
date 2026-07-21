@@ -209,6 +209,51 @@ export async function markOrdersDispatched(
   });
 }
 
+/**
+ * Applies a shipping status from a Kvikk webhook, matched by Kvikk tracking number.
+ * Monotonic + idempotent: only advances forward (… → SHIPPED → COMPLETE), never regresses,
+ * and never overrides a terminal CANCELLED/RETURNED state (except a return can still be
+ * recorded from a non-terminal state). Returns true if the status actually changed.
+ */
+export async function applyShipmentStatus(
+  kvikkTrackingNumber: string,
+  target: "SHIPPED" | "COMPLETE" | "RETURNED"
+): Promise<boolean> {
+  const order = await prisma.order.findFirst({
+    where: { kvikkTrackingNumber },
+  });
+  if (!order) return false;
+  const current = order.status;
+  if (current === "CANCELLED" || current === "RETURNED") return false;
+
+  if (target === "RETURNED") {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: "RETURNED" },
+    });
+    return true;
+  }
+
+  // Forward-only progression for SHIPPED / COMPLETE.
+  const rank: Record<OrderStatus, number> = {
+    PENDING: 0,
+    PAID: 1,
+    IN_PRODUCTION: 2,
+    SHIPPED: 3,
+    COMPLETE: 4,
+    RETURNED: 99,
+    CANCELLED: 99,
+  };
+  if (rank[target] > rank[current]) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: target },
+    });
+    return true;
+  }
+  return false;
+}
+
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],

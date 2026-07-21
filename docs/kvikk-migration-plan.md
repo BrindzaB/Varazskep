@@ -189,7 +189,7 @@ shipment creation + delivery note moved to the admin (8.9). This step only:
 - keeps `setOrderShipment()` in the order service for the 8.9 admin action.
 tsc/eslint/vitest green.
 
-### 8.8 — Kvikk status webhook (`app/api/kvikk/webhook/route.ts`)
+### 8.8 — Kvikk status webhook (`app/api/kvikk/webhook/route.ts`) ✅ Done
 - Verify `kvikk-webhook-signature` (HMAC-SHA256 over raw body) — mirror the Stripe
   webhook's raw-body handling.
 - Map events → status: `shipped` → `SHIPPED`, `delivered` → `COMPLETE`, `returned` →
