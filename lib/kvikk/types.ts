@@ -198,10 +198,36 @@ export interface CreateDeliveryNoteRequest {
   shipments: string[]; // tracking numbers to include
 }
 
-// NOTE: the delivery-note `data` shape was not fully documented (per-courier base64 PDFs,
-// a delivery-note id, and failed-shipment error details). Modeled loosely; pin down against
-// a live response in plan step 8.9.
-export type CreateDeliveryNoteData = Record<string, unknown>;
+// A per-courier document generated for the delivery note (pickup manifest / drop-off form).
+export interface KvikkDeliveryNoteDocument {
+  courier: string;
+  id: string;
+  document: string; // filename of the generated PDF
+  pdf: string; // base64-encoded PDF
+  labelDownloadLink: string; // public URL to download the PDF
+}
+
+export interface KvikkDeliveryNotePickupFee {
+  courier: string;
+  fee: number; // pickup fee in HUF (net)
+}
+
+export interface KvikkDeliveryNote {
+  _id: string;
+  user: string;
+  shipments: string[]; // internal Kvikk shipment ids
+  pickup: { date: string; for: string[] };
+  documents: KvikkDeliveryNoteDocument[];
+  accounting: { fees: KvikkDeliveryNotePickupFee[] };
+  created: string;
+}
+
+export interface CreateDeliveryNoteData {
+  deliveryNote: KvikkDeliveryNote;
+  successfulShipments: string[]; // tracking numbers added successfully
+  failedShipments: string[]; // tracking numbers that failed
+  errors: string[]; // error messages for failed shipments
+}
 
 // ─── Delivery points (GET /delivery-points) ───────────────────────────────────
 

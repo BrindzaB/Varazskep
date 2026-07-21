@@ -195,7 +195,7 @@ tsc/eslint/vitest green.
 - Map events → status: `shipped` → `SHIPPED`, `delivered` → `COMPLETE`, `returned` →
   `RETURNED`. Idempotent; respect the allowed-transition rules in `lib/services/order.ts`.
 
-### 8.9 — Admin: create shipment + labels + delivery notes
+### 8.9 — Admin: create shipment + labels + delivery notes ✅ Done (runtime verify on deploy)
 - **Create shipment (manual, when the product is ready):** an admin action → `POST /shipment`
   (single parcel; `cod: 0`; `value` = goods value; weight from `Order.parcelWeightGrams`;
   `senderID` from `getSenderId()`). Persist `kvikkTrackingNumber`, `courierTrackingNumber`,

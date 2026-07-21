@@ -183,6 +183,32 @@ export async function getOrderById(orderId: string) {
   });
 }
 
+/**
+ * Orders whose shipment (label) has been created but that are not yet on a delivery note
+ * (i.e. courier pickup not yet requested). Used by the admin delivery-note batch screen.
+ */
+export async function getDispatchableOrders() {
+  return prisma.order.findMany({
+    where: { kvikkTrackingNumber: { not: null }, deliveryNoteId: null },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/**
+ * Marks the given shipments (by Kvikk tracking number) as included on a delivery note,
+ * so they are not offered for dispatch again.
+ */
+export async function markOrdersDispatched(
+  trackingNumbers: string[],
+  deliveryNoteId: string
+) {
+  if (trackingNumbers.length === 0) return;
+  await prisma.order.updateMany({
+    where: { kvikkTrackingNumber: { in: trackingNumbers } },
+    data: { deliveryNoteId },
+  });
+}
+
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],

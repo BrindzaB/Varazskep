@@ -7,10 +7,11 @@ import {
   DEFAULT_PARCEL_WEIGHT_GRAMS,
   resolveWeightGrams,
 } from "@/lib/kvikk/weight";
-import { createShipment } from "@/lib/kvikk/client";
+import { createShipment, createDeliveryNote } from "@/lib/kvikk/client";
 import { getSenderId } from "@/lib/kvikk/account";
-import { setOrderShipment } from "@/lib/services/order";
+import { setOrderShipment, markOrdersDispatched } from "@/lib/services/order";
 import type {
+  CreateDeliveryNoteData,
   CreateShipmentRequest,
   KvikkCourier,
   KvikkDeliveryPointType,
@@ -123,4 +124,24 @@ export async function createShipmentForOrder(
     courierTrackingNumber: shipment.courierTrackingNumber,
     alreadyExisted: false,
   };
+}
+
+// Creates a delivery note (courier pickup manifest / drop-off form) for a batch of
+// shipments, then marks the successfully-processed orders as dispatched so they are not
+// offered again. Kvikk validates the pickup date (working day / blacklist rules) and
+// returns 400 on an invalid date — the caller surfaces that error.
+export async function createDeliveryNoteForShipments(input: {
+  pickupDate: string;
+  pickupFor: KvikkCourier[];
+  shipments: string[];
+}): Promise<CreateDeliveryNoteData> {
+  const data = await createDeliveryNote({
+    pickupDate: input.pickupDate,
+    pickupFor: input.pickupFor,
+    shipments: input.shipments,
+  });
+  if (data.successfulShipments.length > 0 && data.deliveryNote?._id) {
+    await markOrdersDispatched(data.successfulShipments, data.deliveryNote._id);
+  }
+  return data;
 }

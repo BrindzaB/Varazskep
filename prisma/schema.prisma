@@ -96,6 +96,7 @@ model Order {
   kvikkTrackingNumber   String? // Kvikk tracking number (e.g. "M123412341234")
   courierTrackingNumber String? // courier's own tracking number
   kvikkShipmentId       String? // Kvikk internal shipment id (for management/label re-fetch)
+  deliveryNoteId        String? // set once the shipment is on a delivery note (courier pickup requested)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 }
