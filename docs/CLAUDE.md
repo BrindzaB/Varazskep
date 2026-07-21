@@ -56,8 +56,12 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 | `lib/services/design.ts` | Design serialization + SVG export |
 | `lib/services/order.ts` | Order business logic |
 | `lib/cart/cartStore.ts` | Zustand cart (`source: "local" \| "malfini"`) |
-| `lib/shipping/config.ts` | `SHIPPING_PRICES`, `SHIPPING_LABELS`, `ShippingMethodKey` — single source of truth for shipping costs |
-| `components/shop/FoxpostWidget.tsx` | Foxpost APT Finder iframe embed; no API key needed; locker selection via `postMessage` JSON string |
+| `lib/kvikk/` | Kvikk Shipping API: `client.ts`, `pricing.ts`, `account.ts`, `deliveryOptions.ts`, `deliveryPointMap.ts`, `types.ts` |
+| `lib/services/shipping.ts` | Parcel weight resolver + create-shipment + delivery-note (admin) |
+| `lib/shipping/display.ts` | `describeShipping()` — courier/point label for an order (Kvikk + legacy fallback) |
+| `lib/shipping/config.ts` | `SHIPPING_LABELS` — legacy labels for pre-Kvikk orders only |
+| `components/shop/KvikkMapWidget.tsx` | Kvikk Map widget embed (pickup-point selection); Maps key is domain-bound |
+| `app/api/kvikk/webhook/route.ts` | Kvikk status webhook (HMAC-verified) → advances order status |
 | `components/designer/DesignerLayout.tsx` | Designer state, toolbar, canvas, panels (both product modes) |
 | `components/designer/DesignerCanvas.tsx` | Fabric.js canvas ref: `addClipart`, `addImage`, `addText`, `getCanvasJson` |
 | `app/(shop)/designer/page.tsx` | Routes `?code` → Malfini, `?slug` → local, no params → product picker |
@@ -108,4 +112,10 @@ SUPABASE_STORAGE_BUCKET_CLIPART  SUPABASE_STORAGE_BUCKET_DESIGNS
 RESEND_API_KEY  JWT_SECRET  NEXT_PUBLIC_APP_URL  CRON_SECRET
 MALFINI_API_URL  MALFINI_USERNAME  MALFINI_PASSWORD  EUR_TO_HUF_RATE
 UPSTASH_REDIS_REST_URL  UPSTASH_REDIS_REST_TOKEN
+KVIKK_API_KEY  NEXT_PUBLIC_KVIKK_MAP_API_KEY  KVIKK_WEBHOOK_SECRET  KVIKK_LIVE
 ```
+
+`KVIKK_LIVE` must be `"true"` in production to allow real shipment/delivery-note creation;
+leave it unset in dev so the admin actions don't create real Kvikk shipments. The Kvikk Maps
+key (`NEXT_PUBLIC_KVIKK_MAP_API_KEY`) is bound to the production domain, so the map widget only
+works on the deployed site (localhost shows the text fallback).

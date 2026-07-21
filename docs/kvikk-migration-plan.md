@@ -215,11 +215,12 @@ has NO tracking link (no shipment exists yet). A separate "shipped" email
 (`emails/ShipmentNotification.tsx` + `sendShipmentNotificationEmail`) carries the Kvikk
 tracking link and is sent from the Kvikk webhook when the order first reaches SHIPPED.
 
-### 8.11 — Cleanup
-- Remove `FoxpostWidget.tsx`, dead code in `lib/shipping/config.ts`, and the old
-  `ShippingMethod` enum usages (keep historical order data per 8.3).
-- Update `docs/ARCHITECTURE.md`, `docs/CLAUDE.md`, `docs/PLAN.md` (mark Phase 8; retire
-  the Foxpost/MPL "Shipping" section).
+### 8.11 — Cleanup ✅ Done
+- Removed `components/shop/FoxpostWidget.tsx`; trimmed `lib/shipping/config.ts` to just
+  `SHIPPING_LABELS` (legacy labels for pre-Kvikk orders). Kept the `ShippingMethod` enum +
+  `Order.shippingMethod`/`pickupPointId` for historical orders (per 8.3).
+- Updated `docs/ARCHITECTURE.md`, `docs/CLAUDE.md`, `docs/PLAN.md` (Phase 8; Kvikk shipping
+  section + env vars; retired the Foxpost/MPL description).
 
 ---
 
