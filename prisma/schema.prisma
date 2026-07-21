@@ -76,6 +76,7 @@ model Order {
   // Customer info — retained 8 years per Hungarian tax law (Számviteli törvény)
   customerName          String
   customerEmail         String
+  customerPhone         String? // recipient phone — needed to create the Kvikk shipment
   shippingAddress       Json // { address, city, postalCode, country }
   totalAmount           Int // in HUF (includes shipping cost)
   gdprConsent           Boolean

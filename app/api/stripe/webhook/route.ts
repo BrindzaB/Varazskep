@@ -103,6 +103,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       designId: firstItem.designId,
       customerName: meta.customerName ?? "",
       customerEmail: session.customer_email ?? "",
+      customerPhone: meta.customerPhone,
       shippingAddress,
       totalAmount,
       gdprConsent: meta.gdprConsent === "true",

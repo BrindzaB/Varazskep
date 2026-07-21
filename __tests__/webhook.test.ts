@@ -156,6 +156,7 @@ describe("POST /api/stripe/webhook", () => {
       designId: undefined,
       customerName: "Teszt Elek",
       customerEmail: "teszt@example.com",
+      customerPhone: "+36301234567",
       shippingAddress: {
         address: "Fő utca 1",
         city: "Budapest",

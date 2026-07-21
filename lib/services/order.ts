@@ -15,6 +15,7 @@ export interface CreateOrderInput {
   designId?: string; // links the pre-created Design record to this order
   customerName: string;
   customerEmail: string;
+  customerPhone?: string; // recipient phone — needed to create the Kvikk shipment
   shippingAddress: {
     address: string;
     city: string;
@@ -82,6 +83,7 @@ export async function createOrder(input: CreateOrderInput) {
       ...(input.designId ? { designId: input.designId } : {}),
       customerName: input.customerName,
       customerEmail: input.customerEmail,
+      ...(input.customerPhone ? { customerPhone: input.customerPhone } : {}),
       shippingAddress: input.shippingAddress,
       totalAmount: input.totalAmount,
       gdprConsent: input.gdprConsent,
@@ -205,6 +207,7 @@ export async function eraseOrderPii(orderId: string) {
     data: {
       customerName: PII_ERASED_SENTINEL,
       customerEmail: PII_ERASED_SENTINEL,
+      customerPhone: PII_ERASED_SENTINEL,
       shippingAddress: {},
     },
   });

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import OrderStatusUpdater from "@/components/admin/OrderStatusUpdater";
+import ShipmentActions from "@/components/admin/ShipmentActions";
 import { getOrderById, PII_ERASED_SENTINEL } from "@/lib/services/order";
 import GdprEraseButton from "@/components/admin/GdprEraseButton";
 import type { OrderStatus } from "@/lib/generated/prisma/client";
@@ -334,6 +335,15 @@ export default async function AdminOrderDetailPage({
               </>
             )}
           </dl>
+          {order.deliveryType && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <ShipmentActions
+                orderId={order.id}
+                kvikkTrackingNumber={order.kvikkTrackingNumber}
+                courierTrackingNumber={order.courierTrackingNumber}
+              />
+            </div>
+          )}
         </div>
 
         {/* Design preview */}
