@@ -29,6 +29,7 @@ export interface CreateOrderInput {
   deliveryType: DeliveryType; // HOME_DELIVERY | DELIVERY_POINT
   deliveryPointType?: string; // set for delivery-point orders
   deliveryPointId?: string;
+  parcelWeightGrams?: number; // captured at checkout — used when the shipment is created
   pickupPointName?: string; // point display name (delivery-point orders)
   pickupPointAddress?: string;
 }
@@ -93,11 +94,37 @@ export async function createOrder(input: CreateOrderInput) {
       ...(input.deliveryPointId
         ? { deliveryPointId: input.deliveryPointId }
         : {}),
+      ...(input.parcelWeightGrams
+        ? { parcelWeightGrams: input.parcelWeightGrams }
+        : {}),
       ...(input.pickupPointName
         ? { pickupPointName: input.pickupPointName }
         : {}),
       ...(input.pickupPointAddress
         ? { pickupPointAddress: input.pickupPointAddress }
+        : {}),
+    },
+  });
+}
+
+/**
+ * Persists the Kvikk shipment identifiers on an order after the shipment is created.
+ */
+export async function setOrderShipment(
+  orderId: string,
+  data: {
+    kvikkTrackingNumber: string;
+    courierTrackingNumber: string;
+    kvikkShipmentId?: string;
+  }
+) {
+  return prisma.order.update({
+    where: { id: orderId },
+    data: {
+      kvikkTrackingNumber: data.kvikkTrackingNumber,
+      courierTrackingNumber: data.courierTrackingNumber,
+      ...(data.kvikkShipmentId
+        ? { kvikkShipmentId: data.kvikkShipmentId }
         : {}),
     },
   });

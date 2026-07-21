@@ -176,14 +176,18 @@ email (new fields with legacy fallback). Tests updated; tsc/eslint/vitest green.
 - Runtime (checkout → Stripe → webhook → display, + the Map widget) verifies on the
   `varazskep.vercel.app` deploy.
 
-### 8.7 — Create shipment on payment (`stripe/webhook`)
-- After the order is created, call `POST /shipment` (single parcel; `cod: 0`; `value` =
-  item price; weight from 8.2; `senderID` from env/account-details).
-- Persist `kvikkTrackingNumber`, `courierTrackingNumber`, `kvikkShipmentId`.
-- Failure handling: shipment-creation errors must **not** cause Stripe retries/duplicate
-  orders — log, mark the order for manual retry, and surface it in admin. (Order already
-  exists; shipment is a follow-up side effect, like the current email/SVG export.)
-- Behind `KVIKK_LIVE` during development (§Decision 4).
+### 8.7 — Persist shipping choice + parcel weight on the order ✅ Done
+**Re-scoped per client workflow:** the shipment is NOT created on payment. A made-to-order
+shop creates the label + requests the courier manually, when the product is ready — so
+shipment creation + delivery note moved to the admin (8.9). This step only:
+- adds `Order.parcelWeightGrams` (migration `20260721081312_add_order_parcel_weight`,
+  additive) — the checkout-computed weight (with quantity) is stored so the later admin
+  shipment uses the correct weight (quantity is not otherwise stored on the order).
+- `stripe/checkout` embeds `shippingWeightGrams`; `stripe/webhook` stores it via
+  `createOrder`. The webhook makes **no** Kvikk call.
+- makes the checkout **phone number required** (Kvikk needs it to create the shipment).
+- keeps `setOrderShipment()` in the order service for the 8.9 admin action.
+tsc/eslint/vitest green.
 
 ### 8.8 — Kvikk status webhook (`app/api/kvikk/webhook/route.ts`)
 - Verify `kvikk-webhook-signature` (HMAC-SHA256 over raw body) — mirror the Stripe
@@ -191,12 +195,17 @@ email (new fields with legacy fallback). Tests updated; tsc/eslint/vitest green.
 - Map events → status: `shipped` → `SHIPPED`, `delivered` → `COMPLETE`, `returned` →
   `RETURNED`. Idempotent; respect the allowed-transition rules in `lib/services/order.ts`.
 
-### 8.9 — Admin: tracking + labels + delivery notes
+### 8.9 — Admin: create shipment + labels + delivery notes
+- **Create shipment (manual, when the product is ready):** an admin action → `POST /shipment`
+  (single parcel; `cod: 0`; `value` = goods value; weight from `Order.parcelWeightGrams`;
+  `senderID` from `getSenderId()`). Persist `kvikkTrackingNumber`, `courierTrackingNumber`,
+  `kvikkShipmentId` via `setOrderShipment()`. Idempotent + error-tolerant; behind
+  `KVIKK_LIVE` for dev safety. This creates the label — it does NOT summon the courier.
 - Order detail: show courier, both tracking numbers, `tracking.events` timeline, and a
   label download (via `GET /shipment/:tn/label`).
-- New batch action: select paid/in-production orders → `POST /delivery-note` (choose
-  `pickupFor` couriers + `pickupDate` honoring the working-day rules) → download the
-  returned per-courier PDFs.
+- New batch action: select ready orders → `POST /delivery-note` (choose `pickupFor`
+  couriers + `pickupDate` honoring the working-day rules) → download the per-courier PDFs.
+  **This is the step that actually requests the courier.**
 - Note (from price list): MPL charges a 480 Ft pickup fee for 1–3 parcels, free for 4+;
   other couriers' pickup is free. Surface this so MPL pickups can be batched to 4+.
 

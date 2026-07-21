@@ -81,6 +81,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const deliveryType: DeliveryType =
     meta.deliveryType === "DELIVERY_POINT" ? "DELIVERY_POINT" : "HOME_DELIVERY";
   const shippingCourier = meta.shippingCourier ?? "";
+  const parcelWeightGrams = meta.shippingWeightGrams
+    ? parseInt(meta.shippingWeightGrams, 10)
+    : undefined;
 
   try {
     await createOrder({
@@ -106,6 +109,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       shippingCost,
       shippingCourier,
       deliveryType,
+      parcelWeightGrams,
       ...(meta.deliveryPointType
         ? { deliveryPointType: meta.deliveryPointType }
         : {}),
@@ -122,6 +126,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 500 }
     );
   }
+
+  // Note: the Kvikk shipment + label is NOT created here. It is created manually from the
+  // admin panel when the product is ready (step 8.9), then the courier is requested via a
+  // delivery note. The webhook only persists the order + the customer's shipping choice.
 
   // Export design SVG to Supabase Storage — errors are logged but do not fail the webhook.
   if (firstItem.designId) {

@@ -271,6 +271,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       shippingCourier: shipping.courier,
       deliveryType: shipping.deliveryType,
       shippingCost: String(shipping.cost),
+      shippingWeightGrams: String(totalWeightGrams),
       ...(shipping.deliveryPointType
         ? { deliveryPointType: shipping.deliveryPointType }
         : {}),

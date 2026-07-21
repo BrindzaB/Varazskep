@@ -91,6 +91,7 @@ model Order {
   deliveryType          DeliveryType? // home delivery vs delivery point
   deliveryPointType     String? // Kvikk long code sent on create, e.g. "gls_locker"
   deliveryPointId       String? // Kvikk/courier delivery point id
+  parcelWeightGrams     Int? // total parcel weight (g) captured at checkout — used when creating the shipment
   kvikkTrackingNumber   String? // Kvikk tracking number (e.g. "M123412341234")
   courierTrackingNumber String? // courier's own tracking number
   kvikkShipmentId       String? // Kvikk internal shipment id (for management/label re-fetch)

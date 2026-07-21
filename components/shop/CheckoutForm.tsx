@@ -60,6 +60,7 @@ const EMPTY_FORM: FormFields = {
 interface FieldError {
   name?: string;
   email?: string;
+  phone?: string;
   address?: string;
   city?: string;
   postalCode?: string;
@@ -79,6 +80,11 @@ function validate(
     errors.email = "Az e-mail cím megadása kötelező.";
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)) {
     errors.email = "Érvénytelen e-mail cím.";
+  }
+
+  // Phone is required — Kvikk needs it to create the shipment.
+  if (!fields.phone.trim()) {
+    errors.phone = "A telefonszám megadása kötelező.";
   }
 
   if (mode === "home") {
@@ -351,10 +357,11 @@ export default function CheckoutForm() {
                 onChange={handleChange}
               />
               <Field
-                label="Telefonszám (nem kötelező)"
+                label="Telefonszám"
                 name="phone"
                 type="tel"
                 value={fields.phone}
+                error={errors.phone}
                 autoComplete="tel"
                 onChange={handleChange}
               />
