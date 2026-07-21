@@ -1,0 +1,241 @@
+# kvikk-migration-plan.md — Phase 8: Kvikk Shipping Integration
+
+**Status:** Proposed — for review. Not yet approved; no code written.
+**Governed by:** `docs/PLAN.md` (controlled, sequential, step-by-step approval).
+**API reference:** `docs/kvikk-api.md`.
+
+---
+
+## Goal
+
+Fully replace the current shipping solution — the Foxpost APT-Finder iframe
+(`components/shop/FoxpostWidget.tsx`), the MPL address form, and the hardcoded prices in
+`lib/shipping/config.ts` (none of which talk to a carrier API) — with a **complete Kvikk
+Shipping API integration**: real multi-courier pickup-point selection, automatic shipment
++ label creation on payment, real-time tracking via webhook, and batch courier pickup
+(delivery notes) from the admin panel.
+
+### End-to-end flow after migration
+
+```
+Checkout      → Kvikk Map widget: customer picks courier + point (or home address)
+                 shipping cost computed from Kvikk pricing (by courier + weight)
+Payment       → Stripe (unchanged; shipping still a line item)
+Stripe webhook→ POST /shipment → store Kvikk + courier tracking numbers on the Order
+Kvikk webhook → HMAC-verified status push → advance Order status (SHIPPED / COMPLETE / RETURNED)
+Admin         → batch POST /delivery-note (courier pickup) + on-demand label download
+```
+
+---
+
+## Decisions
+
+**Resolved (from client):**
+- **Weight** — use Malfini's per-size `grossWeight` (kg → g) where available; otherwise a
+  fixed per-product estimate.
+- **Pricing** — dynamic, taken from Kvikk (`GET /account-details` → `pricing`), which
+  reflects each courier's rates.
+
+- **Two keys (confirmed).** Two separate keys under different menus: **Kvikk API**
+  (secret, server-only, `X-API-KEY` on every request) and **Kvikk Maps** (separate
+  permissions, **scoped to a website route/domain**, safe to expose client-side). Env:
+  `KVIKK_API_KEY` (secret) + `NEXT_PUBLIC_KVIKK_MAP_API_KEY` (client). Register the
+  production domain (+ a dev/preview origin if local testing needs it) for the Maps key.
+
+**Still open (need input before the affected step; do not block earlier steps):**
+1. **Which couriers to enable** at checkout (mpl / foxpost / packeta / gls / dpd / …).
+   Depends on which are active in the Kvikk account.
+2. **Customer price model** — pass Kvikk's computed cost through 1:1, or keep simple flat
+   customer-facing prices (e.g. one price for "home", one for "point") while Kvikk pricing
+   is used internally as cost. *(Recommendation: simple flat customer price per delivery
+   type initially — least friction — with Kvikk cost tracked internally. Revisit later.)*
+3. **Sandbox / test key** — confirm whether Kvikk offers a test environment so
+   development doesn't create real courier pickups. *(If none: gate `POST /shipment` and
+   `POST /delivery-note` behind a `KVIKK_LIVE` flag during development.)*
+4. **`deliveryPointType` mapping** — verify the `(courier, mapType) → deliveryPointType`
+   table (e.g. `packeta` + `zbox` → `packeta_zbox`) with one real test shipment.
+
+---
+
+## New / changed surface area
+
+| Area | Change |
+|---|---|
+| `lib/kvikk/` (new) | `types.ts`, `client.ts` (create/get/delete/label/delivery-note/delivery-points/account-details), `deliveryPointMap.ts`, `pricing.ts` |
+| `lib/shipping/config.ts` | Repurposed or removed — prices now derive from Kvikk |
+| `lib/malfini/types.ts` + `client.ts` | Capture `grossWeight` on nomenclatures |
+| `prisma/schema.prisma` | Generalize `Order` shipping fields; extend `OrderStatus`; migration |
+| `components/shop/KvikkMapWidget.tsx` (new) | Replaces `FoxpostWidget.tsx` |
+| `components/shop/CheckoutForm.tsx` | Courier/delivery-type selection + Map widget wiring |
+| `app/api/stripe/checkout/route.ts` | Server-side point validation + shipping cost from Kvikk |
+| `app/api/stripe/webhook/route.ts` | Create Kvikk shipment after payment |
+| `app/api/kvikk/webhook/route.ts` (new) | HMAC-verified status push → order status |
+| `app/admin/orders/**` | Tracking numbers/events, label download, delivery-note batch UI |
+| `emails/OrderConfirmation.tsx` | Courier + tracking link; optional "shipped" email |
+| env | `KVIKK_API_KEY` (secret), `NEXT_PUBLIC_KVIKK_MAP_API_KEY` (client), `KVIKK_WEBHOOK_SECRET`, `KVIKK_SENDER_ID` |
+
+---
+
+## Steps
+
+Each step follows the `docs/PLAN.md` approval protocol (file-by-file walkthrough, then
+explicit approval). Suggested branch: `phase-8/kvikk-shipping`.
+
+### 8.1 — Kvikk API client layer (`lib/kvikk/`)
+- `types.ts` — request/response types for all endpoints (from `docs/kvikk-api.md`).
+- `client.ts` — thin fetch wrapper: `X-API-KEY` header, envelope unwrap, typed errors
+  from the documented error codes. Functions: `createShipment`, `getShipment`,
+  `deleteShipment`, `getLabel`, `createDeliveryNote`, `getDeliveryPoints`,
+  `getAccountDetails`.
+- `deliveryPointMap.ts` — `(courier, mapType) → deliveryPointType` lookup (§Decision 5).
+- No UI yet. Unit-testable in isolation.
+
+### 8.2 — Weight sourcing (no DB changes) ✅ Done
+- Extend `MalfiniNomenclature` to surface `netWeight`/`grossWeight` (kg) — already present
+  in the API response, just not typed. Add `getNomenclatureGrossWeightKg()` to the Malfini
+  client to look weight up by SKU.
+- `lib/kvikk/weight.ts` — pure helpers: `kgToGrams()`, `DEFAULT_PARCEL_WEIGHT_GRAMS`,
+  `resolveWeightGrams({ storedGrams, grossWeightKg })` (priority: stored → Malfini kg → default).
+- The local `Variant.weightGrams` column and the item-level `resolveParcelWeightGrams(item)`
+  resolver moved to 8.3, consolidated with the schema migration (single DB touch).
+
+### 8.3 — DB schema + migration (single migration for all schema changes) ✅ Done
+Applied as migration `20260719103000_kvikk_shipping_fields` — purely additive (ADD COLUMN
+nullable, CREATE TYPE DeliveryType, ALTER TYPE OrderStatus ADD VALUE RETURNED). No backfill
+(legacy orders handled by display fallback in 8.9); legacy `ShippingMethod`/`pickupPointId`
+kept untouched. `lib/services/shipping.ts` resolver added.
+- `Variant`: add `weightGrams Int?` (nulls fall back via `weight.ts`).
+- Generalize `Order`: add `shippingCourier String?`, `deliveryType` enum
+  (`HOME_DELIVERY | DELIVERY_POINT`), `deliveryPointType String?`, `deliveryPointId
+  String?`; keep `pickupPointName`/`pickupPointAddress` for display; add
+  `kvikkTrackingNumber String?`, `courierTrackingNumber String?`, `kvikkShipmentId
+  String?`.
+- Extend `OrderStatus` with `RETURNED`.
+- `lib/services/shipping.ts` — `resolveParcelWeightGrams(item)` ties `Variant.weightGrams`
+  + Malfini gross weight + `weight.ts` together (DB access lives in the service layer).
+- **Retention:** existing orders must keep their historical shipping data — additive
+  migration + backfill old `shippingMethod`/`pickupPoint*` into the new columns; do not
+  drop columns destructively. Exact backfill mapping decided at this step.
+- `npx prisma migrate dev --name kvikk_shipping_fields`.
+
+### 8.4 — Pricing ✅ Done
+Verified `account-details` shape against a live response (pricing keyed by price key +
+country: bare courier slug for home, deliveryPointType slug for point; `prices[]` =
+`{min,max,cost}`, grams/net-HUF). `lib/kvikk/account.ts` (cached account details + active
+couriers + sender id) and `lib/kvikk/pricing.ts` (`getShippingQuote` → net + gross with
+27% VAT, rounded to whole HUF) added; loose 8.1 types pinned down from real data. Customer
+price model = **dynamic (courier + weight)** per client decision.
+- `lib/kvikk/pricing.ts` — given courier + parcel weight, compute shipping cost from
+  cached `GET /account-details` pricing. Cache account-details (Redis, short TTL).
+- Decide customer-facing price model per §Decision 2; expose a single
+  `getShippingQuote({ courier, weight })` used by both the Map widget config and the
+  server-side checkout validation (one source of truth).
+- **VAT:** the official price list (`docs/kvikk-arlista-*.pdf`) is NET (ÁFA excluded);
+  our customer prices are gross ("Az ár tartalmazza az ÁFÁ-t"). If Kvikk cost is passed to
+  the customer, add 27% VAT. Confirm at this step whether `account-details` pricing is net
+  or gross. COD fees are irrelevant (COD is always 0 — Stripe is prepaid).
+- **Do NOT hardcode the PDF numbers.** `account-details` is the authoritative, account-
+  specific source; the PDF is a dated reference/sanity-check snapshot only. Note the
+  net 300 Ft admin fee for wrong weight/oversize — reinforces accurate weight (8.2).
+
+### 8.5 — Checkout UI (`KvikkMapWidget.tsx` + `CheckoutForm.tsx`) — split into 8.5a + 8.5b
+**8.5a ✅ Done** — `lib/kvikk/deliveryOptions.ts` (approved option set) + `POST
+/api/shipping/quote` (server-side weight × qty → per-option gross price via
+`getShippingQuote`). Logic verified against real pricing data; endpoint returns 200.
+Full-speed runtime + widget verified on the `varazskep.vercel.app` deploy (local dev egress
+to the Supabase transaction pooler / Upstash is impractically slow in this environment).
+**8.5b** — `KvikkMapWidget.tsx` (standalone, non-breaking) then the coordinated checkout
+migration (form + `stripe/checkout` + `stripe/webhook`) in 8.6 so the flow never half-breaks.
+
+Approved customer options (HU): **home** = MPL, GLS; **points (map)** = Foxpost automata
+(`foxpost`/`foxpost_foxpost`), Packeta Z-Box (`zbox`/`packeta_zbox`), MPL automata
+(`automata`/`mpl_automata`), GLS automata (`locker`/`gls_locker`) + csomagpont
+(`shop`/`gls_shop`), DPD csomagpont (`parcelshop`/`dpd_parcelshop`).
+- New server endpoint (e.g. `POST /api/shipping/quote`): takes the cart, resolves parcel
+  weight server-side (`resolveParcelWeightGrams` × quantity), returns the gross price per
+  offered option via `getShippingQuote` — feeds both the widget config and the home options.
+- New `KvikkMapWidget.tsx`: load the widget script, `open()` with the configured point
+  couriers + server-computed prices + brand colors + `hu`; handle standard point and
+  `fallbackInfo`.
+- `CheckoutForm`: delivery type = home (courier radio) vs point (map); show selected point;
+  keep the home address branch. Remove Foxpost widget usage.
+- **CONSTRAINT:** the Maps key is bound to `varazskep.vercel.app` only (no localhost). The
+  map widget can only be verified on the production deploy; on localhost it shows the text
+  fallback. Home delivery + pricing + fallback handling ARE locally verifiable.
+
+### 8.6 — Coordinated checkout migration ✅ Done (runtime verification pending on deploy)
+Done together so the flow never half-breaks: `CheckoutForm` (fetches `/api/shipping/quote`,
+home-courier radios vs Kvikk Map point, new submit shape) + `stripe/checkout` (server-side
+weight + live-price validation, new metadata) + `stripe/webhook` (new fields → `createOrder`)
++ `lib/shipping/display.ts` `describeShipping()` used by the success page, admin detail, and
+email (new fields with legacy fallback). Tests updated; tsc/eslint/vitest green.
+- **No shipment creation yet** — `POST /shipment` + label is step 8.7. After 8.6 the order
+  stores the Kvikk shipping choice; label/dispatch remains manual (as before). App stays working.
+- **No points-api pre-validation** — the point is validated at shipment creation (8.7) via the
+  documented error codes, avoiding an unverified points-api key dependency.
+- Runtime (checkout → Stripe → webhook → display, + the Map widget) verifies on the
+  `varazskep.vercel.app` deploy.
+
+### 8.7 — Persist shipping choice + parcel weight on the order ✅ Done
+**Re-scoped per client workflow:** the shipment is NOT created on payment. A made-to-order
+shop creates the label + requests the courier manually, when the product is ready — so
+shipment creation + delivery note moved to the admin (8.9). This step only:
+- adds `Order.parcelWeightGrams` (migration `20260721081312_add_order_parcel_weight`,
+  additive) — the checkout-computed weight (with quantity) is stored so the later admin
+  shipment uses the correct weight (quantity is not otherwise stored on the order).
+- `stripe/checkout` embeds `shippingWeightGrams`; `stripe/webhook` stores it via
+  `createOrder`. The webhook makes **no** Kvikk call.
+- makes the checkout **phone number required** (Kvikk needs it to create the shipment).
+- keeps `setOrderShipment()` in the order service for the 8.9 admin action.
+tsc/eslint/vitest green.
+
+### 8.8 — Kvikk status webhook (`app/api/kvikk/webhook/route.ts`) ✅ Done
+- Verify `kvikk-webhook-signature` (HMAC-SHA256 over raw body) — mirror the Stripe
+  webhook's raw-body handling.
+- Map events → status: `shipped` → `SHIPPED`, `delivered` → `COMPLETE`, `returned` →
+  `RETURNED`. Idempotent; respect the allowed-transition rules in `lib/services/order.ts`.
+
+### 8.9 — Admin: create shipment + labels + delivery notes ✅ Done (runtime verify on deploy)
+- **Create shipment (manual, when the product is ready):** an admin action → `POST /shipment`
+  (single parcel; `cod: 0`; `value` = goods value; weight from `Order.parcelWeightGrams`;
+  `senderID` from `getSenderId()`). Persist `kvikkTrackingNumber`, `courierTrackingNumber`,
+  `kvikkShipmentId` via `setOrderShipment()`. Idempotent + error-tolerant; behind
+  `KVIKK_LIVE` for dev safety. This creates the label — it does NOT summon the courier.
+- Order detail: show courier, both tracking numbers, `tracking.events` timeline, and a
+  label download (via `GET /shipment/:tn/label`).
+- New batch action: select ready orders → `POST /delivery-note` (choose `pickupFor`
+  couriers + `pickupDate` honoring the working-day rules) → download the per-courier PDFs.
+  **This is the step that actually requests the courier.**
+- Note (from price list): MPL charges a 480 Ft pickup fee for 1–3 parcels, free for 4+;
+  other couriers' pickup is free. Surface this so MPL pickups can be batched to 4+.
+
+### 8.10 — Emails ✅ Done
+The confirmation email (sent at payment) shows courier + method via `describeShipping`, but
+has NO tracking link (no shipment exists yet). A separate "shipped" email
+(`emails/ShipmentNotification.tsx` + `sendShipmentNotificationEmail`) carries the Kvikk
+tracking link and is sent from the Kvikk webhook when the order first reaches SHIPPED.
+
+### 8.11 — Cleanup ✅ Done
+- Removed `components/shop/FoxpostWidget.tsx`; trimmed `lib/shipping/config.ts` to just
+  `SHIPPING_LABELS` (legacy labels for pre-Kvikk orders). Kept the `ShippingMethod` enum +
+  `Order.shippingMethod`/`pickupPointId` for historical orders (per 8.3).
+- Updated `docs/ARCHITECTURE.md`, `docs/CLAUDE.md`, `docs/PLAN.md` (Phase 8; Kvikk shipping
+  section + env vars; retired the Foxpost/MPL description).
+
+---
+
+## Testing
+
+- Unit: `lib/kvikk/client.ts` (envelope + error mapping), `deliveryPointMap`, pricing,
+  weight resolution.
+- Webhook: Kvikk signature verification + event→status mapping (Vitest, like the Stripe
+  webhook tests).
+- Manual E2E on a test/sandbox key (or `KVIKK_LIVE=false`): pick a point → pay →
+  shipment created → label downloads → webhook advances status → delivery note generates.
+
+## Rollout / rollback
+
+- Ship behind config: keep the old flow available until 8.5–8.8 are verified end-to-end.
+- `KVIKK_LIVE` flag prevents accidental real pickups during development.
+- Historical orders keep their original shipping fields (additive migration) — no data
+  loss, GDPR/8-year retention intact.

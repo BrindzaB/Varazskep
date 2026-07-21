@@ -192,6 +192,32 @@ JWT admin auth (HTTP-only cookie), order dashboard with status management, local
 
 ---
 
+### Phase 8 — Kvikk Shipping Integration ✅ Done (runtime verification pending on deploy)
+
+**Goal:** Replace the Foxpost-widget + MPL address-form shipping (no carrier API) with a full
+Kvikk Shipping API integration. Detailed step log + decisions: `docs/kvikk-migration-plan.md`;
+API reference: `docs/kvikk-api.md`.
+
+| Step | Description |
+| ---- | ----------- |
+| 8.1 | `lib/kvikk/` API client (types, client, delivery-point map) |
+| 8.2 | Parcel weight sourcing (Malfini grossWeight + pure helpers) |
+| 8.3 | DB schema — Order Kvikk fields, `DeliveryType`, `RETURNED`, `Variant.weightGrams` |
+| 8.4 | Dynamic pricing from `account-details` (+27% VAT) |
+| 8.5 | Quote endpoint (`/api/shipping/quote`) + `KvikkMapWidget` |
+| 8.6 | Coordinated checkout migration (form + checkout/webhook + display) |
+| 8.7 | Persist shipping choice + parcel weight + phone on the order |
+| 8.8 | Kvikk status webhook (HMAC) → order status |
+| 8.9 | Admin: create shipment + label + batch delivery-note (courier pickup) |
+| 8.10 | "On its way" email with tracking link |
+| 8.11 | Cleanup (remove Foxpost widget, trim `config.ts`, docs) |
+
+**Verified statically** (tsc + eslint + vitest, 29 tests). **Runtime verification** (checkout
+widget, shipment/label/delivery-note, status webhook) is done on the `varazskep.vercel.app`
+deploy — the Maps key is domain-bound to production and `KVIKK_LIVE` must be set there.
+
+---
+
 ### Future v2 (not in current scope)
 
 These features are planned but must not be built during the current development cycle:
@@ -254,7 +280,7 @@ A **phase** is done when:
 
 > Update this section at the start of each session to reflect where we are.
 
-**Current phase:** Shipping Integration (complete)
-**Last approved step:** S.7 — Hero mobile backdrop
-**Next step:** TBD
+**Current phase:** Phase 8 — Kvikk Shipping Integration (code complete on `phase-8/kvikk-shipping`)
+**Last approved step:** 8.11 — Cleanup
+**Next step:** Push + deploy to `varazskep.vercel.app`; set `KVIKK_LIVE` + register the Kvikk webhook; verify end-to-end
 

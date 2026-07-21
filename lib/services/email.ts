@@ -1,8 +1,13 @@
 import { Resend } from "resend";
 import { render } from "@react-email/components";
 import OrderConfirmation from "@/emails/OrderConfirmation";
+import ShipmentNotification from "@/emails/ShipmentNotification";
 import { formatHuf } from "@/lib/utils/format";
-import type { ShippingMethod } from "@/lib/generated/prisma/client";
+import { describeShipping } from "@/lib/shipping/display";
+import type {
+  DeliveryType,
+  ShippingMethod,
+} from "@/lib/generated/prisma/client";
 
 const FROM_ADDRESS = "Varázskép <rendeles@varazskep.hu>";
 
@@ -20,18 +25,29 @@ interface SendOrderConfirmationInput {
     postalCode: string;
     country: string;
   };
-  shippingMethod: ShippingMethod;
   shippingCost: number;
-  pickupPointName?: string;
-  pickupPointAddress?: string;
+  // Shipping description inputs (new Kvikk fields + legacy fallback).
+  shippingCourier: string | null;
+  deliveryType: DeliveryType | null;
+  shippingMethod: ShippingMethod;
+  pickupPointName?: string | null;
+  pickupPointAddress?: string | null;
 }
 
 export async function sendOrderConfirmationEmail(
-  input: SendOrderConfirmationInput,
+  input: SendOrderConfirmationInput
 ): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
     return;
   }
+
+  const shipping = describeShipping({
+    shippingCourier: input.shippingCourier,
+    deliveryType: input.deliveryType,
+    pickupPointName: input.pickupPointName ?? null,
+    pickupPointAddress: input.pickupPointAddress ?? null,
+    shippingMethod: input.shippingMethod,
+  });
 
   const html = await render(
     OrderConfirmation({
@@ -46,11 +62,12 @@ export async function sendOrderConfirmationEmail(
         city: input.shippingAddress.city,
         postalCode: input.shippingAddress.postalCode,
       },
-      shippingMethod: input.shippingMethod,
+      methodLabel: shipping.methodLabel,
       shippingCost: formatHuf(input.shippingCost),
-      pickupPointName: input.pickupPointName,
-      pickupPointAddress: input.pickupPointAddress,
-    }),
+      isDeliveryPoint: shipping.isDeliveryPoint,
+      pointName: shipping.pointName,
+      pointAddress: shipping.pointAddress,
+    })
   );
 
   const resend = new Resend(process.env.RESEND_API_KEY);
@@ -58,6 +75,40 @@ export async function sendOrderConfirmationEmail(
     from: FROM_ADDRESS,
     to: input.customerEmail,
     subject: "Rendelésed megérkezett – Varázskép",
+    html,
+  });
+}
+
+interface SendShipmentNotificationInput {
+  customerName: string;
+  customerEmail: string;
+  courierLabel: string; // e.g. "MPL", "GLS"
+  trackingNumber: string;
+  trackingLink: string;
+}
+
+// "Your package is on its way" email — sent when a shipment first reaches SHIPPED.
+export async function sendShipmentNotificationEmail(
+  input: SendShipmentNotificationInput
+): Promise<void> {
+  if (!process.env.RESEND_API_KEY) {
+    return;
+  }
+
+  const html = await render(
+    ShipmentNotification({
+      customerName: input.customerName,
+      courierLabel: input.courierLabel,
+      trackingNumber: input.trackingNumber,
+      trackingLink: input.trackingLink,
+    })
+  );
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: input.customerEmail,
+    subject: "Csomagod úton van – Varázskép",
     html,
   });
 }

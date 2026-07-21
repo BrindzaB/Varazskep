@@ -70,16 +70,20 @@ function makeSession(overrides: Record<string, unknown> = {}): object {
         country: "HU",
       }),
       gdprConsent: "true",
-      cartItems: JSON.stringify([{
-        source: "local",
-        variantId: "variant_abc",
-        productName: "Egyedi bögre",
-        colorName: "Fehér",
-        sizeName: "330ml",
-        quantity: 1,
-      }]),
-      shippingMethod: "MPL_HOME_DELIVERY",
+      cartItems: JSON.stringify([
+        {
+          source: "local",
+          variantId: "variant_abc",
+          productName: "Egyedi bögre",
+          colorName: "Fehér",
+          sizeName: "330ml",
+          quantity: 1,
+        },
+      ]),
+      shippingCourier: "mpl",
+      deliveryType: "HOME_DELIVERY",
       shippingCost: "1490",
+      shippingWeightGrams: "1000",
     },
     ...overrides,
   };
@@ -99,7 +103,7 @@ describe("POST /api/stripe/webhook", () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/missing stripe-signature/i);
   });
 
@@ -109,12 +113,15 @@ describe("POST /api/stripe/webhook", () => {
     });
     const res = await POST(makeRequest("{}"));
     expect(res.status).toBe(400);
-    const body = await res.json() as { error: string };
+    const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/signature verification failed/i);
   });
 
   it("returns 200 and does nothing for non-checkout events", async () => {
-    mockConstructEvent.mockReturnValue({ type: "payment_intent.created", data: { object: {} } });
+    mockConstructEvent.mockReturnValue({
+      type: "payment_intent.created",
+      data: { object: {} },
+    });
     const res = await POST(makeRequest("{}"));
     expect(res.status).toBe(200);
     expect(mockCreateOrder).not.toHaveBeenCalled();
@@ -149,6 +156,7 @@ describe("POST /api/stripe/webhook", () => {
       designId: undefined,
       customerName: "Teszt Elek",
       customerEmail: "teszt@example.com",
+      customerPhone: "+36301234567",
       shippingAddress: {
         address: "Fő utca 1",
         city: "Budapest",
@@ -157,8 +165,10 @@ describe("POST /api/stripe/webhook", () => {
       },
       totalAmount: 4990,
       gdprConsent: true,
-      shippingMethod: "MPL_HOME_DELIVERY",
       shippingCost: 1490,
+      shippingCourier: "mpl",
+      deliveryType: "HOME_DELIVERY",
+      parcelWeightGrams: 1000,
     });
   });
 
@@ -166,7 +176,12 @@ describe("POST /api/stripe/webhook", () => {
     const session = makeSession({
       metadata: {
         customerName: "Teszt Elek",
-        shippingAddress: JSON.stringify({ address: "Fő utca 1", city: "Budapest", postalCode: "1011", country: "HU" }),
+        shippingAddress: JSON.stringify({
+          address: "Fő utca 1",
+          city: "Budapest",
+          postalCode: "1011",
+          country: "HU",
+        }),
         gdprConsent: "true",
         // cartItems intentionally omitted
       },

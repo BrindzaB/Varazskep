@@ -2,10 +2,11 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import OrderStatusUpdater from "@/components/admin/OrderStatusUpdater";
+import ShipmentActions from "@/components/admin/ShipmentActions";
 import { getOrderById, PII_ERASED_SENTINEL } from "@/lib/services/order";
 import GdprEraseButton from "@/components/admin/GdprEraseButton";
-import type { OrderStatus, ShippingMethod } from "@/lib/generated/prisma/client";
-import { SHIPPING_LABELS } from "@/lib/shipping/config";
+import type { OrderStatus } from "@/lib/generated/prisma/client";
+import { describeShipping } from "@/lib/shipping/display";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING: "Függőben",
@@ -13,6 +14,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   IN_PRODUCTION: "Gyártásban",
   SHIPPED: "Kiszállítva",
   COMPLETE: "Teljesítve",
+  RETURNED: "Visszaküldve",
   CANCELLED: "Törölve",
 };
 
@@ -22,6 +24,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   IN_PRODUCTION: "bg-purple-100 text-purple-800",
   SHIPPED: "bg-orange-100 text-orange-800",
   COMPLETE: "bg-green-100 text-green-800",
+  RETURNED: "bg-red-100 text-red-800",
   CANCELLED: "bg-gray-100 text-gray-600",
 };
 
@@ -44,12 +47,16 @@ function extractCustomerUploadUrls(canvasJson: unknown): string[] {
   const seen = new Set<string>();
   const urls: string[] = [];
   for (const side of ["front", "back"] as const) {
-    for (const obj of (json[side] ?? [])) {
+    for (const obj of json[side] ?? []) {
       const o = obj as { type?: string; src?: string };
       // Fabric v7 serializes as "Image" (capital I); older versions used "image".
       // Normalise before comparing.
       const typeKey = (o.type ?? "").toLowerCase();
-      if (typeKey === "image" && typeof o.src === "string" && o.src.includes("/uploads/")) {
+      if (
+        typeKey === "image" &&
+        typeof o.src === "string" &&
+        o.src.includes("/uploads/")
+      ) {
         if (!seen.has(o.src)) {
           seen.add(o.src);
           urls.push(o.src);
@@ -65,8 +72,10 @@ function CustomerUploadedImages({ canvasJson }: { canvasJson: unknown }) {
   if (urls.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-      <h2 className="text-sm font-semibold text-gray-700 mb-3">Feltöltött képek</h2>
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 className="mb-3 text-sm font-semibold text-gray-700">
+        Feltöltött képek
+      </h2>
       <div className="flex flex-wrap gap-4">
         {urls.map((url, i) => (
           <div key={i} className="flex flex-col items-center gap-2">
@@ -94,9 +103,19 @@ function CustomerUploadedImages({ canvasJson }: { canvasJson: unknown }) {
 
 function DesignCoordinatesTable({ canvasJson }: { canvasJson: unknown }) {
   const json = canvasJson as { front?: unknown[]; back?: unknown[] };
-  const rows: { side: string; type: string; xCm: number; yCm: number; wCm: number; hCm: number }[] = [];
+  const rows: {
+    side: string;
+    type: string;
+    xCm: number;
+    yCm: number;
+    wCm: number;
+    hCm: number;
+  }[] = [];
 
-  for (const [side, label] of [["front", "Elől"], ["back", "Hátul"]] as const) {
+  for (const [side, label] of [
+    ["front", "Elől"],
+    ["back", "Hátul"],
+  ] as const) {
     const objects = json[side] ?? [];
     for (const obj of objects) {
       const o = obj as DesignObject;
@@ -104,10 +123,10 @@ function DesignCoordinatesTable({ canvasJson }: { canvasJson: unknown }) {
       rows.push({
         side: label,
         type: o.type === "i-text" ? "Szöveg" : "Kép",
-        xCm:  o._xCm,
-        yCm:  o._yCm ?? 0,
-        wCm:  o._wCm ?? 0,
-        hCm:  o._hCm ?? 0,
+        xCm: o._xCm,
+        yCm: o._yCm ?? 0,
+        wCm: o._wCm ?? 0,
+        hCm: o._hCm ?? 0,
       });
     }
   }
@@ -115,11 +134,13 @@ function DesignCoordinatesTable({ canvasJson }: { canvasJson: unknown }) {
   if (rows.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-      <h2 className="text-sm font-semibold text-gray-700 mb-3">Terv koordinátái</h2>
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 className="mb-3 text-sm font-semibold text-gray-700">
+        Terv koordinátái
+      </h2>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-500 border-b border-gray-100">
+          <tr className="border-b border-gray-100 text-left text-gray-500">
             <th className="pb-2 font-medium">Oldal</th>
             <th className="pb-2 font-medium">Típus</th>
             <th className="pb-2 font-medium">X</th>
@@ -154,6 +175,7 @@ export default async function AdminOrderDetailPage({
   if (!order) notFound();
 
   const piiErased = order.customerName === PII_ERASED_SENTINEL;
+  const shipping = describeShipping(order);
 
   const address = piiErased
     ? null
@@ -167,11 +189,11 @@ export default async function AdminOrderDetailPage({
   return (
     <div>
       <AdminNav />
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex items-center gap-3 mb-6">
+      <main className="mx-auto max-w-4xl px-6 py-8">
+        <div className="mb-6 flex items-center gap-3">
           <Link
             href="/admin/orders"
-            className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            className="text-sm text-gray-500 transition-colors hover:text-gray-900"
           >
             ← Rendelések
           </Link>
@@ -179,42 +201,50 @@ export default async function AdminOrderDetailPage({
           <span className="font-mono text-sm text-gray-600">{order.id}</span>
         </div>
 
-        <div className="flex items-start justify-between mb-8">
+        <div className="mb-8 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Rendelés részletek</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Rendelés részletek
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
               {new Date(order.createdAt).toLocaleString("hu-HU")}
             </p>
           </div>
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[order.status]}`}>
+          <span
+            className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLORS[order.status]}`}
+          >
             {STATUS_LABELS[order.status]}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           {/* Customer info */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Vevő adatai</h2>
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">
+              Vevő adatai
+            </h2>
             {piiErased ? (
-              <p className="text-sm text-gray-400 italic">Személyes adatok törölve.</p>
+              <p className="text-sm italic text-gray-400">
+                Személyes adatok törölve.
+              </p>
             ) : (
               <dl className="space-y-1 text-sm">
                 <div className="flex gap-2">
-                  <dt className="text-gray-500 w-24 shrink-0">Név:</dt>
+                  <dt className="w-24 shrink-0 text-gray-500">Név:</dt>
                   <dd className="text-gray-900">{order.customerName}</dd>
                 </div>
                 <div className="flex gap-2">
-                  <dt className="text-gray-500 w-24 shrink-0">Email:</dt>
+                  <dt className="w-24 shrink-0 text-gray-500">Email:</dt>
                   <dd className="text-gray-900">{order.customerEmail}</dd>
                 </div>
                 <div className="flex gap-2">
-                  <dt className="text-gray-500 w-24 shrink-0">Cím:</dt>
+                  <dt className="w-24 shrink-0 text-gray-500">Cím:</dt>
                   <dd className="text-gray-900">
                     {address!.postalCode} {address!.city}, {address!.address}
                   </dd>
                 </div>
                 <div className="flex gap-2">
-                  <dt className="text-gray-500 w-24 shrink-0">Ország:</dt>
+                  <dt className="w-24 shrink-0 text-gray-500">Ország:</dt>
                   <dd className="text-gray-900">{address!.country}</dd>
                 </div>
               </dl>
@@ -223,11 +253,13 @@ export default async function AdminOrderDetailPage({
           </div>
 
           {/* Order info */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Rendelés adatai</h2>
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">
+              Rendelés adatai
+            </h2>
             <dl className="space-y-1 text-sm">
               <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Termék:</dt>
+                <dt className="w-24 shrink-0 text-gray-500">Termék:</dt>
                 <dd className="text-gray-900">
                   {order.productName}
                   {order.productCode && (
@@ -239,72 +271,91 @@ export default async function AdminOrderDetailPage({
                 </dd>
               </div>
               <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Szín:</dt>
+                <dt className="w-24 shrink-0 text-gray-500">Szín:</dt>
                 <dd className="text-gray-900">{order.colorName}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Méret:</dt>
+                <dt className="w-24 shrink-0 text-gray-500">Méret:</dt>
                 <dd className="text-gray-900">{order.sizeName}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Összeg:</dt>
-                <dd className="text-gray-900 font-medium">
+                <dt className="w-24 shrink-0 text-gray-500">Összeg:</dt>
+                <dd className="font-medium text-gray-900">
                   {order.totalAmount.toLocaleString("hu-HU")} Ft
                 </dd>
               </div>
               <div className="flex gap-2">
-                <dt className="text-gray-500 w-24 shrink-0">Stripe:</dt>
-                <dd className="font-mono text-xs text-gray-600 break-all">{order.stripeSessionId}</dd>
+                <dt className="w-24 shrink-0 text-gray-500">Stripe:</dt>
+                <dd className="break-all font-mono text-xs text-gray-600">
+                  {order.stripeSessionId}
+                </dd>
               </div>
             </dl>
           </div>
         </div>
 
         {/* Shipping info */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Szállítás</h2>
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">
+            Szállítás
+          </h2>
           <dl className="space-y-1 text-sm">
             <div className="flex gap-2">
-              <dt className="text-gray-500 w-36 shrink-0">Módszer:</dt>
-              <dd className="text-gray-900">
-                {SHIPPING_LABELS[order.shippingMethod as ShippingMethod]}
-              </dd>
+              <dt className="w-36 shrink-0 text-gray-500">Módszer:</dt>
+              <dd className="text-gray-900">{shipping.methodLabel}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="text-gray-500 w-36 shrink-0">Szállítási díj:</dt>
-              <dd className="text-gray-900">{order.shippingCost.toLocaleString("hu-HU")} Ft</dd>
+              <dt className="w-36 shrink-0 text-gray-500">Szállítási díj:</dt>
+              <dd className="text-gray-900">
+                {order.shippingCost.toLocaleString("hu-HU")} Ft
+              </dd>
             </div>
-            {order.shippingMethod === "FOXPOST_LOCKER" && order.pickupPointName && (
+            {shipping.isDeliveryPoint && shipping.pointName && (
               <>
                 <div className="flex gap-2">
-                  <dt className="text-gray-500 w-36 shrink-0">Automata neve:</dt>
-                  <dd className="text-gray-900">{order.pickupPointName}</dd>
+                  <dt className="w-36 shrink-0 text-gray-500">
+                    Átvételi pont:
+                  </dt>
+                  <dd className="text-gray-900">{shipping.pointName}</dd>
                 </div>
-                {order.pickupPointId && (
+                {(order.deliveryPointId ?? order.pickupPointId) && (
                   <div className="flex gap-2">
-                    <dt className="text-gray-500 w-36 shrink-0">Automata kód:</dt>
-                    <dd className="font-mono text-xs text-gray-600">{order.pickupPointId}</dd>
+                    <dt className="w-36 shrink-0 text-gray-500">Pont kód:</dt>
+                    <dd className="font-mono text-xs text-gray-600">
+                      {order.deliveryPointId ?? order.pickupPointId}
+                    </dd>
                   </div>
                 )}
-                {order.pickupPointAddress && (
+                {shipping.pointAddress && (
                   <div className="flex gap-2">
-                    <dt className="text-gray-500 w-36 shrink-0">Automata cím:</dt>
-                    <dd className="text-gray-900">{order.pickupPointAddress}</dd>
+                    <dt className="w-36 shrink-0 text-gray-500">Pont cím:</dt>
+                    <dd className="text-gray-900">{shipping.pointAddress}</dd>
                   </div>
                 )}
               </>
             )}
           </dl>
+          {order.deliveryType && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <ShipmentActions
+                orderId={order.id}
+                kvikkTrackingNumber={order.kvikkTrackingNumber}
+                courierTrackingNumber={order.courierTrackingNumber}
+              />
+            </div>
+          )}
         </div>
 
         {/* Design preview */}
         {order.design?.svgUrl && (
-          <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Egyedi terv</h2>
+          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">
+              Egyedi terv
+            </h2>
             <object
               data={order.design.svgUrl}
               type="image/svg+xml"
-              className="max-w-full border border-gray-200 rounded"
+              className="max-w-full rounded border border-gray-200"
               style={{
                 backgroundImage:
                   "linear-gradient(45deg, #d1d5db 25%, transparent 25%)," +
@@ -316,13 +367,15 @@ export default async function AdminOrderDetailPage({
                 backgroundColor: "#f3f4f6",
               }}
             >
-              <span className="text-sm text-gray-500">Az SVG nem tölthető be.</span>
+              <span className="text-sm text-gray-500">
+                Az SVG nem tölthető be.
+              </span>
             </object>
             <a
               href={order.design.svgUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block mt-2 text-sm text-blue-600 hover:underline"
+              className="mt-2 inline-block text-sm text-blue-600 hover:underline"
             >
               Megnyitás új lapon
             </a>
@@ -340,8 +393,10 @@ export default async function AdminOrderDetailPage({
         )}
 
         {/* Status update */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Állapot módosítása</h2>
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">
+            Állapot módosítása
+          </h2>
           <OrderStatusUpdater orderId={order.id} currentStatus={order.status} />
         </div>
       </main>

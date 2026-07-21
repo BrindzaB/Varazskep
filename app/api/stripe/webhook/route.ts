@@ -3,18 +3,21 @@ import Stripe from "stripe";
 import { createOrder, getOrderBySessionId } from "@/lib/services/order";
 import { exportDesignSvg } from "@/lib/services/design";
 import { sendOrderConfirmationEmail } from "@/lib/services/email";
+import type { DeliveryType } from "@/lib/generated/prisma/client";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-03-25.dahlia",
 });
-
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const sig = req.headers.get("stripe-signature");
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
   if (!sig) {
-    return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing stripe-signature" },
+      { status: 400 }
+    );
   }
 
   let event: Stripe.Event;
@@ -25,7 +28,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
       { error: `Webhook signature verification failed: ${message}` },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -62,16 +65,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     shippingAddress = JSON.parse(meta.shippingAddress ?? "{}");
   } catch {
-    console.error(`[webhook] Invalid shippingAddress JSON in session ${session.id}`);
-    return NextResponse.json({ error: "Invalid shippingAddress" }, { status: 400 });
+    console.error(
+      `[webhook] Invalid shippingAddress JSON in session ${session.id}`
+    );
+    return NextResponse.json(
+      { error: "Invalid shippingAddress" },
+      { status: 400 }
+    );
   }
 
   // amount_total is in fillér (smallest unit) — convert back to whole HUF for storage.
   const totalAmount = Math.round((session.amount_total ?? 0) / 100);
 
-  const shippingMethod =
-    meta.shippingMethod === "FOXPOST_LOCKER" ? "FOXPOST_LOCKER" : "MPL_HOME_DELIVERY";
   const shippingCost = parseInt(meta.shippingCost ?? "0", 10);
+  const deliveryType: DeliveryType =
+    meta.deliveryType === "DELIVERY_POINT" ? "DELIVERY_POINT" : "HOME_DELIVERY";
+  const shippingCourier = meta.shippingCourier ?? "";
+  const parcelWeightGrams = meta.shippingWeightGrams
+    ? parseInt(meta.shippingWeightGrams, 10)
+    : undefined;
 
   try {
     await createOrder({
@@ -91,22 +103,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       designId: firstItem.designId,
       customerName: meta.customerName ?? "",
       customerEmail: session.customer_email ?? "",
+      customerPhone: meta.customerPhone,
       shippingAddress,
       totalAmount,
       gdprConsent: meta.gdprConsent === "true",
-      shippingMethod,
       shippingCost,
-      ...(meta.pickupPointId ? { pickupPointId: meta.pickupPointId } : {}),
-      ...(meta.pickupPointName ? { pickupPointName: meta.pickupPointName } : {}),
-      ...(meta.pickupPointAddress ? { pickupPointAddress: meta.pickupPointAddress } : {}),
+      shippingCourier,
+      deliveryType,
+      parcelWeightGrams,
+      ...(meta.deliveryPointType
+        ? { deliveryPointType: meta.deliveryPointType }
+        : {}),
+      ...(meta.deliveryPointId
+        ? { deliveryPointId: meta.deliveryPointId }
+        : {}),
+      ...(meta.pointName ? { pickupPointName: meta.pointName } : {}),
+      ...(meta.pointAddress ? { pickupPointAddress: meta.pointAddress } : {}),
     });
   } catch (err) {
     console.error("[webhook] createOrder failed:", err);
     return NextResponse.json(
       { error: "Order creation failed" },
-      { status: 500 },
+      { status: 500 }
     );
   }
+
+  // Note: the Kvikk shipment + label is NOT created here. It is created manually from the
+  // admin panel when the product is ready (step 8.9), then the courier is requested via a
+  // delivery note. The webhook only persists the order + the customer's shipping choice.
 
   // Export design SVG to Supabase Storage — errors are logged but do not fail the webhook.
   if (firstItem.designId) {
@@ -131,10 +155,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         variantSize: fullOrder.sizeName,
         totalAmount: fullOrder.totalAmount,
         shippingAddress,
-        shippingMethod: fullOrder.shippingMethod,
         shippingCost: fullOrder.shippingCost,
-        pickupPointName: fullOrder.pickupPointName ?? undefined,
-        pickupPointAddress: fullOrder.pickupPointAddress ?? undefined,
+        shippingCourier: fullOrder.shippingCourier,
+        deliveryType: fullOrder.deliveryType,
+        shippingMethod: fullOrder.shippingMethod,
+        pickupPointName: fullOrder.pickupPointName,
+        pickupPointAddress: fullOrder.pickupPointAddress,
       });
     }
   } catch (err) {
@@ -174,7 +200,8 @@ function parseCartItems(raw: string | undefined): CartItemMeta[] {
       if (typeof i.sizeName !== "string") return false;
       if (typeof i.quantity !== "number") return false;
       if (i.source === "local" && typeof i.variantId !== "string") return false;
-      if (i.source === "malfini" && typeof i.productSizeCode !== "string") return false;
+      if (i.source === "malfini" && typeof i.productSizeCode !== "string")
+        return false;
       return true;
     });
   } catch {

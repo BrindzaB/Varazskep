@@ -1,12 +1,12 @@
 import { prisma } from "@/lib/db";
-import type { OrderStatus, ShippingMethod } from "@/lib/generated/prisma/client";
+import type { DeliveryType, OrderStatus } from "@/lib/generated/prisma/client";
 
 export interface CreateOrderInput {
   stripeSessionId: string;
   // One of these must be set — never both.
-  variantId?: string;       // local products (mugs, etc.)
+  variantId?: string; // local products (mugs, etc.)
   productSizeCode?: string; // Malfini products — 7-char SKU
-  productCode?: string;     // Malfini products — 3-char product code
+  productCode?: string; // Malfini products — 3-char product code
   // Denormalized display fields — always set regardless of source.
   // Required for 8-year retention even if the product is later removed.
   productName: string;
@@ -15,6 +15,7 @@ export interface CreateOrderInput {
   designId?: string; // links the pre-created Design record to this order
   customerName: string;
   customerEmail: string;
+  customerPhone?: string; // recipient phone — needed to create the Kvikk shipment
   shippingAddress: {
     address: string;
     city: string;
@@ -23,10 +24,14 @@ export interface CreateOrderInput {
   };
   totalAmount: number; // HUF integer (includes shipping cost)
   gdprConsent: boolean;
-  shippingMethod: ShippingMethod;
   shippingCost: number; // HUF integer
-  pickupPointId?: string;
-  pickupPointName?: string;
+  // Kvikk shipping
+  shippingCourier: string; // Kvikk courier slug (mpl, gls, foxpost, ...)
+  deliveryType: DeliveryType; // HOME_DELIVERY | DELIVERY_POINT
+  deliveryPointType?: string; // set for delivery-point orders
+  deliveryPointId?: string;
+  parcelWeightGrams?: number; // captured at checkout — used when the shipment is created
+  pickupPointName?: string; // point display name (delivery-point orders)
   pickupPointAddress?: string;
 }
 
@@ -67,7 +72,9 @@ export async function createOrder(input: CreateOrderInput) {
       status: "PAID",
       // Source-specific identifiers — one or the other, never both.
       ...(input.variantId ? { variantId: input.variantId } : {}),
-      ...(input.productSizeCode ? { productSizeCode: input.productSizeCode } : {}),
+      ...(input.productSizeCode
+        ? { productSizeCode: input.productSizeCode }
+        : {}),
       ...(input.productCode ? { productCode: input.productCode } : {}),
       // Denormalized display fields — always written for both sources.
       productName: input.productName,
@@ -76,14 +83,51 @@ export async function createOrder(input: CreateOrderInput) {
       ...(input.designId ? { designId: input.designId } : {}),
       customerName: input.customerName,
       customerEmail: input.customerEmail,
+      ...(input.customerPhone ? { customerPhone: input.customerPhone } : {}),
       shippingAddress: input.shippingAddress,
       totalAmount: input.totalAmount,
       gdprConsent: input.gdprConsent,
-      shippingMethod: input.shippingMethod,
       shippingCost: input.shippingCost,
-      ...(input.pickupPointId ? { pickupPointId: input.pickupPointId } : {}),
-      ...(input.pickupPointName ? { pickupPointName: input.pickupPointName } : {}),
-      ...(input.pickupPointAddress ? { pickupPointAddress: input.pickupPointAddress } : {}),
+      shippingCourier: input.shippingCourier,
+      deliveryType: input.deliveryType,
+      ...(input.deliveryPointType
+        ? { deliveryPointType: input.deliveryPointType }
+        : {}),
+      ...(input.deliveryPointId
+        ? { deliveryPointId: input.deliveryPointId }
+        : {}),
+      ...(input.parcelWeightGrams
+        ? { parcelWeightGrams: input.parcelWeightGrams }
+        : {}),
+      ...(input.pickupPointName
+        ? { pickupPointName: input.pickupPointName }
+        : {}),
+      ...(input.pickupPointAddress
+        ? { pickupPointAddress: input.pickupPointAddress }
+        : {}),
+    },
+  });
+}
+
+/**
+ * Persists the Kvikk shipment identifiers on an order after the shipment is created.
+ */
+export async function setOrderShipment(
+  orderId: string,
+  data: {
+    kvikkTrackingNumber: string;
+    courierTrackingNumber: string;
+    kvikkShipmentId?: string;
+  }
+) {
+  return prisma.order.update({
+    where: { id: orderId },
+    data: {
+      kvikkTrackingNumber: data.kvikkTrackingNumber,
+      courierTrackingNumber: data.courierTrackingNumber,
+      ...(data.kvikkShipmentId
+        ? { kvikkShipmentId: data.kvikkShipmentId }
+        : {}),
     },
   });
 }
@@ -94,7 +138,7 @@ export async function createOrder(input: CreateOrderInput) {
  */
 export async function updateOrderStatus(
   orderId: string,
-  newStatus: OrderStatus,
+  newStatus: OrderStatus
 ) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw new Error(`Order not found: ${orderId}`);
@@ -102,7 +146,7 @@ export async function updateOrderStatus(
   const allowed = allowedTransitions[order.status];
   if (!allowed.includes(newStatus)) {
     throw new Error(
-      `Invalid status transition: ${order.status} → ${newStatus}`,
+      `Invalid status transition: ${order.status} → ${newStatus}`
     );
   }
 
@@ -139,12 +183,84 @@ export async function getOrderById(orderId: string) {
   });
 }
 
+/**
+ * Orders whose shipment (label) has been created but that are not yet on a delivery note
+ * (i.e. courier pickup not yet requested). Used by the admin delivery-note batch screen.
+ */
+export async function getDispatchableOrders() {
+  return prisma.order.findMany({
+    where: { kvikkTrackingNumber: { not: null }, deliveryNoteId: null },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/**
+ * Marks the given shipments (by Kvikk tracking number) as included on a delivery note,
+ * so they are not offered for dispatch again.
+ */
+export async function markOrdersDispatched(
+  trackingNumbers: string[],
+  deliveryNoteId: string
+) {
+  if (trackingNumbers.length === 0) return;
+  await prisma.order.updateMany({
+    where: { kvikkTrackingNumber: { in: trackingNumbers } },
+    data: { deliveryNoteId },
+  });
+}
+
+/**
+ * Applies a shipping status from a Kvikk webhook, matched by Kvikk tracking number.
+ * Monotonic + idempotent: only advances forward (… → SHIPPED → COMPLETE), never regresses,
+ * and never overrides a terminal CANCELLED/RETURNED state (except a return can still be
+ * recorded from a non-terminal state). Returns true if the status actually changed.
+ */
+export async function applyShipmentStatus(
+  kvikkTrackingNumber: string,
+  target: "SHIPPED" | "COMPLETE" | "RETURNED"
+): Promise<boolean> {
+  const order = await prisma.order.findFirst({
+    where: { kvikkTrackingNumber },
+  });
+  if (!order) return false;
+  const current = order.status;
+  if (current === "CANCELLED" || current === "RETURNED") return false;
+
+  if (target === "RETURNED") {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: "RETURNED" },
+    });
+    return true;
+  }
+
+  // Forward-only progression for SHIPPED / COMPLETE.
+  const rank: Record<OrderStatus, number> = {
+    PENDING: 0,
+    PAID: 1,
+    IN_PRODUCTION: 2,
+    SHIPPED: 3,
+    COMPLETE: 4,
+    RETURNED: 99,
+    CANCELLED: 99,
+  };
+  if (rank[target] > rank[current]) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: target },
+    });
+    return true;
+  }
+  return false;
+}
+
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],
   IN_PRODUCTION: ["SHIPPED", "CANCELLED"],
-  SHIPPED: ["COMPLETE"],
+  SHIPPED: ["COMPLETE", "RETURNED"], // RETURNED set by the Kvikk webhook on a `returned` event
   COMPLETE: [],
+  RETURNED: [],
   CANCELLED: [],
 };
 
@@ -162,6 +278,7 @@ export async function eraseOrderPii(orderId: string) {
     data: {
       customerName: PII_ERASED_SENTINEL,
       customerEmail: PII_ERASED_SENTINEL,
+      customerPhone: PII_ERASED_SENTINEL,
       shippingAddress: {},
     },
   });

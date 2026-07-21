@@ -47,8 +47,8 @@ varazskep/
 │   │   ├── MalfiniProductDetails.tsx    # Client component for Malfini product detail
 │   │   ├── ProductDetails.tsx           # Client component for local product detail
 │   │   ├── CartItem.tsx
-│   │   ├── CheckoutForm.tsx             # Shipping method selector + address fields + Foxpost widget
-│   │   └── FoxpostWidget.tsx            # Foxpost APT Finder iframe embed + postMessage handler
+│   │   ├── CheckoutForm.tsx             # Delivery mode + courier/point selection + address fields
+│   │   └── KvikkMapWidget.tsx           # Kvikk Map widget embed (pickup-point selection)
 │   ├── admin/
 │   │   ├── OrderStatusUpdater.tsx
 │   │   ├── GdprEraseButton.tsx
@@ -65,8 +65,10 @@ varazskep/
 │   │   │                                # buildPriceMap(), buildAvailabilityMap(), warmupMalfiniCache()
 │   │   ├── pricing.ts                   # convertEurToHuf()
 │   │   └── categoryConfig.ts            # categoryCode → { printArea, hasSides }
+│   ├── kvikk/                           # Kvikk Shipping API: client, pricing, account, types, deliveryPointMap
 │   ├── shipping/
-│   │   └── config.ts                    # SHIPPING_PRICES, SHIPPING_LABELS, ShippingMethodKey type
+│   │   ├── config.ts                    # SHIPPING_LABELS (legacy labels only)
+│   │   └── display.ts                   # describeShipping() — order shipping label (Kvikk + legacy)
 │   ├── services/
 │   │   ├── order.ts                     # Order business logic
 │   │   ├── product.ts                   # Local product queries
@@ -163,9 +165,16 @@ model Order {
   updatedAt          DateTime       @updatedAt
 }
 
-enum OrderStatus    { PENDING PAID IN_PRODUCTION SHIPPED COMPLETE CANCELLED }
-enum ShippingMethod { FOXPOST_LOCKER MPL_HOME_DELIVERY }
+enum OrderStatus    { PENDING PAID IN_PRODUCTION SHIPPED COMPLETE RETURNED CANCELLED }
+enum ShippingMethod { FOXPOST_LOCKER MPL_HOME_DELIVERY }  // LEGACY — pre-Kvikk orders only
+enum DeliveryType   { HOME_DELIVERY DELIVERY_POINT }       // Kvikk orders
 ```
+
+The `Order` model also carries Kvikk shipping fields: `shippingCourier`, `deliveryType`,
+`deliveryPointType`, `deliveryPointId`, `parcelWeightGrams`, `customerPhone`,
+`kvikkTrackingNumber`, `courierTrackingNumber`, `kvikkShipmentId`, `deliveryNoteId`
+(see `prisma/schema.prisma` — source of truth). Legacy `shippingMethod`/`pickupPointId`
+are retained for historical orders.
 
 **Key rules:** Prices in HUF integers. Design JSON stored as JSONB — never stringify manually. Orders only created in `stripe/webhook`.
 
@@ -331,30 +340,42 @@ Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L →
 
 ---
 
-## Shipping
+## Shipping — Kvikk
 
-Two shipping methods, configured in `lib/shipping/config.ts`:
+Full **Kvikk Shipping API** integration (multi-courier aggregator: MPL, GLS, Foxpost,
+Packeta, DPD). API reference: `docs/kvikk-api.md`; migration history: `docs/kvikk-migration-plan.md`.
 
-| Key | Label | Price |
-|-----|-------|-------|
-| `FOXPOST_LOCKER` | Foxpost csomagautomata | 990 HUF |
-| `MPL_HOME_DELIVERY` | MPL házhozszállítás | 1 490 HUF |
+**Flow:**
+1. **Checkout** (`CheckoutForm` + `KvikkMapWidget`): the customer chooses home delivery
+   (MPL/GLS) or a pickup point (Kvikk Map widget). Prices come from `POST /api/shipping/quote`
+   (server-side parcel weight × qty → `getShippingQuote`; net cost + 27% VAT). The cost is
+   re-validated in `stripe/checkout` against live Kvikk pricing (anti-tamper). Shipping is a
+   separate Stripe line item.
+2. **Payment → order** (`stripe/webhook`): stores the order + shipping choice + parcel weight.
+   **No Kvikk call here** — the shipment is created manually when the product is ready.
+3. **Admin** (`/admin/orders/[id]` + `/admin/shipping`): "Csomagfeladás" creates the Kvikk
+   shipment + label (`POST /shipment`); the batch "Futárrendelés" screen creates a delivery
+   note (`POST /delivery-note`) — the step that actually requests the courier. Both gated by
+   `KVIKK_LIVE`. Labels are re-fetched on demand (`GET /shipment/:tn/label`), never stored.
+4. **Status** (`app/api/kvikk/webhook`): HMAC-verified Kvikk push advances the order status
+   (shipped → SHIPPED, delivered → COMPLETE, returned → RETURNED, monotonic) and sends the
+   "on its way" email (`emails/ShipmentNotification.tsx`) with the tracking link.
 
-Shipping cost is validated server-side in the checkout route — the client-supplied cost is compared against `SHIPPING_PRICES[method]` to prevent tampering. Shipping is added as a separate Stripe line item.
+**Pricing** is dynamic from `GET /account-details` (cached), keyed by a *price key* + country:
+the bare courier slug for home delivery (e.g. `mpl`) or a `deliveryPointType` slug for a point
+(e.g. `mpl_automata`). Never hardcoded.
 
-### Foxpost APT Finder widget
+**Keys / env:** `KVIKK_API_KEY` (secret, server-only), `NEXT_PUBLIC_KVIKK_MAP_API_KEY`
+(Maps widget — domain-bound to the production origin), `KVIKK_WEBHOOK_SECRET`, `KVIKK_LIVE`
+(gates real shipment/pickup creation; unset in dev).
 
-- `components/shop/FoxpostWidget.tsx` embeds `https://cdn.foxpost.hu/apt-finder/v1/app/` as an `<iframe>` — no registration or API key required for the map widget
-- The iframe is loaded lazily on first modal open (so the container is visible when the widget initialises)
-- Locker selection is communicated via `postMessage` from origin `https://cdn.foxpost.hu` as a **JSON string**
-- Relevant fields from the payload: `operator_id` (stored as `pickupPointId`), `name`, `street`, `city`, `zip`
-- For Foxpost orders, `shippingAddress` in the DB uses the locker's address so all orders have the same `shippingAddress` shape regardless of method
+**Delivery-point type codes:** the Map widget emits SHORT codes (`zbox`, `automata`); the
+create-shipment endpoint wants LONG `{courier}_{type}` codes (`packeta_zbox`, `mpl_automata`).
+`lib/kvikk/deliveryPointMap.ts` bridges the two (verified against `account-details`).
 
-### Order confirmation email
-
-`emails/OrderConfirmation.tsx` shows shipping method and:
-- **MPL:** delivery address
-- **Foxpost:** locker name + formatted address
+**Legacy:** pre-Kvikk orders keep `shippingMethod` (`ShippingMethod` enum) + `pickupPointId`;
+`describeShipping()` (`lib/shipping/display.ts`) renders both old and new orders, and both the
+confirmation email and the admin/success displays go through it.
 
 ---
 
