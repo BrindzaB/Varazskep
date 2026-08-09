@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCartStore, itemKey } from "@/lib/cart/cartStore";
 import { formatHuf } from "@/lib/utils/format";
+import { isValidHungarianPhone } from "@/lib/utils/phone";
 import KvikkMapWidget, {
   type KvikkPointOption,
 } from "@/components/shop/KvikkMapWidget";
@@ -82,9 +83,13 @@ function validate(
     errors.email = "Érvénytelen e-mail cím.";
   }
 
-  // Phone is required — Kvikk needs it to create the shipment.
+  // Phone is required AND must be a valid Hungarian number — Kvikk needs it to create the
+  // shipment, and rejects a malformed number only at label time (after the order is paid).
   if (!fields.phone.trim()) {
     errors.phone = "A telefonszám megadása kötelező.";
+  } else if (!isValidHungarianPhone(fields.phone)) {
+    errors.phone =
+      "Érvénytelen telefonszám. Adjon meg magyar számot, pl. +36 20 123 4567.";
   }
 
   if (mode === "home") {
