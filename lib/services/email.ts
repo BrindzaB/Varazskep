@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { render } from "@react-email/components";
 import OrderConfirmation from "@/emails/OrderConfirmation";
 import ShipmentNotification from "@/emails/ShipmentNotification";
+import PickupReady from "@/emails/PickupReady";
 import { formatHuf } from "@/lib/utils/format";
 import { describeShipping } from "@/lib/shipping/display";
 import type {
@@ -109,6 +110,45 @@ export async function sendShipmentNotificationEmail(
     from: FROM_ADDRESS,
     to: input.customerEmail,
     subject: "Csomagod úton van – Varázskép",
+    html,
+  });
+}
+
+interface SendPickupReadyInput {
+  customerName: string;
+  customerEmail: string;
+  courierLabel: string; // e.g. "Packeta", "Foxpost"
+  pointName?: string; // pickup point display name
+  pointAddress?: string; // pickup point address
+  trackingNumber: string;
+  trackingLink: string;
+}
+
+// "Your package is ready to collect at the point" email — sent for delivery-point orders
+// when the parcel first reaches the pickup point (Kvikk `ready_for_pickup` stage).
+export async function sendPickupReadyEmail(
+  input: SendPickupReadyInput
+): Promise<void> {
+  if (!process.env.RESEND_API_KEY) {
+    return;
+  }
+
+  const html = await render(
+    PickupReady({
+      customerName: input.customerName,
+      courierLabel: input.courierLabel,
+      pointName: input.pointName,
+      pointAddress: input.pointAddress,
+      trackingNumber: input.trackingNumber,
+      trackingLink: input.trackingLink,
+    })
+  );
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: input.customerEmail,
+    subject: "Csomagod átvehető – Varázskép",
     html,
   });
 }
