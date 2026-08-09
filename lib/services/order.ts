@@ -133,6 +133,17 @@ export async function setOrderShipment(
 }
 
 /**
+ * Fetches an order by its Kvikk tracking number, or null if none matches.
+ * Used by the Kvikk status webhook to branch on delivery type and read the pickup-point
+ * display fields for the "ready to collect" notification.
+ */
+export async function getOrderByKvikkTrackingNumber(
+  kvikkTrackingNumber: string
+) {
+  return prisma.order.findFirst({ where: { kvikkTrackingNumber } });
+}
+
+/**
  * Transitions an order to a new status.
  * Enforces the allowed status progression defined by the business rules.
  */
