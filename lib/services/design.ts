@@ -210,6 +210,23 @@ export function buildDesignSvg(canvasJson: CanvasJson): string {
 // ── Database operations ───────────────────────────────────────────────────────
 
 /**
+ * Returns an order's design canvas JSON, or null if the order has no design (or the canvas
+ * was already erased at the 45-day lifecycle). Used by the admin design-preview route to
+ * rebuild the SVG on the fly and serve it inline (see the route for why we don't link the
+ * Supabase public URL directly).
+ */
+export async function getDesignCanvasByOrderId(
+  orderId: string
+): Promise<CanvasJson | null> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { design: { select: { canvasJson: true } } },
+  });
+  const json = order?.design?.canvasJson;
+  return json ? (json as unknown as CanvasJson) : null;
+}
+
+/**
  * Pre-creates a Design record when the customer clicks "Add to cart" in the designer.
  * The SVG export happens later, triggered by the Stripe webhook (see exportDesignSvg).
  */
