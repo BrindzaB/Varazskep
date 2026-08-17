@@ -356,14 +356,15 @@ export default async function AdminOrderDetailPage({
           )}
         </div>
 
-        {/* Design preview */}
-        {order.design?.svgUrl && (
+        {/* Design preview. Served via our own route (Content-Disposition: inline) rather than
+            the Supabase public URL, which now forces an attachment download for SVGs. */}
+        {order.design?.canvasJson && (
           <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
             <h2 className="mb-3 text-sm font-semibold text-gray-700">
               Egyedi terv
             </h2>
             <object
-              data={order.design.svgUrl}
+              data={`/api/admin/orders/${order.id}/design`}
               type="image/svg+xml"
               className="max-w-full rounded border border-gray-200"
               style={{
@@ -382,7 +383,7 @@ export default async function AdminOrderDetailPage({
               </span>
             </object>
             <a
-              href={order.design.svgUrl}
+              href={`/api/admin/orders/${order.id}/design`}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2 inline-block text-sm text-blue-600 hover:underline"
