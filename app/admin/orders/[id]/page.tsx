@@ -3,6 +3,7 @@ import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import OrderStatusUpdater from "@/components/admin/OrderStatusUpdater";
 import ShipmentActions from "@/components/admin/ShipmentActions";
+import OrderPhoneEditor from "@/components/admin/OrderPhoneEditor";
 import { getOrderById, PII_ERASED_SENTINEL } from "@/lib/services/order";
 import GdprEraseButton from "@/components/admin/GdprEraseButton";
 import type { OrderStatus } from "@/lib/generated/prisma/client";
@@ -236,6 +237,15 @@ export default async function AdminOrderDetailPage({
                 <div className="flex gap-2">
                   <dt className="w-24 shrink-0 text-gray-500">Email:</dt>
                   <dd className="text-gray-900">{order.customerEmail}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="w-24 shrink-0 text-gray-500">Telefon:</dt>
+                  <dd className="text-gray-900">
+                    <OrderPhoneEditor
+                      orderId={order.id}
+                      phone={order.customerPhone}
+                    />
+                  </dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-24 shrink-0 text-gray-500">Cím:</dt>

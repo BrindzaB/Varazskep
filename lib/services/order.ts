@@ -144,6 +144,18 @@ export async function getOrderByKvikkTrackingNumber(
 }
 
 /**
+ * Updates the recipient phone on an order (admin correction before the shipment is created).
+ * The caller must pass an already-normalized/validated value (see normalizeHungarianPhone) —
+ * a malformed phone otherwise fails only at Kvikk shipment-creation time.
+ */
+export async function updateOrderCustomerPhone(orderId: string, phone: string) {
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { customerPhone: phone },
+  });
+}
+
+/**
  * Transitions an order to a new status.
  * Enforces the allowed status progression defined by the business rules.
  */

@@ -6,6 +6,7 @@ import { convertEurToHuf } from "@/lib/malfini/pricing";
 import type { CartItem } from "@/lib/cart/cartStore";
 import { resolveParcelWeightGrams } from "@/lib/services/shipping";
 import { getShippingQuote } from "@/lib/kvikk/pricing";
+import { normalizeHungarianPhone } from "@/lib/utils/phone";
 import { COURIER_LABELS } from "@/lib/shipping/display";
 import type { KvikkCourier } from "@/lib/kvikk/types";
 
@@ -84,6 +85,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const { items, customer, shipping, gdprConsent } =
     parsed as CheckoutRequestBody;
+
+  // Normalize + validate the recipient phone here (authoritative). Kvikk rejects a
+  // malformed number only at shipment-creation time — long after payment — so an
+  // unshippable number must never reach a paid order. Store the canonical +36 form.
+  const normalizedPhone = normalizeHungarianPhone(customer.phone ?? "");
+  if (!normalizedPhone) {
+    return NextResponse.json(
+      { error: "Érvénytelen telefonszám." },
+      { status: 400 }
+    );
+  }
 
   // Basic shipping-shape validation. The cost is validated against live Kvikk pricing
   // after the parcel weight is known (see below the item loop).
@@ -264,7 +276,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     },
     metadata: {
       customerName: customer.name,
-      customerPhone: customer.phone,
+      customerPhone: normalizedPhone,
       shippingAddress: JSON.stringify(customer.shippingAddress),
       gdprConsent: String(gdprConsent),
       cartItems: JSON.stringify(cartItemsMeta),
