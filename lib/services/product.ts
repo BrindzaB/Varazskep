@@ -68,6 +68,35 @@ export async function toggleProductActive(id: string, active: boolean) {
   return prisma.product.update({ where: { id }, data: { active } });
 }
 
+/**
+ * Permanently deletes a product and its variants.
+ *
+ * Existing orders that reference the product's variants are detached
+ * (`variantId` → null) rather than deleted, so order history is preserved.
+ * This is safe because orders keep denormalized product/color/size fields for
+ * the mandatory 8-year retention (see the Order model in schema.prisma).
+ * Runs in a transaction so a partial delete can never leave orphaned variants.
+ */
+export async function deleteProduct(id: string) {
+  return prisma.$transaction(async (tx) => {
+    const variants = await tx.variant.findMany({
+      where: { productId: id },
+      select: { id: true },
+    });
+    const variantIds = variants.map((v) => v.id);
+
+    if (variantIds.length > 0) {
+      await tx.order.updateMany({
+        where: { variantId: { in: variantIds } },
+        data: { variantId: null },
+      });
+      await tx.variant.deleteMany({ where: { productId: id } });
+    }
+
+    await tx.product.delete({ where: { id } });
+  });
+}
+
 export async function getAllProductSlugs() {
   const products = await prisma.product.findMany({
     where: { active: true },

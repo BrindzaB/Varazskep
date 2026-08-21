@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
-import ProductToggleButton from "@/components/admin/ProductToggleButton";
+import ProductDeleteButton from "@/components/admin/ProductDeleteButton";
+import { PencilIcon } from "@/components/admin/icons";
 import { getAllProductsAdmin } from "@/lib/services/product";
 
 export const dynamic = "force-dynamic";
@@ -70,16 +71,18 @@ export default async function AdminProductsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 justify-end">
+                      <div className="flex items-center gap-1 justify-end">
                         <Link
                           href={`/admin/products/${product.id}`}
-                          className="text-sm text-blue-600 hover:underline"
+                          title="Szerkesztés"
+                          aria-label={`„${product.name}” szerkesztése`}
+                          className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900"
                         >
-                          Szerkesztés
+                          <PencilIcon className="h-4 w-4" />
                         </Link>
-                        <ProductToggleButton
+                        <ProductDeleteButton
                           productId={product.id}
-                          active={product.active}
+                          productName={product.name}
                         />
                       </div>
                     </td>
