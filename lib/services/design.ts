@@ -265,6 +265,39 @@ export async function createDesign(canvasJson: CanvasJson) {
 }
 
 /**
+ * Uploads a client-captured PNG preview (product mockup + design, as the customer
+ * saw it) to Supabase Storage and stores its URL on the Design. Best-effort: the
+ * caller should catch and log without failing the design save.
+ */
+export async function saveDesignPreview(
+  designId: string,
+  dataUrl: string,
+): Promise<void> {
+  const match = /^data:image\/png;base64,([\s\S]+)$/.exec(dataUrl);
+  if (!match) return; // not a PNG data URL — ignore
+  const buffer = Buffer.from(match[1], "base64");
+
+  const supabase = createSupabaseAdmin();
+  const fileName = `${designId}-preview.png`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET_DESIGNS)
+    .upload(fileName, buffer, { contentType: "image/png", upsert: true });
+  if (uploadError) {
+    throw new Error(`Preview upload failed for ${fileName}: ${uploadError.message}`);
+  }
+
+  const { data: urlData } = supabase.storage
+    .from(BUCKET_DESIGNS)
+    .getPublicUrl(fileName);
+
+  await prisma.design.update({
+    where: { id: designId },
+    data: { previewUrl: urlData.publicUrl },
+  });
+}
+
+/**
  * Renders the design to SVG and uploads it to Supabase Storage (designs bucket).
  * Called from the Stripe webhook after order creation. Updates Design.svgUrl on success.
  * Errors are thrown — callers should catch and log without failing the webhook.

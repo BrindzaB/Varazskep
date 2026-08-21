@@ -356,10 +356,11 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
 
     try {
       const canvasData = canvasRef.current?.getCanvasJson() ?? { front: [], back: [] };
+      const previewDataUrl = canvasRef.current?.getPreviewDataUrl() ?? null;
       const res = await fetch("/api/designs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasJson: canvasData }),
+        body: JSON.stringify({ canvasJson: canvasData, previewDataUrl }),
       });
       if (!res.ok) throw new Error("Design save failed");
       const { id: designId } = (await res.json()) as { id: string };
@@ -681,10 +682,11 @@ function MalfiniDesignerLayout({
 
     try {
       const canvasData = canvasRef.current?.getCanvasJson() ?? { front: [], back: [] };
+      const previewDataUrl = canvasRef.current?.getPreviewDataUrl() ?? null;
       const res = await fetch("/api/designs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasJson: canvasData }),
+        body: JSON.stringify({ canvasJson: canvasData, previewDataUrl }),
       });
       if (!res.ok) throw new Error("Design save failed");
       const { id: designId } = (await res.json()) as { id: string };

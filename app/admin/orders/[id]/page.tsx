@@ -380,47 +380,67 @@ export default async function AdminOrderDetailPage({
             the Supabase public URL, which now forces an attachment download for SVGs. */}
         {order.design?.canvasJson && designPreview && (
           <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-            <h2 className="mb-1 text-sm font-semibold text-gray-700">
-              Minta (átlátszó háttér)
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">
+              Egyedi terv
             </h2>
-            <p className="mb-3 text-xs text-gray-500">
-              A nyomtatandó minta a nyomtatási területen belüli helyén és
-              méretében.
-            </p>
-            <div
-              className="rounded border border-gray-200"
-              style={{
-                width: designPreview.width,
-                height: designPreview.height,
-                maxWidth: "100%",
-                backgroundImage:
-                  "linear-gradient(45deg, #d1d5db 25%, transparent 25%)," +
-                  "linear-gradient(-45deg, #d1d5db 25%, transparent 25%)," +
-                  "linear-gradient(45deg, transparent 75%, #d1d5db 75%)," +
-                  "linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
-                backgroundSize: "16px 16px",
-                backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
-                backgroundColor: "#f3f4f6",
-              }}
-            >
-              <object
-                data={`/api/admin/orders/${order.id}/design`}
-                type="image/svg+xml"
-                className="h-full w-full"
-              >
-                <span className="text-sm text-gray-500">
-                  Az SVG nem tölthető be.
-                </span>
-              </object>
+            <div className="flex flex-wrap items-start gap-6">
+              {/* Composite — the product with the design, as the customer saw it */}
+              {order.design.previewUrl && (
+                <div>
+                  <p className="mb-2 text-xs font-medium text-gray-500">
+                    Ahogy a vevő látta
+                  </p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={order.design.previewUrl}
+                    alt="Terv előnézet a terméken"
+                    className="rounded border border-gray-200"
+                    style={{ maxWidth: 320, height: "auto" }}
+                  />
+                </div>
+              )}
+
+              {/* Design only — transparent background, real position + size */}
+              <div>
+                <p className="mb-2 text-xs font-medium text-gray-500">
+                  Minta (átlátszó háttér)
+                </p>
+                <div
+                  className="rounded border border-gray-200"
+                  style={{
+                    width: designPreview.width,
+                    height: designPreview.height,
+                    maxWidth: "100%",
+                    backgroundImage:
+                      "linear-gradient(45deg, #d1d5db 25%, transparent 25%)," +
+                      "linear-gradient(-45deg, #d1d5db 25%, transparent 25%)," +
+                      "linear-gradient(45deg, transparent 75%, #d1d5db 75%)," +
+                      "linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
+                    backgroundSize: "16px 16px",
+                    backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
+                    backgroundColor: "#f3f4f6",
+                  }}
+                >
+                  <object
+                    data={`/api/admin/orders/${order.id}/design`}
+                    type="image/svg+xml"
+                    className="h-full w-full"
+                  >
+                    <span className="text-sm text-gray-500">
+                      Az SVG nem tölthető be.
+                    </span>
+                  </object>
+                </div>
+                <a
+                  href={`/api/admin/orders/${order.id}/design`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+                >
+                  Megnyitás új lapon
+                </a>
+              </div>
             </div>
-            <a
-              href={`/api/admin/orders/${order.id}/design`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-block text-sm text-blue-600 hover:underline"
-            >
-              Megnyitás új lapon
-            </a>
           </div>
         )}
 
