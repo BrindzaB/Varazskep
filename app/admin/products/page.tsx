@@ -3,6 +3,7 @@ import AdminNav from "@/components/admin/AdminNav";
 import ProductDeleteButton from "@/components/admin/ProductDeleteButton";
 import { PencilIcon } from "@/components/admin/icons";
 import { getAllProductsAdmin } from "@/lib/services/product";
+import { getMockupLabel } from "@/lib/designer/mockupConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,7 @@ export default async function AdminProductsPage() {
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Név</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Slug</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Kategória</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Tervező</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Variánsok</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Állapot</th>
@@ -51,12 +53,9 @@ export default async function AdminProductsPage() {
                   <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900">{product.name}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{product.slug}</td>
+                    <td className="px-4 py-3 text-gray-600">{product.category ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">
-                      {product.mockupType === "tshirt"
-                        ? "Póló"
-                        : product.mockupType === "mug"
-                          ? "Bögre"
-                          : "—"}
+                      {getMockupLabel(product.mockupType) ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{product.variants.length} db</td>
                     <td className="px-4 py-3">

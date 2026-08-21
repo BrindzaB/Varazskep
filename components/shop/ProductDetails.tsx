@@ -154,7 +154,7 @@ export default function ProductDetails({ product, onColorChange }: ProductDetail
               colorName: selectedColor,
               sizeName: selectedSize,
               price: selectedVariant.price,
-              imageUrl: product.imageUrl ?? null,
+              imageUrl: selectedVariant.imageUrl ?? product.imageUrl ?? null,
             });
             router.push("/cart");
           }}

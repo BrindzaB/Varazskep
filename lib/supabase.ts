@@ -20,3 +20,4 @@ export function createSupabaseAdmin() {
 
 export const BUCKET_CLIPART = process.env.SUPABASE_STORAGE_BUCKET_CLIPART ?? "clipart";
 export const BUCKET_DESIGNS = process.env.SUPABASE_STORAGE_BUCKET_DESIGNS ?? "designs";
+export const BUCKET_PRODUCTS = process.env.SUPABASE_STORAGE_BUCKET_PRODUCTS ?? "products";

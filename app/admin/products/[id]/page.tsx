@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import ProductForm from "@/components/admin/ProductForm";
-import { getProductByIdAdmin } from "@/lib/services/product";
+import VariantManager from "@/components/admin/VariantManager";
+import { getProductByIdAdmin, getProductCategories } from "@/lib/services/product";
+import { COLOR_MAP } from "@/lib/utils/colors";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,10 @@ export default async function EditProductPage({
 }: {
   params: { id: string };
 }) {
-  const product = await getProductByIdAdmin(params.id);
+  const [product, categories] = await Promise.all([
+    getProductByIdAdmin(params.id),
+    getProductCategories(),
+  ]);
   if (!product) notFound();
 
   return (
@@ -32,14 +37,37 @@ export default async function EditProductPage({
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <ProductForm
             productId={product.id}
+            categorySuggestions={categories}
             initialValues={{
               name: product.name,
               slug: product.slug,
               description: product.description ?? "",
               imageUrl: product.imageUrl ?? "",
+              category: product.category ?? "",
               mockupType: product.mockupType ?? "",
               active: product.active,
             }}
+          />
+        </div>
+
+        <div className="mt-6 bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="mb-1 text-sm font-semibold text-gray-700">Variánsok</h2>
+          <p className="mb-4 text-xs text-gray-500">
+            Szín / méret kombinációk árral, készlettel és csomagsúllyal. Legalább
+            egy variáns kell ahhoz, hogy a termék megvásárolható legyen.
+          </p>
+          <VariantManager
+            productId={product.id}
+            initialVariants={product.variants.map((v) => ({
+              id: v.id,
+              color: v.color,
+              size: v.size,
+              price: v.price,
+              stock: v.stock,
+              weightGrams: v.weightGrams,
+              imageUrl: v.imageUrl,
+            }))}
+            colorSuggestions={Object.keys(COLOR_MAP)}
           />
         </div>
       </main>
