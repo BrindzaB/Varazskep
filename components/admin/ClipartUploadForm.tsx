@@ -14,12 +14,18 @@ export default function ClipartUploadForm({ existingCategories }: Props) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [darkFile, setDarkFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null;
     setFile(selected);
+    setError(null);
+  }
+
+  function handleDarkFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setDarkFile(e.target.files?.[0] ?? null);
     setError(null);
   }
 
@@ -42,6 +48,7 @@ export default function ClipartUploadForm({ existingCategories }: Props) {
 
     const formData = new FormData();
     formData.append("file", file);
+    if (darkFile) formData.append("darkFile", darkFile);
     formData.append("name", name.trim());
     formData.append("category", category.trim());
 
@@ -69,10 +76,10 @@ export default function ClipartUploadForm({ existingCategories }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* SVG file */}
+      {/* Light SVG file */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          SVG fájl
+          SVG fájl (világos alap)
         </label>
         <input
           ref={fileInputRef}
@@ -84,6 +91,26 @@ export default function ClipartUploadForm({ existingCategories }: Props) {
         {file && (
           <p className="mt-1 text-xs text-gray-500">{file.name}</p>
         )}
+      </div>
+
+      {/* Dark SVG file (optional) */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          SVG fájl (sötét alap) — opcionális
+        </label>
+        <input
+          type="file"
+          accept=".svg,image/svg+xml"
+          onChange={handleDarkFileChange}
+          className="block w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 transition-colors"
+        />
+        {darkFile && (
+          <p className="mt-1 text-xs text-gray-500">{darkFile.name}</p>
+        )}
+        <p className="mt-1 text-xs text-gray-400">
+          A tervezőben a „Sötét alap” nézetnél ez a verzió jelenik meg. Ha
+          üresen hagyod, a minta csak világos alapon lesz elérhető.
+        </p>
       </div>
 
       {/* Name */}

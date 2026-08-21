@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClipartRecord } from "@/lib/services/clipart";
-import { createSupabaseAdmin, BUCKET_CLIPART } from "@/lib/supabase";
+import { createClipartRecord, uploadClipartSvg } from "@/lib/services/clipart";
 import { verifyAdminToken, COOKIE_NAME } from "@/lib/auth/jwt";
+
+function isSvg(file: File): boolean {
+  return file.name.toLowerCase().endsWith(".svg") || file.type === "image/svg+xml";
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const token = req.cookies.get(COOKIE_NAME)?.value;
@@ -17,6 +20,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const file = formData.get("file");
+  const darkFile = formData.get("darkFile");
   const name = formData.get("name");
   const category = formData.get("category");
 
@@ -29,31 +33,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (typeof category !== "string" || !category.trim()) {
     return NextResponse.json({ error: "Category is required" }, { status: 400 });
   }
-  if (!file.name.toLowerCase().endsWith(".svg") && file.type !== "image/svg+xml") {
+  if (!isSvg(file)) {
     return NextResponse.json({ error: "Only SVG files are allowed" }, { status: 400 });
+  }
+  // Dark variant is optional; validate only if provided.
+  const hasDark = darkFile instanceof File && darkFile.size > 0;
+  if (hasDark && !isSvg(darkFile as File)) {
+    return NextResponse.json(
+      { error: "A sötét verzió csak SVG lehet." },
+      { status: 400 },
+    );
   }
 
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const filename = `${crypto.randomUUID()}.svg`;
-
-    const supabase = createSupabaseAdmin();
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET_CLIPART)
-      .upload(filename, buffer, { contentType: "image/svg+xml", upsert: false });
-
-    if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
-    }
-
-    const { data: urlData } = supabase.storage
-      .from(BUCKET_CLIPART)
-      .getPublicUrl(filename);
+    const svgUrl = await uploadClipartSvg(file);
+    const darkSvgUrl = hasDark ? await uploadClipartSvg(darkFile as File) : null;
 
     const clipart = await createClipartRecord({
       name: name.trim(),
       category: category.trim(),
-      svgUrl: urlData.publicUrl,
+      svgUrl,
+      darkSvgUrl,
     });
 
     return NextResponse.json(clipart, { status: 201 });
