@@ -3,16 +3,11 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
 import { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
-import type { PrintArea } from "@/lib/designer/mockupConfig";
+import type { PrintArea, PrintSizeCm } from "@/lib/designer/mockupConfig";
 
 // Canvas dimensions — exported so DesignerLayout can compute the CSS scale factor.
 export const CANVAS_WIDTH = 500;
 export const CANVAS_HEIGHT = 600;
-
-// Physical print area dimensions (cm) — used for coordinate display and print fee calculation.
-// The full printable area on a standard adult t-shirt is 38×48 cm.
-const PRINT_AREA_CM_WIDTH  = 38;
-const PRINT_AREA_CM_HEIGHT = 48;
 
 // A4 dimension thresholds for print fee tier.
 // An object is "large" if it exceeds A4 in either dimension (width > 21 cm OR height > 29.7 cm).
@@ -74,6 +69,9 @@ interface DesignerCanvasProps {
   // Print area config — drives object constraints and the dashed boundary rect.
   // Comes from mockupConfig (local) or categoryConfig (Malfini).
   printArea: PrintArea;
+  // Real print area size (cm) — converts the on-canvas pixel design to cm for the
+  // coordinate overlay, saved production coordinates, and the print-fee tier.
+  printAreaCm: PrintSizeCm;
   // Called when text selection changes — isText=true means an IText is selected
   onActiveTextChange?: (isText: boolean, font: string, color: string) => void;
   // Called whenever the total print fee changes (sum of per-object fees across both sides)
@@ -86,7 +84,7 @@ interface DesignerCanvasProps {
 
 const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
   function DesignerCanvas(
-    { imageUrl, side = "front", printArea, onActiveTextChange, onPrintFeeChange, onDarkClipartChange, canvasHeight },
+    { imageUrl, side = "front", printArea, printAreaCm, onActiveTextChange, onPrintFeeChange, onDarkClipartChange, canvasHeight },
     ref,
   ) {
     const actualCanvasHeight = canvasHeight ?? CANVAS_HEIGHT;
@@ -138,12 +136,12 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       const printLeft = printArea.centerX - printArea.width  / 2;
       const printTop  = printArea.centerY - printArea.height / 2;
       return {
-        xCm:  Math.max(0, (br.left - printLeft) * (PRINT_AREA_CM_WIDTH  / printArea.width)),
-        yCm:  Math.max(0, (br.top  - printTop)  * (PRINT_AREA_CM_HEIGHT / printArea.height)),
+        xCm:  Math.max(0, (br.left - printLeft) * (printAreaCm.width  / printArea.width)),
+        yCm:  Math.max(0, (br.top  - printTop)  * (printAreaCm.height / printArea.height)),
         left: br.left + br.width / 2,
         top:  br.top,
       };
-    }, [printArea]);
+    }, [printArea, printAreaCm]);
 
     // ── Expose canvas API to DesignerLayout ───────────────────────────────────
     useImperativeHandle(ref, () => ({
@@ -325,10 +323,10 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           const br = obj.getBoundingRect();
           return {
             ...obj.toObject(),
-            _xCm: Math.max(0, (br.left - printLeft) * (PRINT_AREA_CM_WIDTH  / printArea.width)),
-            _yCm: Math.max(0, (br.top  - printTop)  * (PRINT_AREA_CM_HEIGHT / printArea.height)),
-            _wCm: obj.getScaledWidth()  * (PRINT_AREA_CM_WIDTH  / printArea.width),
-            _hCm: obj.getScaledHeight() * (PRINT_AREA_CM_HEIGHT / printArea.height),
+            _xCm: Math.max(0, (br.left - printLeft) * (printAreaCm.width  / printArea.width)),
+            _yCm: Math.max(0, (br.top  - printTop)  * (printAreaCm.height / printArea.height)),
+            _wCm: obj.getScaledWidth()  * (printAreaCm.width  / printArea.width),
+            _hCm: obj.getScaledHeight() * (printAreaCm.height / printArea.height),
           };
         };
 
@@ -438,8 +436,8 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           const otherSide = currentSideRef.current === "front" ? "back" : "front";
           const otherObjs = sideObjectsRef.current[otherSide];
           const total = [...currentObjs, ...otherObjs].reduce((sum, obj) => {
-            const wCm = obj.getScaledWidth()  * (PRINT_AREA_CM_WIDTH  / printArea.width);
-            const hCm = obj.getScaledHeight() * (PRINT_AREA_CM_HEIGHT / printArea.height);
+            const wCm = obj.getScaledWidth()  * (printAreaCm.width  / printArea.width);
+            const hCm = obj.getScaledHeight() * (printAreaCm.height / printArea.height);
             const isLarge = wCm > A4_WIDTH_CM || hCm > A4_HEIGHT_CM;
             return sum + (isLarge ? PRINT_FEE_LARGE : PRINT_FEE_SMALL);
           }, 0);

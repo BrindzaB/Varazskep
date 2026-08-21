@@ -432,6 +432,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
               imageUrl={imageUrl}
               side={side}
               printArea={mockupConfig.printArea}
+              printAreaCm={mockupConfig.printAreaCm}
               onActiveTextChange={handleActiveTextChange}
               onPrintFeeChange={setPrintFee}
               onDarkClipartChange={setHasClipartsWithDark}
@@ -595,6 +596,7 @@ function MalfiniDesignerLayout({
   // categoryConfig is guaranteed non-null — the designer page only routes here
   // for products whose categoryCode is in CATEGORY_CONFIG.
   const printArea = categoryConfig!.printArea;
+  const printAreaCm = categoryConfig!.printAreaCm;
   const hasSides = categoryConfig!.hasSides;
 
   const [selectedVariant, setSelectedVariant] = useState<MalfiniVariant>(initialVariant);
@@ -756,6 +758,7 @@ function MalfiniDesignerLayout({
             imageUrl={imageUrl}
             side={side}
             printArea={printArea}
+            printAreaCm={printAreaCm}
             onActiveTextChange={handleActiveTextChange}
             onPrintFeeChange={setPrintFee}
             onDarkClipartChange={setHasClipartsWithDark}
