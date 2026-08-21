@@ -12,10 +12,12 @@
 // Use the same values as the tshirt config in lib/designer/mockupConfig.ts as a
 // starting point, then adjust per product type after visual testing.
 
-import type { PrintArea } from "@/lib/designer/mockupConfig";
+import type { PrintArea, PrintSizeCm } from "@/lib/designer/mockupConfig";
 
 export interface CategoryConfig {
   printArea: PrintArea;
+  // Real print area size in cm — garments use the full t-shirt area (38×48).
+  printAreaCm: PrintSizeCm;
   hasSides: boolean; // true = front/back toggle shown in the designer
 }
 
@@ -25,15 +27,18 @@ export interface CategoryConfig {
 export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   "t-shirts": {
     printArea: { width: 220, height: 300, centerX: 250, centerY: 300 },
+    printAreaCm: { width: 38, height: 48 },
     hasSides: true,
   },
   "sweatshirts": {
     printArea: { width: 220, height: 300, centerX: 252, centerY: 300 },
+    printAreaCm: { width: 38, height: 48 },
     hasSides: true,
   },
   "polo-shirts": {
     // Slightly narrower and shorter than t-shirts due to the collar and button placket
     printArea: { width: 200, height: 300, centerX: 250, centerY: 310 },
+    printAreaCm: { width: 38, height: 48 },
     hasSides: true,
   },
 };
