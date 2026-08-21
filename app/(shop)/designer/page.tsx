@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import DesignerLayout from "@/components/designer/DesignerLayout";
 import ProductPickerPanel from "@/components/designer/ProductPickerPanel";
 import { getProductBySlug } from "@/lib/services/product";
+import { getMockupConfig } from "@/lib/designer/mockupConfig";
 import {
   getProducts,
   getProduct,
@@ -127,12 +128,13 @@ export default async function DesignerPage({ searchParams }: Props) {
   // ── Local mode: ?slug=egyedi-bogre&color=Fehér&size=330ml ─────────────────
   const slug = searchParams.slug ?? "egyedi-polo";
 
+  // A product is designable only if its mockupType maps to a real code template.
   let product = await getProductBySlug(slug);
-  if (!product || !product.mockupType) {
+  if (!product || !getMockupConfig(product.mockupType)) {
     product = await getProductBySlug("egyedi-polo");
   }
 
-  if (!product || !product.mockupType) {
+  if (!product || !getMockupConfig(product.mockupType)) {
     redirect("/products");
   }
 

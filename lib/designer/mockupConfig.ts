@@ -20,8 +20,6 @@ export interface MockupConfig {
   hasSides: boolean;
   // false for static PNG mockups — skips SVG fetch + CSS color replacement in LocalDesignerLayout
   colorReplaceable?: boolean;
-  // Per-color product photo paths shown beside the canvas (mugs, etc.)
-  colorImages?: Record<string, string>;
   // Override canvas height (px) — use for landscape products like mugs (default: 600)
   canvasHeight?: number;
 }
@@ -66,24 +64,6 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
     hasSides: false,
     colorReplaceable: false,
     canvasHeight: 310,
-    colorImages: {
-      Fehér: "/mugs/basic_mug/Feh%C3%A9r.jpg",
-      Fekete: "/mugs/basic_mug/Fekete.jpg",
-      Sötétkék: "/mugs/basic_mug/S%C3%B6t%C3%A9tk%C3%A9k.jpg",
-      Piros: "/mugs/basic_mug/Piros.jpg",
-      Bordó: "/mugs/basic_mug/Bord%C3%B3.jpg",
-      Középkék: "/mugs/basic_mug/K%C3%B6z%C3%A9pk%C3%A9k.jpg",
-      Lila: "/mugs/basic_mug/Lila.jpg",
-      Menta: "/mugs/basic_mug/Menta.jpg",
-      Napsárga: "/mugs/basic_mug/Naps%C3%A1rga.jpg",
-      Narancs: "/mugs/basic_mug/Narancs.jpg",
-      Rózsaszín: "/mugs/basic_mug/R%C3%B3zsasz%C3%ADn.jpg",
-      Sárga: "/mugs/basic_mug/S%C3%A1rga.jpg",
-      Sötétzöld: "/mugs/basic_mug/S%C3%B6t%C3%A9tz%C3%B6ld.jpg",
-      Türkiz: "/mugs/basic_mug/T%C3%BCrkiz.jpg",
-      "Világos zöld": "/mugs/basic_mug/Vil%C3%A1gos%20z%C3%B6ld.jpg",
-      Világoskék: "/mugs/basic_mug/Vil%C3%A1gosk%C3%A9k.jpg",
-    },
   },
   mug_with_spoon: {
     label: "Bögre (kanalas)",
@@ -92,26 +72,17 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
     hasSides: false,
     colorReplaceable: false,
     canvasHeight: 310,
-    colorImages: {
-      Barna: "/mugs/mug_with_spoon/Kanalas_Barna.jpg",
-      Kék: "/mugs/mug_with_spoon/Kanalas_K%C3%A9k.jpg",
-      Narancs: "/mugs/mug_with_spoon/Kanalas_Narancs.jpg",
-      Piros: "/mugs/mug_with_spoon/Kanalas_Piros.jpg",
-      Rózsaszín: "/mugs/mug_with_spoon/Kanalas_R%C3%B3zsasz%C3%ADn.jpg",
-      Sárga: "/mugs/mug_with_spoon/Kanalas_S%C3%A1rga.jpg",
-      Zöld: "/mugs/mug_with_spoon/Kanalas_Z%C3%B6ld.jpg",
-      Fekete: "/mugs/mug_with_spoon/Kanalas_fekete.jpg",
-    },
   },
 };
 
-const DEFAULT_MOCKUP_CONFIG = MOCKUP_CONFIG.tshirt;
-
-export function getMockupConfig(mockupType: string | null): MockupConfig {
+// Returns the designer template for a mockupType, or null if none exists.
+// null means the product is not designable — callers must gate on this rather
+// than silently falling back to another template.
+export function getMockupConfig(mockupType: string | null): MockupConfig | null {
   if (mockupType && mockupType in MOCKUP_CONFIG) {
     return MOCKUP_CONFIG[mockupType];
   }
-  return DEFAULT_MOCKUP_CONFIG;
+  return null;
 }
 
 // Single source of truth for the admin designer-template dropdown + list labels.

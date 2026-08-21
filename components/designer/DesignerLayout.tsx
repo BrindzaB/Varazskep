@@ -225,11 +225,21 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
 
-  const mockupConfig = getMockupConfig(product.mockupType ?? null);
+  // The designer page redirects unless the product has a valid template, so
+  // getMockupConfig is non-null here.
+  const mockupConfig = getMockupConfig(product.mockupType ?? null)!;
 
   const availableColors: ColorEntry[] = Array.from(
     new Set(product.variants.map((v) => v.color)),
   ).map((name) => ({ name, hex: COLOR_MAP[name] ?? "#9ca3af" }));
+
+  // Per-colour product photo shown beside the canvas — sourced from the DB
+  // (variant.imageUrl), same as the storefront. Replaces the old hardcoded
+  // colorImages map in mockupConfig.
+  const colorImages: Record<string, string> = {};
+  for (const v of product.variants) {
+    if (v.imageUrl && !colorImages[v.color]) colorImages[v.color] = v.imageUrl;
+  }
 
   const [shirtColorName, setShirtColorName] = useState(initialColor);
   const shirtColorHex = COLOR_MAP[shirtColorName] ?? "#9ca3af";
@@ -429,9 +439,9 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
             />
           </ScaledCanvasWrapper>
 
-          {mockupConfig.colorImages && mockupConfig.colorImages[shirtColorName] && (
+          {colorImages[shirtColorName] && (
             <img
-              src={mockupConfig.colorImages[shirtColorName]}
+              src={colorImages[shirtColorName]}
               alt={shirtColorName}
               className="mt-4 max-w-full rounded object-contain"
               style={{ height: mockupConfig.canvasHeight ?? CANVAS_HEIGHT }}
