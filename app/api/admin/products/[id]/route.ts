@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateProduct, toggleProductActive } from "@/lib/services/product";
+import {
+  updateProduct,
+  toggleProductActive,
+  deleteProduct,
+} from "@/lib/services/product";
 import { verifyAdminToken, COOKIE_NAME } from "@/lib/auth/jwt";
 import type { ProductInput } from "@/lib/services/product";
 
@@ -40,6 +44,24 @@ export async function PATCH(
     if (message.includes("Unique constraint")) {
       return NextResponse.json({ error: "Ez a slug már foglalt" }, { status: 409 });
     }
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } },
+): Promise<NextResponse> {
+  const token = req.cookies.get(COOKIE_NAME)?.value;
+  if (!token || !(await verifyAdminToken(token))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await deleteProduct(params.id);
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
