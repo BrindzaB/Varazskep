@@ -140,7 +140,8 @@ function DesignCoordinatesTable({ canvasJson }: { canvasJson: unknown }) {
       <h2 className="mb-3 text-sm font-semibold text-gray-700">
         Terv koordinátái
       </h2>
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full text-sm whitespace-nowrap">
         <thead>
           <tr className="border-b border-gray-100 text-left text-gray-500">
             <th className="pb-2 font-medium">Oldal</th>
@@ -164,6 +165,7 @@ function DesignCoordinatesTable({ canvasJson }: { canvasJson: unknown }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -256,7 +258,7 @@ export default async function AdminOrderDetailPage({
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-24 shrink-0 text-gray-500">Email:</dt>
-                  <dd className="text-gray-900">{order.customerEmail}</dd>
+                  <dd className="break-all text-gray-900">{order.customerEmail}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-24 shrink-0 text-gray-500">Telefon:</dt>

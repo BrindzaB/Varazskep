@@ -67,8 +67,8 @@ export default async function AdminClipartPage({ searchParams }: Props) {
         {items.length === 0 ? (
           <p className="text-gray-500">Még nincs minta.</p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-sm whitespace-nowrap">
               <thead className="border-b border-gray-200 bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">Előnézet</th>
