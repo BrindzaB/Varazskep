@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import AdminNav from "@/components/admin/AdminNav";
 import ClipartToggleButton from "@/components/admin/ClipartToggleButton";
+import { PencilIcon } from "@/components/admin/icons";
 import { getAllClipartAdmin } from "@/lib/services/clipart";
 
 export const dynamic = "force-dynamic";
@@ -93,7 +94,14 @@ export default async function AdminClipartPage({ searchParams }: Props) {
                         />
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{item.name}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      {item.name}
+                      {item.darkSvgUrl && (
+                        <span className="ml-2 inline-block rounded-full bg-gray-800 px-2 py-0.5 align-middle text-[10px] font-medium text-white">
+                          sötét
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{item.category}</td>
                     <td className="px-4 py-3">
                       <span
@@ -107,7 +115,15 @@ export default async function AdminClipartPage({ searchParams }: Props) {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex items-center justify-end gap-1">
+                        <Link
+                          href={`/admin/clipart/${item.id}`}
+                          title="Szerkesztés"
+                          aria-label={`„${item.name}” szerkesztése`}
+                          className="rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </Link>
                         <ClipartToggleButton clipartId={item.id} active={item.active} />
                       </div>
                     </td>
