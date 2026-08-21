@@ -109,7 +109,8 @@ export default async function AdminMalfiniProductPage({
                 </div>
 
                 {/* Sizes table */}
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm whitespace-nowrap">
                   <thead className="border-b border-gray-100">
                     <tr>
                       <th className="text-left px-4 py-2 font-medium text-gray-500 w-24">Méret</th>
@@ -137,6 +138,7 @@ export default async function AdminMalfiniProductPage({
                     })}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Attributes (fabric content, etc.) */}
                 {variant.attributes && variant.attributes.length > 0 && (
