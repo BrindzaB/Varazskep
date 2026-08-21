@@ -89,7 +89,15 @@ export default function ProductForm({ productId, initialValues }: Props) {
         return;
       }
 
-      router.push("/admin/products");
+      // On create, jump straight to the edit page so variants can be added
+      // right away (a product without variants is not sellable). On update,
+      // return to the list.
+      if (!productId) {
+        const created = (await res.json()) as { id: string };
+        router.push(`/admin/products/${created.id}`);
+      } else {
+        router.push("/admin/products");
+      }
       router.refresh();
     } catch {
       setError("Hálózati hiba. Kérjük próbálja újra.");
