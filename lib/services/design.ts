@@ -14,6 +14,10 @@ export interface CanvasJson {
 const CANVAS_WIDTH = 500;
 const CANVAS_HEIGHT = 600;
 
+// Layout of the combined front+back SVG (gap between panels + label strip below).
+const GAP = 16;
+const LABEL_HEIGHT = 28;
+
 // ── Fabric object shapes ──────────────────────────────────────────────────────
 
 interface FabricBaseJson {
@@ -177,8 +181,6 @@ export function buildDesignSvg(canvasJson: CanvasJson): string {
     return buildSvgFromObjects(frontObjects, vLeft, vTop, vWidth, vHeight);
   }
 
-  const GAP = 16;
-  const LABEL_HEIGHT = 28;
   const totalWidth  = vWidth * 2 + GAP;
   const totalHeight = vHeight + LABEL_HEIGHT;
 
@@ -205,6 +207,25 @@ export function buildDesignSvg(canvasJson: CanvasJson): string {
   </svg>
   <text x="${vWidth + GAP + vWidth / 2}" y="${vHeight + LABEL_HEIGHT - 8}" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#6b7280">Hátul</text>
 </svg>`;
+}
+
+/**
+ * Returns the intrinsic pixel size of the SVG that buildDesignSvg produces, so
+ * the admin preview can reserve the correct aspect ratio. The printable area is
+ * portrait for shirts, wide for mugs, square for pillows, etc. — a fixed-size
+ * container would distort them all into the same box.
+ */
+export function getDesignSvgSize(canvasJson: CanvasJson): {
+  width: number;
+  height: number;
+} {
+  const backObjects = Array.isArray(canvasJson.back) ? canvasJson.back : [];
+  const hasBack = backObjects.length > 0;
+  const pa = canvasJson.printAreaPx;
+  const vWidth = pa?.width ?? CANVAS_WIDTH;
+  const vHeight = pa?.height ?? CANVAS_HEIGHT;
+  if (!hasBack) return { width: vWidth, height: vHeight };
+  return { width: vWidth * 2 + GAP, height: vHeight + LABEL_HEIGHT };
 }
 
 // ── Database operations ───────────────────────────────────────────────────────
