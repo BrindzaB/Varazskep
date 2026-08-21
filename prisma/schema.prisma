@@ -14,9 +14,14 @@ model Product {
   name        String
   slug        String    @unique
   description String?
-  imageUrl    String?
+  imageUrl    String? // Default/fallback storefront image
   active      Boolean   @default(true)
-  mockupType  String? // "tshirt" | "mug" — null means no designer for this product
+  // Storefront category tab for local products (e.g. "Bögrék", "Párnák").
+  // Admin-editable, independent of mockupType. null → shown only under "Összes".
+  category    String?
+  // Designer template key (code-side, see lib/designer/mockupConfig.ts).
+  // null = product is sellable but NOT designable. Does NOT drive storefront display.
+  mockupType  String?
   variants    Variant[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -28,6 +33,10 @@ model Variant {
   product     Product @relation(fields: [productId], references: [id])
   color       String
   size        String
+  // Per-colour storefront photo (admin-uploaded). Managed per colour: all size
+  // variants of the same colour share the same image. null → falls back to
+  // Product.imageUrl. Mirrors how Malfini variants carry their own images.
+  imageUrl    String?
   price       Int // price in HUF (forint), stored as integer — no decimals
   stock       Int     @default(0)
   // Gross package weight in grams, used to source the Kvikk parcel weight.
