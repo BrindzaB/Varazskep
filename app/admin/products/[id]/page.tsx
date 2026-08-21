@@ -3,7 +3,7 @@ import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import ProductForm from "@/components/admin/ProductForm";
 import VariantManager from "@/components/admin/VariantManager";
-import { getProductByIdAdmin } from "@/lib/services/product";
+import { getProductByIdAdmin, getProductCategories } from "@/lib/services/product";
 import { COLOR_MAP } from "@/lib/utils/colors";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,10 @@ export default async function EditProductPage({
 }: {
   params: { id: string };
 }) {
-  const product = await getProductByIdAdmin(params.id);
+  const [product, categories] = await Promise.all([
+    getProductByIdAdmin(params.id),
+    getProductCategories(),
+  ]);
   if (!product) notFound();
 
   return (
@@ -34,11 +37,13 @@ export default async function EditProductPage({
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <ProductForm
             productId={product.id}
+            categorySuggestions={categories}
             initialValues={{
               name: product.name,
               slug: product.slug,
               description: product.description ?? "",
               imageUrl: product.imageUrl ?? "",
+              category: product.category ?? "",
               mockupType: product.mockupType ?? "",
               active: product.active,
             }}

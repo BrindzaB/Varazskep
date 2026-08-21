@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getMockupTemplates } from "@/lib/designer/mockupConfig";
 
 export interface ProductFormValues {
   name: string;
   slug: string;
   description: string;
   imageUrl: string;
+  category: string;
   mockupType: string;
   active: boolean;
 }
@@ -15,13 +17,15 @@ export interface ProductFormValues {
 interface Props {
   productId?: string;
   initialValues?: Partial<ProductFormValues>;
+  // Existing storefront categories, offered as datalist suggestions.
+  categorySuggestions?: string[];
 }
 
+// Designer-template options come from the code registry (single source of truth):
+// add a template there and it becomes selectable here automatically.
 const MOCKUP_OPTIONS = [
   { value: "", label: "Nincs (nem tervezhető)" },
-  { value: "tshirt", label: "Póló" },
-  { value: "mug", label: "Bögre" },
-  { value: "pillow", label: "Párna" },
+  ...getMockupTemplates().map((t) => ({ value: t.key, label: t.label })),
 ];
 
 const DEFAULT_VALUES: ProductFormValues = {
@@ -29,11 +33,16 @@ const DEFAULT_VALUES: ProductFormValues = {
   slug: "",
   description: "",
   imageUrl: "",
+  category: "",
   mockupType: "",
   active: true,
 };
 
-export default function ProductForm({ productId, initialValues }: Props) {
+export default function ProductForm({
+  productId,
+  initialValues,
+  categorySuggestions = [],
+}: Props) {
   const router = useRouter();
   const [values, setValues] = useState<ProductFormValues>({
     ...DEFAULT_VALUES,
@@ -41,6 +50,8 @@ export default function ProductForm({ productId, initialValues }: Props) {
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -62,6 +73,33 @@ export default function ProductForm({ productId, initialValues }: Props) {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "");
       setValues((prev) => ({ ...prev, slug }));
+    }
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    setImageError(null);
+    setUploadingImage(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/products/upload", {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        setImageError(d.error ?? "A feltöltés nem sikerült.");
+        return;
+      }
+      const { url } = (await res.json()) as { url: string };
+      setValues((prev) => ({ ...prev, imageUrl: url }));
+    } catch {
+      setImageError("Hálózati hiba. Kérjük próbálja újra.");
+    } finally {
+      setUploadingImage(false);
     }
   }
 
@@ -150,19 +188,83 @@ export default function ProductForm({ productId, initialValues }: Props) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Kép URL</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Kategória</label>
         <input
-          name="imageUrl"
-          type="url"
-          value={values.imageUrl}
+          name="category"
+          type="text"
+          list="product-category-suggestions"
+          value={values.category}
           onChange={handleChange}
-          placeholder="https://..."
+          placeholder="pl. Bögrék"
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
         />
+        <p className="text-xs text-gray-500 mt-1">
+          A webshop kategória-füle (pl. Bögrék, Párnák). Üresen hagyva csak az
+          „Összes” fül alatt jelenik meg.
+        </p>
+        {categorySuggestions.length > 0 && (
+          <datalist id="product-category-suggestions">
+            {categorySuggestions.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        )}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Tervező típus</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Termékkép (fő kép)
+        </label>
+        <div className="flex items-center gap-4">
+          <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+            {values.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={values.imageUrl}
+                alt="Termékkép"
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <span className="text-xs text-gray-400">nincs kép</span>
+            )}
+          </div>
+          <div className="flex flex-col items-start gap-2">
+            <label
+              className={`cursor-pointer rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 ${
+                uploadingImage ? "pointer-events-none opacity-50" : ""
+              }`}
+            >
+              {uploadingImage
+                ? "Feltöltés…"
+                : values.imageUrl
+                  ? "Csere"
+                  : "Kép feltöltése"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+            </label>
+            {values.imageUrl && (
+              <button
+                type="button"
+                onClick={() => setValues((prev) => ({ ...prev, imageUrl: "" }))}
+                className="text-xs text-gray-500 transition-colors hover:text-red-600"
+              >
+                Eltávolítás
+              </button>
+            )}
+            <p className="text-xs text-gray-400">PNG, JPG, WEBP vagy SVG, max. 5 MB.</p>
+          </div>
+        </div>
+        {imageError && <p className="mt-2 text-sm text-red-600">{imageError}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Tervező sablon
+        </label>
         <select
           name="mockupType"
           value={values.mockupType}
@@ -175,6 +277,10 @@ export default function ProductForm({ productId, initialValues }: Props) {
             </option>
           ))}
         </select>
+        <p className="text-xs text-gray-500 mt-1">
+          Melyik tervező-sablonnal szerkeszthető a termék. „Nincs” esetén
+          eladható, de nem tervezhető. Új sablon hozzáadása fejlesztői feladat.
+        </p>
       </div>
 
       <div className="flex items-center gap-2">

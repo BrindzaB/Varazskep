@@ -52,8 +52,20 @@ export interface ProductInput {
   slug: string;
   description: string;
   imageUrl: string;
+  category: string | null;
   mockupType: string | null;
   active: boolean;
+}
+
+// Distinct, non-empty storefront categories — used for the admin datalist.
+export async function getProductCategories(): Promise<string[]> {
+  const rows = await prisma.product.findMany({
+    where: { category: { not: null } },
+    select: { category: true },
+    distinct: ["category"],
+    orderBy: { category: "asc" },
+  });
+  return rows.map((r) => r.category).filter((c): c is string => Boolean(c));
 }
 
 export async function createProduct(input: ProductInput) {

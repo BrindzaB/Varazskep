@@ -35,6 +35,7 @@ export async function PATCH(
       slug: body.slug.trim(),
       description: body.description?.trim() ?? "",
       imageUrl: body.imageUrl?.trim() ?? "",
+      category: body.category?.trim() || null,
       mockupType: body.mockupType || null,
       active: body.active ?? true,
     });

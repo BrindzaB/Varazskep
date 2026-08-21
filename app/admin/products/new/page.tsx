@@ -1,8 +1,13 @@
 import AdminNav from "@/components/admin/AdminNav";
 import ProductForm from "@/components/admin/ProductForm";
 import Link from "next/link";
+import { getProductCategories } from "@/lib/services/product";
 
-export default function NewProductPage() {
+export const dynamic = "force-dynamic";
+
+export default async function NewProductPage() {
+  const categories = await getProductCategories();
+
   return (
     <div>
       <AdminNav />
@@ -24,7 +29,7 @@ export default function NewProductPage() {
           méret, ár, készlet) és színenkénti képeket adhatsz hozzá.
         </p>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <ProductForm />
+          <ProductForm categorySuggestions={categories} />
         </div>
       </main>
     </div>

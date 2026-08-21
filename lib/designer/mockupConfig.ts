@@ -12,6 +12,8 @@ export interface PrintArea {
 }
 
 export interface MockupConfig {
+  // Human-readable label shown in the admin designer-template dropdown.
+  label: string;
   svgPaths: { front: string; back?: string };
   printArea: PrintArea;
   // Whether the product has a "front" and "back" side that the user can toggle
@@ -26,6 +28,7 @@ export interface MockupConfig {
 
 export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
   tshirt: {
+    label: "Póló",
     svgPaths: {
       front: "/tshirt_front.svg",
       back: "/tshirt_back.svg",
@@ -35,6 +38,7 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
     hasSides: true,
   },
   mug: {
+    label: "Bögre (általános)",
     svgPaths: {
       front: "/mug-mockup.svg",
     },
@@ -45,6 +49,7 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
     hasSides: false,
   },
   pillow: {
+    label: "Párna",
     svgPaths: {
       front: "/pillow-mockup.png",
     },
@@ -54,6 +59,7 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
     colorReplaceable: false,
   },
   basic_mug: {
+    label: "Bögre (sima)",
     svgPaths: { front: "/mug-flat-template.svg" },
     // Flat wrap template: printable band centered in the SVG surface rectangle (y=50, h=210 → centerY=155).
     printArea: { width: 382, height: 170, centerX: 239, centerY: 155 },
@@ -80,6 +86,7 @@ export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
     },
   },
   mug_with_spoon: {
+    label: "Bögre (kanalas)",
     svgPaths: { front: "/mug-flat-template.svg" },
     printArea: { width: 382, height: 170, centerX: 239, centerY: 155 },
     hasSides: false,
@@ -105,4 +112,22 @@ export function getMockupConfig(mockupType: string | null): MockupConfig {
     return MOCKUP_CONFIG[mockupType];
   }
   return DEFAULT_MOCKUP_CONFIG;
+}
+
+// Single source of truth for the admin designer-template dropdown + list labels.
+// When a developer adds a new template to MOCKUP_CONFIG, it appears here
+// automatically, and the admin can then select it to make a product designable.
+export function getMockupTemplates(): { key: string; label: string }[] {
+  return Object.entries(MOCKUP_CONFIG).map(([key, cfg]) => ({
+    key,
+    label: cfg.label,
+  }));
+}
+
+// Label for a mockupType key, or null if it has no template (not designable).
+export function getMockupLabel(mockupType: string | null): string | null {
+  if (mockupType && mockupType in MOCKUP_CONFIG) {
+    return MOCKUP_CONFIG[mockupType].label;
+  }
+  return null;
 }
