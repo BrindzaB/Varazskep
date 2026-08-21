@@ -9,14 +9,7 @@ import type { ProductWithVariants } from "@/lib/services/product";
 export type ClothingProduct = MalfiniProduct & { minPrice: number };
 
 type GenderFilter = "Összes" | "Férfi" | "Női" | "Gyerek";
-type CategoryFilter = "Összes" | "t-shirts" | "sweatshirts" | "polo-shirts" | "mug" | "pillow";
 type SortOrder = "default" | "asc" | "desc";
-
-// All mockupType values that map to the "Bögrék" tab
-const MUG_TYPES = new Set<string>(["mug", "basic_mug", "mug_with_spoon"]);
-
-// Local mockup types that get their own category tab
-const LOCAL_CATEGORIES = new Set<string>(["mug", "pillow"]);
 
 const GENDER_FILTERS: GenderFilter[] = ["Összes", "Férfi", "Női", "Gyerek"];
 
@@ -30,13 +23,24 @@ const GENDER_MATCH: Record<string, GenderFilter[]> = {
   "UNISEX/KIDS": ["Férfi", "Női", "Gyerek"],
 };
 
-const CATEGORY_LABEL: Record<string, string> = {
+// Malfini category code → Hungarian label + fixed tab order.
+const MALFINI_CATEGORY_LABEL: Record<string, string> = {
   "t-shirts": "Pólók",
   sweatshirts: "Pulóverek",
   "polo-shirts": "Galléros pólók",
-  mug: "Bögrék",
-  pillow: "Párnák",
 };
+const MALFINI_CATEGORY_ORDER = ["t-shirts", "sweatshirts", "polo-shirts"];
+
+const ALL_KEY = "__all__";
+
+// A category tab. Local tabs come from Product.category (admin-editable);
+// Malfini tabs from the API categoryCode. `code` holds the value to filter by.
+interface CategoryTab {
+  key: string;
+  label: string;
+  kind: "all" | "malfini" | "local";
+  code?: string;
+}
 
 const PAGE_SIZE = 30;
 
@@ -54,37 +58,53 @@ export default function ProductsPageClient({
   localProducts,
 }: Props) {
   const [gender, setGender] = useState<GenderFilter>("Összes");
-  const [category, setCategory] = useState<CategoryFilter>("Összes");
+  const [categoryKey, setCategoryKey] = useState<string>(ALL_KEY);
   const [sort, setSort] = useState<SortOrder>("default");
   const [page, setPage] = useState(0);
 
-  // Derive category tabs from which categories actually have products.
-  const availableCategories = useMemo<CategoryFilter[]>(() => {
-    const cats: CategoryFilter[] = ["Összes"];
+  // Build the tab list: "Összes" + Malfini categories (fixed order) + local
+  // categories derived from Product.category (in DB order).
+  const tabs = useMemo<CategoryTab[]>(() => {
+    const list: CategoryTab[] = [{ key: ALL_KEY, label: "Összes", kind: "all" }];
+
     const clothingCats = new Set(clothingProducts.map((p) => p.categoryCode));
-    if (clothingCats.has("t-shirts")) cats.push("t-shirts");
-    if (clothingCats.has("sweatshirts")) cats.push("sweatshirts");
-    if (clothingCats.has("polo-shirts")) cats.push("polo-shirts");
-    // Each local mockup type gets its own tab (mug, pillow, …)
-    const localTypes = new Set(localProducts.map((p) => p.mockupType).filter(Boolean));
-    if (localProducts.some((p) => MUG_TYPES.has(p.mockupType ?? ""))) cats.push("mug");
-    if (localTypes.has("pillow")) cats.push("pillow");
-    return cats;
+    for (const code of MALFINI_CATEGORY_ORDER) {
+      if (clothingCats.has(code)) {
+        list.push({
+          key: `m:${code}`,
+          label: MALFINI_CATEGORY_LABEL[code] ?? code,
+          kind: "malfini",
+          code,
+        });
+      }
+    }
+
+    const localCats = Array.from(
+      new Set(
+        localProducts
+          .map((p) => p.category)
+          .filter((c): c is string => Boolean(c)),
+      ),
+    );
+    for (const cat of localCats) {
+      list.push({ key: `l:${cat}`, label: cat, kind: "local", code: cat });
+    }
+
+    return list;
   }, [clothingProducts, localProducts]);
+
+  const selectedTab = tabs.find((t) => t.key === categoryKey) ?? tabs[0];
 
   const filtered = useMemo<ListItem[]>(() => {
     const items: ListItem[] = [];
 
-    // Clothing products — apply gender + category filter.
+    // Clothing (Malfini) — shown under "Összes" and Malfini category tabs.
     const showClothing =
-      category === "Összes" ||
-      category === "t-shirts" ||
-      category === "sweatshirts" ||
-      category === "polo-shirts";
-
+      selectedTab.kind === "all" || selectedTab.kind === "malfini";
     if (showClothing) {
       for (const p of clothingProducts) {
-        if (category !== "Összes" && p.categoryCode !== category) continue;
+        if (selectedTab.kind === "malfini" && p.categoryCode !== selectedTab.code)
+          continue;
         if (gender !== "Összes") {
           const matches = GENDER_MATCH[p.genderCode ?? ""] ?? [];
           if (!matches.includes(gender)) continue;
@@ -93,16 +113,17 @@ export default function ProductsPageClient({
       }
     }
 
-    // Local products — filter by mockupType when a local category tab is active.
-    if (category === "Összes" || LOCAL_CATEGORIES.has(category)) {
+    // Local — shown under "Összes" and local category tabs.
+    const showLocal = selectedTab.kind === "all" || selectedTab.kind === "local";
+    if (showLocal) {
       for (const p of localProducts) {
-        if (category === "mug" && !MUG_TYPES.has(p.mockupType ?? "")) continue;
-        if (category === "pillow" && p.mockupType !== "pillow") continue;
+        if (selectedTab.kind === "local" && p.category !== selectedTab.code)
+          continue;
         items.push({ type: "local", product: p });
       }
     }
 
-    // Price sort — local products have no comparable price; put them last when sorting.
+    // Price sort — local products have no comparable price; put them last.
     if (sort !== "default") {
       items.sort((a, b) => {
         const priceA = a.type === "malfini" ? a.product.minPrice : Infinity;
@@ -112,19 +133,20 @@ export default function ProductsPageClient({
     }
 
     return items;
-  }, [clothingProducts, localProducts, gender, category, sort]);
+  }, [clothingProducts, localProducts, gender, selectedTab, sort]);
 
-  // Reset gender when switching to a non-clothing category.
+  // Reset gender when a local category is selected (gender only applies to clothing).
   useEffect(() => {
-    if (LOCAL_CATEGORIES.has(category)) setGender("Összes");
-  }, [category]);
+    if (selectedTab.kind === "local") setGender("Összes");
+  }, [selectedTab]);
 
   // Reset to page 0 whenever filters or sort change.
   useEffect(() => {
     setPage(0);
-  }, [gender, category, sort]);
+  }, [gender, categoryKey, sort]);
 
-  const showGenderFilter = !LOCAL_CATEGORIES.has(category) && clothingProducts.length > 0;
+  const showGenderFilter =
+    selectedTab.kind !== "local" && clothingProducts.length > 0;
 
   const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
   const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -132,20 +154,20 @@ export default function ProductsPageClient({
   return (
     <>
       {/* Category tabs */}
-      {availableCategories.length > 2 && (
+      {tabs.length > 2 && (
         <div className="mb-6 border-b border-border-light">
           <div className="flex">
-            {availableCategories.map((cat) => (
+            {tabs.map((tab) => (
               <button
-                key={cat}
-                onClick={() => setCategory(cat)}
+                key={tab.key}
+                onClick={() => setCategoryKey(tab.key)}
                 className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
-                  category === cat
+                  categoryKey === tab.key
                     ? "border-brand-blue text-brand-blue"
                     : "border-transparent text-charcoal hover:text-brand-blue"
                 }`}
               >
-                {cat === "Összes" ? "Összes" : CATEGORY_LABEL[cat]}
+                {tab.label}
               </button>
             ))}
           </div>

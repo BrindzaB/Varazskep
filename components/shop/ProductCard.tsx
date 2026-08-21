@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatHuf, getMinPrice } from "@/lib/utils/format";
 import { COLOR_MAP } from "@/lib/utils/colors";
-import { getMockupConfig } from "@/lib/designer/mockupConfig";
 import type { ProductWithVariants } from "@/lib/services/product";
 
 interface ProductCardProps {
@@ -14,18 +13,21 @@ interface ProductCardProps {
 export default function ProductCard({ product }: ProductCardProps) {
   const minPrice = getMinPrice(product.variants);
   const uniqueColors = Array.from(new Set(product.variants.map((v) => v.color)));
-  const colorImages = product.mockupType
-    ? (getMockupConfig(product.mockupType).colorImages ?? null)
-    : null;
 
-  const defaultImage = colorImages
-    ? (colorImages[uniqueColors[0] ?? ""] ?? product.imageUrl ?? null)
-    : (product.imageUrl ?? null);
+  // Per-colour images come from the variants (DB). First variant of each colour
+  // that carries an image wins; colours without one fall back to product.imageUrl.
+  const colorImages: Record<string, string> = {};
+  for (const v of product.variants) {
+    if (v.imageUrl && !colorImages[v.color]) colorImages[v.color] = v.imageUrl;
+  }
+
+  const defaultImage =
+    colorImages[uniqueColors[0] ?? ""] ?? product.imageUrl ?? null;
 
   const [displayImageUrl, setDisplayImageUrl] = useState<string | null>(defaultImage);
 
   function handleSwatchEnter(color: string) {
-    if (colorImages?.[color]) setDisplayImageUrl(colorImages[color]);
+    if (colorImages[color]) setDisplayImageUrl(colorImages[color]);
   }
 
   function handleSwatchLeave() {
