@@ -60,6 +60,7 @@ export default async function EditProductPage({
               price: v.price,
               stock: v.stock,
               weightGrams: v.weightGrams,
+              imageUrl: v.imageUrl,
             }))}
             colorSuggestions={Object.keys(COLOR_MAP)}
           />

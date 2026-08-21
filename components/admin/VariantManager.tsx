@@ -10,6 +10,7 @@ export interface AdminVariant {
   price: number;
   stock: number;
   weightGrams: number | null;
+  imageUrl: string | null;
 }
 
 interface Props {
@@ -114,6 +115,88 @@ export default function VariantManager({
   const [draft, setDraft] = useState<RowState>(emptyDraft());
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Per-colour storefront images (managed separately from the variant table).
+  const [colorImages, setColorImages] = useState<Record<string, string | null>>(
+    () => {
+      const m: Record<string, string | null> = {};
+      for (const v of initialVariants) {
+        if (v.imageUrl && m[v.color] == null) m[v.color] = v.imageUrl;
+      }
+      return m;
+    },
+  );
+  const [imgBusy, setImgBusy] = useState<string | null>(null);
+  const [imgError, setImgError] = useState<string | null>(null);
+
+  // Distinct colours currently in the table — drives the colour-image section.
+  const colors = Array.from(
+    new Set(rows.map((r) => r.current.color.trim()).filter(Boolean)),
+  );
+
+  async function uploadColorImage(color: string, file: File) {
+    setImgError(null);
+    setImgBusy(color);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const up = await fetch(`/api/admin/products/upload`, {
+        method: "POST",
+        body: fd,
+      });
+      if (!up.ok) {
+        const d = (await up.json().catch(() => ({}))) as { error?: string };
+        setImgError(d.error ?? "A feltöltés nem sikerült.");
+        return;
+      }
+      const { url } = (await up.json()) as { url: string };
+
+      const res = await fetch(
+        `/api/admin/products/${productId}/color-image`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ color, imageUrl: url }),
+        },
+      );
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        setImgError(d.error ?? "A kép mentése nem sikerült.");
+        return;
+      }
+      setColorImages((prev) => ({ ...prev, [color]: url }));
+    } catch {
+      setImgError("Hálózati hiba. Kérjük próbálja újra.");
+    } finally {
+      setImgBusy(null);
+    }
+  }
+
+  async function removeColorImage(color: string) {
+    if (!window.confirm(`Törlöd a(z) „${color}” szín képét?`)) return;
+    setImgError(null);
+    setImgBusy(color);
+    try {
+      const res = await fetch(
+        `/api/admin/products/${productId}/color-image`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ color, imageUrl: null }),
+        },
+      );
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { error?: string };
+        setImgError(d.error ?? "A kép törlése nem sikerült.");
+        return;
+      }
+      setColorImages((prev) => ({ ...prev, [color]: null }));
+    } catch {
+      setImgError("Hálózati hiba. Kérjük próbálja újra.");
+    } finally {
+      setImgBusy(null);
+    }
+  }
 
   function updateRowField(id: string, field: keyof RowState, value: string) {
     setRows((rs) =>
@@ -403,6 +486,75 @@ export default function VariantManager({
       </div>
 
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+      {/* Per-colour storefront images */}
+      {colors.length > 0 && (
+        <div className="mt-6 border-t border-gray-100 pt-5">
+          <h3 className="mb-1 text-sm font-medium text-gray-700">Színképek</h3>
+          <p className="mb-3 text-xs text-gray-500">
+            Színenként egy kép a webshophoz — az adott szín összes méret-variánsára
+            vonatkozik. (PNG, JPG, WEBP vagy SVG, max. 5 MB.)
+          </p>
+          <div className="flex flex-wrap gap-4">
+            {colors.map((color) => {
+              const img = colorImages[color] ?? null;
+              const busy = imgBusy === color;
+              return (
+                <div key={color} className="flex w-28 flex-col items-center gap-2">
+                  <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
+                    {img ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={img}
+                        alt={color}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-400">nincs kép</span>
+                    )}
+                  </div>
+                  <span
+                    className="max-w-full truncate text-xs text-gray-700"
+                    title={color}
+                  >
+                    {color}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label
+                      className={`cursor-pointer text-xs font-medium text-blue-600 hover:underline ${
+                        busy ? "pointer-events-none opacity-50" : ""
+                      }`}
+                    >
+                      {busy ? "…" : img ? "Csere" : "Feltöltés"}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadColorImage(color, f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {img && (
+                      <button
+                        type="button"
+                        onClick={() => removeColorImage(color)}
+                        disabled={busy}
+                        className="text-xs text-gray-400 transition-colors hover:text-red-600 disabled:opacity-50"
+                      >
+                        Eltávolítás
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {imgError && <p className="mt-2 text-sm text-red-600">{imgError}</p>}
+        </div>
+      )}
 
       <p className="mt-3 text-xs text-gray-400">
         Tipp: a tervező a színnevek alapján színezi a mockupot, ezért

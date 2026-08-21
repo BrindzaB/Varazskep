@@ -193,6 +193,22 @@ export async function updateVariant(
 }
 
 /**
+ * Sets (or clears) the storefront image for every variant of a given colour.
+ * Colour images are managed per colour: all size variants of the same colour
+ * share one image. Pass null to clear.
+ */
+export async function setColorImage(
+  productId: string,
+  color: string,
+  imageUrl: string | null,
+) {
+  return prisma.variant.updateMany({
+    where: { productId, color },
+    data: { imageUrl },
+  });
+}
+
+/**
  * Deletes a single variant. Orders referencing it are detached
  * (`variantId` → null) rather than deleted, preserving order history
  * (orders keep denormalized product fields — see deleteProduct / the Order model).
