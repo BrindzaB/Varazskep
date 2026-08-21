@@ -59,6 +59,10 @@ model Design {
   id         String   @id @default(cuid())
   canvasJson Json // Fabric.js serialized canvas state — stored as JSONB
   svgUrl     String? // S3 URL of the exported SVG, nulled after 45 days
+  // PNG snapshot of the designer canvas (product mockup + design) as the customer
+  // saw it, captured client-side at add-to-cart. Null for Malfini designs (tainted
+  // canvas) and pre-feature orders. Shown in the admin order detail.
+  previewUrl String?
   createdAt  DateTime @default(now())
   expiresAt  DateTime // set to createdAt + 45 days at creation time
   order      Order?

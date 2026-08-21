@@ -59,6 +59,9 @@ export interface DesignerCanvasRef {
   setTextColor: (color: string) => void;
   // Returns serialized user objects (no mockup layer) for both sides
   getCanvasJson: () => { front: object[]; back: object[] };
+  // PNG data URL of the current canvas (mockup + design) for the order preview.
+  // Returns null if the canvas is tainted (e.g. a cross-origin mockup) or absent.
+  getPreviewDataUrl: () => string | null;
 }
 
 interface DesignerCanvasProps {
@@ -91,6 +94,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
     const canvasElRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<Canvas | null>(null);
     const shirtImageRef = useRef<FabricImage | null>(null);
+    const printAreaRectRef = useRef<FabricObject | null>(null);
     const isInitializedRef = useRef(false);
     const keyDownHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
 
@@ -350,6 +354,25 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           },
         } as unknown as { front: object[]; back: object[] };
       },
+
+      getPreviewDataUrl() {
+        const canvas = fabricRef.current;
+        if (!canvas) return null;
+        const rect = printAreaRectRef.current;
+        try {
+          // Clean snapshot: drop any selection handles + hide the dashed guide.
+          canvas.discardActiveObject();
+          if (rect) rect.set({ visible: false });
+          canvas.renderAll();
+          return canvas.toDataURL({ format: "png", multiplier: 2 });
+        } catch {
+          // Tainted canvas (cross-origin mockup without CORS) — no preview.
+          return null;
+        } finally {
+          if (rect) rect.set({ visible: true });
+          canvas.renderAll();
+        }
+      },
     }));
 
     // ── Init effect: sets up canvas mechanics only — no image loading ─────────
@@ -571,6 +594,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           originY: "center",
         });
         canvas.add(printAreaRect);
+        printAreaRectRef.current = printAreaRect;
         canvas.renderAll();
 
         currentSideRef.current = "front";

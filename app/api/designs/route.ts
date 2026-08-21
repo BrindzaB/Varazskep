@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDesign, type CanvasJson } from "@/lib/services/design";
+import {
+  createDesign,
+  saveDesignPreview,
+  type CanvasJson,
+} from "@/lib/services/design";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let body: unknown;
@@ -9,7 +13,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const parsed = body as { canvasJson?: unknown };
+  const parsed = body as { canvasJson?: unknown; previewDataUrl?: unknown };
 
   if (
     !parsed.canvasJson ||
@@ -23,6 +27,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const design = await createDesign(canvasJson);
+
+    // Best-effort: store the client-captured composite preview. A failure here
+    // must not fail the design save (the design-only preview still works).
+    if (
+      typeof parsed.previewDataUrl === "string" &&
+      parsed.previewDataUrl.startsWith("data:image/png;base64,")
+    ) {
+      try {
+        await saveDesignPreview(design.id, parsed.previewDataUrl);
+      } catch (err) {
+        console.error("[POST /api/designs] preview upload failed:", err);
+      }
+    }
+
     return NextResponse.json({ id: design.id });
   } catch (err) {
     console.error("[POST /api/designs] createDesign failed:", err);
