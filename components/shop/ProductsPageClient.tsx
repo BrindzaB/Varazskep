@@ -153,15 +153,16 @@ export default function ProductsPageClient({
 
   return (
     <>
-      {/* Category tabs */}
+      {/* Category tabs — horizontally scrollable on narrow screens so they never
+          widen the page (which would let the whole page scroll sideways). */}
       {tabs.length > 2 && (
-        <div className="mb-6 border-b border-border-light">
-          <div className="flex">
+        <div className="mb-6 overflow-x-auto border-b border-border-light">
+          <div className="flex w-max">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setCategoryKey(tab.key)}
-                className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
+                className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
                   categoryKey === tab.key
                     ? "border-brand-blue text-brand-blue"
                     : "border-transparent text-charcoal hover:text-brand-blue"
