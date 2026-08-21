@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { TrashIcon } from "@/components/admin/icons";
+import { PencilIcon, TrashIcon } from "@/components/admin/icons";
 
 export interface AdminVariant {
   id: string;
@@ -519,13 +519,15 @@ export default function VariantManager({
                   >
                     {color}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <label
-                      className={`cursor-pointer text-xs font-medium text-blue-600 hover:underline ${
+                      title={img ? "Csere" : "Feltöltés"}
+                      aria-label={img ? "Kép cseréje" : "Kép feltöltése"}
+                      className={`cursor-pointer rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900 ${
                         busy ? "pointer-events-none opacity-50" : ""
                       }`}
                     >
-                      {busy ? "…" : img ? "Csere" : "Feltöltés"}
+                      <PencilIcon className="h-4 w-4" />
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp,image/svg+xml"
@@ -542,11 +544,14 @@ export default function VariantManager({
                         type="button"
                         onClick={() => removeColorImage(color)}
                         disabled={busy}
-                        className="text-xs text-gray-400 transition-colors hover:text-red-600 disabled:opacity-50"
+                        title="Eltávolítás"
+                        aria-label="Kép eltávolítása"
+                        className="rounded p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                       >
-                        Eltávolítás
+                        <TrashIcon className="h-4 w-4" />
                       </button>
                     )}
+                    {busy && <span className="text-xs text-gray-400">…</span>}
                   </div>
                 </div>
               );

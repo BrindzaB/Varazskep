@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getMockupTemplates } from "@/lib/designer/mockupConfig";
+import { PencilIcon, TrashIcon } from "@/components/admin/icons";
 
 export interface ProductFormValues {
   name: string;
@@ -229,32 +230,39 @@ export default function ProductForm({
             )}
           </div>
           <div className="flex flex-col items-start gap-2">
-            <label
-              className={`cursor-pointer rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 ${
-                uploadingImage ? "pointer-events-none opacity-50" : ""
-              }`}
-            >
-              {uploadingImage
-                ? "Feltöltés…"
-                : values.imageUrl
-                  ? "Csere"
-                  : "Kép feltöltése"}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
-            </label>
-            {values.imageUrl && (
-              <button
-                type="button"
-                onClick={() => setValues((prev) => ({ ...prev, imageUrl: "" }))}
-                className="text-xs text-gray-500 transition-colors hover:text-red-600"
+            <div className="flex items-center gap-1">
+              <label
+                title={values.imageUrl ? "Csere" : "Kép feltöltése"}
+                aria-label={values.imageUrl ? "Kép cseréje" : "Kép feltöltése"}
+                className={`cursor-pointer rounded p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900 ${
+                  uploadingImage ? "pointer-events-none opacity-50" : ""
+                }`}
               >
-                Eltávolítás
-              </button>
-            )}
+                <PencilIcon className="h-4 w-4" />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </label>
+              {values.imageUrl && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setValues((prev) => ({ ...prev, imageUrl: "" }))
+                  }
+                  title="Eltávolítás"
+                  aria-label="Kép eltávolítása"
+                  className="rounded p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              )}
+              {uploadingImage && (
+                <span className="text-xs text-gray-400">Feltöltés…</span>
+              )}
+            </div>
             <p className="text-xs text-gray-400">PNG, JPG, WEBP vagy SVG, max. 5 MB.</p>
           </div>
         </div>
