@@ -242,8 +242,8 @@ export default function DeliveryNoteForm({ orders }: Props) {
               className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting
-                ? "Futárrendelés..."
-                : `Futárrendelés (${selected.size} csomag)`}
+                ? "Futár hívása..."
+                : `Futár hívása (${selected.size} csomag)`}
             </button>
           </div>
         </>
