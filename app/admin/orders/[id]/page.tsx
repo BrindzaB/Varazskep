@@ -396,9 +396,17 @@ export default async function AdminOrderDetailPage({
                   <img
                     src={order.design.previewUrl}
                     alt="Terv előnézet a terméken"
-                    className="rounded border border-gray-200"
+                    className="block rounded border border-gray-200"
                     style={{ maxWidth: 320, height: "auto" }}
                   />
+                  <a
+                    href={order.design.previewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+                  >
+                    Megnyitás új lapon
+                  </a>
                 </div>
               )}
 
