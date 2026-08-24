@@ -641,10 +641,24 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           userObjects.forEach((o) => canvas.remove(o));
         }
 
-        // No crossOrigin — we never call canvas.toDataURL() so the canvas taint
-        // doesn't matter. Setting crossOrigin on Malfini URLs would cause the browser
-        // to block images whose CDN responses lack Access-Control-Allow-Origin headers.
-        const newImg = await FabricImage.fromURL(imageUrl);
+        // Load the mockup so the canvas stays CORS-clean, which lets us export a
+        // PNG preview (canvas.toDataURL) for the order detail. Remote mockups
+        // (Malfini CDN, which sends no CORS headers) go through our same-origin
+        // image proxy with crossOrigin set; data-URL/local mockups load directly.
+        // On any proxy failure we fall back to a direct load, so the designer
+        // keeps working exactly as before (only the composite preview is skipped).
+        const isRemote = /^https?:\/\//i.test(imageUrl);
+        let newImg: FabricImage;
+        if (isRemote) {
+          const proxied = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+          try {
+            newImg = await FabricImage.fromURL(proxied, { crossOrigin: "anonymous" });
+          } catch {
+            newImg = await FabricImage.fromURL(imageUrl);
+          }
+        } else {
+          newImg = await FabricImage.fromURL(imageUrl, { crossOrigin: "anonymous" });
+        }
         if (cancelled) return;
 
         if (shirtImageRef.current) canvas.remove(shirtImageRef.current);
