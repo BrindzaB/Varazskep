@@ -77,6 +77,19 @@ model PricingSetting {
   updatedAt DateTime @updatedAt
 }
 
+// Manual selling price for one Malfini SKU, overriding the computed cost×árrés×VAT price.
+// Needed because Malfini's implied retail markup is not uniform: most products sit near
+// 1.55× cost, but some reach 3.08×, where a flat árrés prices well under the market.
+// Sparse by design — only the SKUs an admin actually overrides get a row.
+model PriceOverride {
+  productSizeCode String   @id // 7-char Malfini SKU — globally unique
+  productCode     String // 3-char product code, for per-product listing and bulk edits
+  priceHuf        Int // gross HUF, shown to the customer verbatim
+  updatedAt       DateTime @updatedAt
+
+  @@index([productCode])
+}
+
 model Order {
   id                    String         @id @default(cuid())
   stripeSessionId       String         @unique

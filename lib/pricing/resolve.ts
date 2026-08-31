@@ -28,61 +28,92 @@ import {
   realisedMarkupPct,
 } from "./compute";
 import { getPricingSettings, type PricingSettings } from "./settings";
+import { getPriceOverrideMap } from "./overrides";
 
-// Loads the settings, then the cost map built with the configured exchange rate.
-// Sequential by necessity — the rate is an input to the cost map.
-async function loadInputs(): Promise<{
+// Loads everything the resolution chain needs. The settings come first because the
+// exchange rate is an input to the cost map; the overrides are independent.
+async function loadInputs(skus: string[]): Promise<{
   settings: PricingSettings;
   costMap: Record<string, number>;
+  overrides: Record<string, number>;
 }> {
   const settings = await getPricingSettings();
-  const costMap = await getMalfiniCostMap(
-    makeEurToHufConverter(settings.eurHufRate)
-  );
-  return { settings, costMap };
+  const [costMap, overrides] = await Promise.all([
+    getMalfiniCostMap(makeEurToHufConverter(settings.eurHufRate)),
+    getPriceOverrideMap(skus),
+  ]);
+  return { settings, costMap, overrides };
+}
+
+/**
+ * The resolution chain for one SKU: a manual override wins, otherwise the árrés rule
+ * applies to the purchase cost. Returns null only when neither is available.
+ */
+function resolveOne(
+  sku: string,
+  costMap: Record<string, number>,
+  overrides: Record<string, number>,
+  settings: PricingSettings
+): MalfiniPriceDetail | null {
+  const rawCost = costMap[sku];
+  const costNetHuf =
+    typeof rawCost === "number" && rawCost > 0 ? rawCost : null;
+  const computedHuf =
+    costNetHuf === null ? null : grossFor(costNetHuf, settings);
+
+  const override = overrides[sku];
+  const hasOverride = typeof override === "number" && override > 0;
+
+  const grossHuf = hasOverride ? override : computedHuf;
+  if (grossHuf === null) return null;
+
+  return {
+    grossHuf,
+    costNetHuf,
+    computedHuf,
+    origin: hasOverride ? "override" : "computed",
+    markupPct:
+      costNetHuf === null
+        ? null
+        : realisedMarkupPct(grossHuf, costNetHuf, settings.vatPct),
+    profitHuf:
+      costNetHuf === null
+        ? null
+        : profitPerPieceHuf(grossHuf, costNetHuf, settings.vatPct),
+  };
 }
 
 export interface MalfiniPriceDetail {
   grossHuf: number; // customer-facing price
-  costNetHuf: number; // net purchase price from Malfini
-  // Árrés actually realised: (net selling price − cost) / cost. Differs slightly from
-  // the configured markup because the gross price is snapped to the price grid.
-  markupPct: number;
-  profitHuf: number; // net revenue minus cost, per piece
-}
-
-// Restricts the (large) catalog-wide cost map to the SKUs a caller actually needs,
-// so page props never carry ~17k unrelated entries into the RSC payload.
-function pickCosts(
-  costMap: Record<string, number>,
-  skus: string[]
-): Array<[string, number]> {
-  const out: Array<[string, number]> = [];
-  for (const sku of Array.from(new Set(skus))) {
-    const cost = costMap[sku];
-    if (typeof cost === "number" && cost > 0) out.push([sku, cost]);
-  }
-  return out;
+  // Net purchase price from Malfini. Null when Malfini has no price for the SKU but an
+  // admin set one by hand — the item is still sellable, the margin just isn't known.
+  costNetHuf: number | null;
+  // Árrés actually realised: (net selling price − cost) / cost. Differs from the
+  // configured árrés because the gross price is snapped to the price grid, and is
+  // arbitrary on an override. Null when the cost is unknown.
+  markupPct: number | null;
+  profitHuf: number | null; // net revenue minus cost, per piece
+  // Where grossHuf came from. "override" means an admin set it and the árrés setting
+  // does not apply; the admin UI shows the computed price alongside for comparison.
+  origin: "override" | "computed";
+  // The price the árrés rule would produce, so an override can be compared and reverted.
+  computedHuf: number | null;
 }
 
 /**
  * Malfini SKU → gross selling price, for the given SKUs.
  *
- * SKUs with no known purchase price are omitted rather than defaulted: callers
- * already treat a missing entry as "price unavailable", and inventing a price is
- * how a product ends up sold below cost. (Measured 2026-08-31: all 11 143
- * sellable SKUs in the designer categories have a purchase price.)
+ * A SKU that resolves to neither an override nor a cost is omitted rather than
+ * defaulted: callers already treat a missing entry as "price unavailable", and
+ * inventing a price is how a product ends up sold below cost. (Measured 2026-08-31:
+ * all 11 141 sellable SKUs in the designer categories have a purchase price.)
  */
 export async function getMalfiniPriceMap(
   skus: string[]
 ): Promise<Record<string, number>> {
-  if (skus.length === 0) return {};
-  const { settings, costMap } = await loadInputs();
+  const details = await getMalfiniPriceDetails(skus);
   return Object.fromEntries(
-    pickCosts(costMap, skus).map(([sku, cost]) => [
-      sku,
-      grossFor(cost, settings),
-    ])
+    Object.entries(details).map(([sku, d]) => [sku, d.grossHuf])
   );
 }
 
@@ -91,21 +122,15 @@ export async function getMalfiniPriceDetails(
   skus: string[]
 ): Promise<Record<string, MalfiniPriceDetail>> {
   if (skus.length === 0) return {};
-  const { settings, costMap } = await loadInputs();
-  return Object.fromEntries(
-    pickCosts(costMap, skus).map(([sku, cost]) => {
-      const grossHuf = grossFor(cost, settings);
-      return [
-        sku,
-        {
-          grossHuf,
-          costNetHuf: cost,
-          markupPct: realisedMarkupPct(grossHuf, cost, settings.vatPct),
-          profitHuf: profitPerPieceHuf(grossHuf, cost, settings.vatPct),
-        },
-      ];
-    })
-  );
+  const unique = Array.from(new Set(skus));
+  const { settings, costMap, overrides } = await loadInputs(unique);
+
+  const out: Record<string, MalfiniPriceDetail> = {};
+  for (const sku of unique) {
+    const detail = resolveOne(sku, costMap, overrides, settings);
+    if (detail) out[sku] = detail;
+  }
+  return out;
 }
 
 function grossFor(costNetHuf: number, settings: PricingSettings): number {

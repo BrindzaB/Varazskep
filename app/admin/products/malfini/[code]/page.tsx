@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
+import MalfiniPriceEditor, {
+  type EditorVariant,
+} from "@/components/admin/MalfiniPriceEditor";
 import {
   getProduct,
   getRecommendedPrices,
@@ -14,9 +17,9 @@ import { getMalfiniPriceDetails } from "@/lib/pricing/resolve";
 import { getPricingSettings } from "@/lib/pricing/settings";
 import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
 import { sortNomenclatures } from "@/lib/malfini/sizeOrder";
-import { formatHuf } from "@/lib/utils/format";
 
-export const revalidate = 300;
+// Overrides live in the DB and must be visible the moment they are saved.
+export const dynamic = "force-dynamic";
 
 const GENDER_LABELS: Record<string, string> = {
   GENTS: "Férfi",
@@ -26,12 +29,6 @@ const GENDER_LABELS: Record<string, string> = {
   "GENTS/KIDS": "Férfi/Gyerek",
   "UNISEX/KIDS": "Uniszex/Gyerek",
 };
-
-function stockColorClass(qty: number): string {
-  if (qty === 0) return "text-red-600";
-  if (qty <= 5) return "text-yellow-600";
-  return "text-green-700";
-}
 
 export default async function AdminMalfiniProductPage({
   params,
@@ -47,8 +44,8 @@ export default async function AdminMalfiniProductPage({
 
   if (!product) notFound();
 
-  // Our own price (cost × markup × VAT) is what the shop charges; Malfini's
-  // recommended price is shown only as a reference point next to it.
+  // Our own price (override, else cost × árrés × VAT) is what the shop charges;
+  // Malfini's recommended price is shown only as a reference point next to it.
   const priceDetails = await getMalfiniPriceDetails(
     malfiniProductSkus(product)
   );
@@ -59,10 +56,36 @@ export default async function AdminMalfiniProductPage({
   const availabilityMap = buildAvailabilityMap(availabilities);
   const categoryConfig = getCategoryConfig(product.categoryCode);
 
+  const variants: EditorVariant[] = product.variants.map((variant) => ({
+    code: variant.code,
+    name: variant.name,
+    colorIconLink: variant.colorIconLink,
+    frontImage:
+      variant.images.find((img) => img.viewCode === "a")?.link ?? null,
+    attributes: (variant.attributes ?? []).map((a) => ({
+      code: a.code,
+      title: a.title,
+      text: a.text,
+    })),
+    rows: sortNomenclatures(variant.nomenclatures).map((nom) => {
+      const detail = priceDetails[nom.productSizeCode];
+      return {
+        sku: nom.productSizeCode,
+        sizeName: nom.sizeName,
+        costNetHuf: detail?.costNetHuf ?? null,
+        computedHuf: detail?.computedHuf ?? null,
+        overrideHuf:
+          detail?.origin === "override" ? (detail?.grossHuf ?? null) : null,
+        recommendedHuf: recommendedMap[nom.productSizeCode] ?? null,
+        stock: availabilityMap[nom.productSizeCode] ?? 0,
+      };
+    }),
+  }));
+
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
           <Link
             href="/admin/products"
@@ -81,7 +104,7 @@ export default async function AdminMalfiniProductPage({
           <span className="text-gray-700">{product.name}</span>
         </div>
 
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">
             <span className="mr-2 font-mono text-base text-gray-400">
               {product.code}
@@ -113,145 +136,22 @@ export default async function AdminMalfiniProductPage({
           )}
         </div>
 
-        <p className="mb-4 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600">
-          A bolti ár a nettó beszerzési árból számolódik:{" "}
+        <p className="mb-6 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600">
+          Alapból a szabály áraz: nettó beszerzés{" "}
           <strong>+{settings.malfiniMarkupPct}% árrés</strong>, majd{" "}
-          <strong>{settings.vatPct}% ÁFA</strong>, majd a legközelebbi{" "}
-          {settings.roundGridHuf - 1}-re végződő árra kerekítve.{" "}
+          <strong>{settings.vatPct}% ÁFA</strong>, a legközelebbi{" "}
+          {settings.roundGridHuf - 1}-re végződő árra kerekítve. A „Bolti ár”
+          mezőt átírva ez a méret kézi árat kap, a többi változatlan marad.{" "}
           <Link href="/admin/pricing" className="underline hover:text-gray-900">
             Árazási beállítások
           </Link>
         </p>
 
-        <div className="space-y-6">
-          {product.variants.map((variant) => {
-            const frontImage = variant.images.find(
-              (img) => img.viewCode === "a"
-            )?.link;
-            const sortedNoms = sortNomenclatures(variant.nomenclatures);
-
-            return (
-              <section
-                key={variant.code}
-                className="overflow-hidden rounded-xl border border-gray-200 bg-white"
-              >
-                {/* Variant header */}
-                <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={variant.colorIconLink}
-                    alt=""
-                    className="h-6 w-6 rounded-full border border-gray-200 object-cover"
-                  />
-                  <span className="font-medium text-gray-900">
-                    {variant.name}
-                  </span>
-                  <span className="font-mono text-xs text-gray-400">
-                    {variant.code}
-                  </span>
-                  {frontImage && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={frontImage}
-                      alt={variant.name}
-                      className="ml-auto h-12 w-12 object-contain"
-                    />
-                  )}
-                </div>
-
-                {/* Sizes table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full whitespace-nowrap text-sm">
-                    <thead className="border-b border-gray-100">
-                      <tr>
-                        <th className="w-24 px-4 py-2 text-left font-medium text-gray-500">
-                          Méret
-                        </th>
-                        <th className="w-36 px-4 py-2 text-left font-medium text-gray-500">
-                          SKU
-                        </th>
-                        <th className="w-28 px-4 py-2 text-right font-medium text-gray-500">
-                          Beszerzés
-                        </th>
-                        <th className="w-28 px-4 py-2 text-right font-medium text-gray-500">
-                          Bolti ár
-                        </th>
-                        <th className="w-24 px-4 py-2 text-right font-medium text-gray-500">
-                          Árrés
-                        </th>
-                        <th className="w-28 px-4 py-2 text-right font-medium text-gray-500">
-                          Malfini aj.
-                        </th>
-                        <th className="w-32 px-4 py-2 text-left font-medium text-gray-500">
-                          Készlet
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {sortedNoms.map((nom) => {
-                        const qty = availabilityMap[nom.productSizeCode] ?? 0;
-                        const detail = priceDetails[nom.productSizeCode];
-                        const recommended = recommendedMap[nom.productSizeCode];
-                        return (
-                          <tr
-                            key={nom.productSizeCode}
-                            className="hover:bg-gray-50"
-                          >
-                            <td className="px-4 py-2 text-gray-900">
-                              {nom.sizeName}
-                            </td>
-                            <td className="px-4 py-2 font-mono text-xs text-gray-500">
-                              {nom.productSizeCode}
-                            </td>
-                            <td className="px-4 py-2 text-right text-gray-600">
-                              {detail ? formatHuf(detail.costNetHuf) : "—"}
-                            </td>
-                            <td className="px-4 py-2 text-right font-medium text-gray-900">
-                              {detail ? formatHuf(detail.grossHuf) : "—"}
-                            </td>
-                            <td
-                              className={`px-4 py-2 text-right font-medium ${
-                                detail &&
-                                detail.markupPct <
-                                  settings.malfiniMarkupPct * 0.8
-                                  ? "text-red-600"
-                                  : "text-green-700"
-                              }`}
-                            >
-                              {detail ? `${detail.markupPct.toFixed(1)}%` : "—"}
-                            </td>
-                            <td className="px-4 py-2 text-right text-xs text-gray-400">
-                              {recommended ? formatHuf(recommended) : "—"}
-                            </td>
-                            <td
-                              className={`px-4 py-2 font-medium ${stockColorClass(qty)}`}
-                            >
-                              {qty === 0 ? "Nincs készleten" : `${qty} db`}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Attributes (fabric content, etc.) */}
-                {variant.attributes && variant.attributes.length > 0 && (
-                  <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
-                    <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
-                      {variant.attributes.map((attr) => (
-                        <div key={attr.code} className="flex gap-1">
-                          <dt className="text-gray-400">{attr.title}:</dt>
-                          <dd className="text-gray-600">{attr.text}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-                )}
-              </section>
-            );
-          })}
-        </div>
+        <MalfiniPriceEditor
+          productCode={product.code}
+          variants={variants}
+          vatPct={settings.vatPct}
+        />
       </main>
     </div>
   );

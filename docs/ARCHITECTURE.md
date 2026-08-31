@@ -69,7 +69,8 @@ varazskep/
 │   ├── pricing/                         # THE source of every product price — see § Pricing
 │   │   ├── compute.ts                   # pure: computeGrossPrice(), roundToPriceGrid(), realisedMarkupPct()
 │   │   ├── printFee.ts                  # pure: computePrintFeeHuf(), objectSizeCm(), A4 tier thresholds
-│   │   ├── settings.ts                  # PricingSetting table: árrés %, VAT %, price grid, EUR rate
+│   │   ├── settings.ts                  # PricingSetting table: árrés %, VAT %, price grid, EUR rate, print fees
+│   │   ├── overrides.ts                 # PriceOverride table: manual per-SKU prices
 │   │   └── resolve.ts                   # getMalfiniPriceMap(), getMalfiniPriceDetails(),
 │   │                                    # resolveLocalVariantPrice(), resolvePrintFeeHuf()
 │   ├── kvikk/                           # Kvikk Shipping API: client, pricing, account, types, deliveryPointMap
@@ -365,7 +366,7 @@ Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L →
 - Single admin user — credentials in env vars; no self-registration
 - Auth: JWT in HTTP-only cookie (24h expiry) — all `/admin/*` routes protected by middleware
 - **Orders:** list + detail with status updater, design SVG preview, coordinate table, customer upload download links, GDPR erasure button
-- **Products:** local product CRUD + read-only Malfini catalog browser (with cost/price/margin per SKU)
+- **Products:** local product CRUD + Malfini catalog browser with an editable per-SKU price (cost / rule price / árrés / Malfini reference shown alongside)
 - **Pricing:** `/admin/pricing` — árrés, VAT, price grid, EUR rate and the two print fees, with a live preview on real products
 - **Clipart:** upload SVG to `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive
 - **GDPR erasure:** nulls `customerName`, `customerEmail`, `shippingAddress` — order row retained 8 years
@@ -383,6 +384,7 @@ could not change without a deploy.
 | `lib/pricing/compute.ts` | Pure arithmetic: gross price, the …99 price grid, realised árrés, profit per piece. No DB/network — unit-tested. |
 | `lib/pricing/settings.ts` | `PricingSetting` key/value table: árrés %, VAT %, price grid, EUR rate, print fees. Missing rows fall back to `PRICING_DEFAULTS`, so an empty table prices correctly. |
 | `lib/pricing/printFee.ts` | Pure: per-object print fee from the design geometry + the A4 tier. Shared by the designer and the checkout. |
+| `lib/pricing/overrides.ts` | `PriceOverride` table: manual per-SKU prices, top of the resolution chain. Sparse — clearing one is a delete. |
 | `lib/pricing/resolve.ts` | The entry point. `getMalfiniPriceMap(skus)` (storefront), `getMalfiniPriceDetails(skus)` (admin), `resolveLocalVariantPrice(id)` + `resolvePrintFeeHuf(ref)` (checkout). |
 
 **Terminology — "árrés" means markup on cost.** The difference between the net selling
