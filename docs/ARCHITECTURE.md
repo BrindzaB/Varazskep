@@ -187,9 +187,19 @@ are retained for historical orders.
 ```prisma
 model PricingSetting {
   key       String   @id  // malfini_markup_pct | vat_pct | round_grid_huf | eur_huf_rate
-                           // | print_fee_small_huf | print_fee_large_huf
+                          // | print_fee_small_huf | print_fee_large_huf
   value     String        // numeric, stored as text; validated on read
   updatedAt DateTime @updatedAt
+}
+
+// Manual selling price for one Malfini SKU — top of the pricing chain. Sparse:
+// no row means the árrés rule applies, so clearing an override is a delete.
+model PriceOverride {
+  productSizeCode String   @id  // 7-char Malfini SKU
+  productCode     String        // for per-product listing + bulk edits
+  priceHuf        Int           // gross HUF, charged verbatim
+  updatedAt       DateTime @updatedAt
+  @@index([productCode])
 }
 ```
 
@@ -392,9 +402,23 @@ price and the purchase price, as a percentage *of the purchase price*. 1200 Ft c
 árrés → 1560 Ft net → 1981.2 Ft gross → **1999 Ft** on the price grid. Do not silently
 reinterpret it as a share of revenue.
 
-**Formula (Malfini):** `roundToPriceGrid(netCost × (1 + árrés%) × (1 + VAT%), grid)`.
-Defaults: árrés **30%**, VAT 27%, grid 100. Cost is the **lowest** quantity tier, so the
-realised árrés only ever beats the figure shown.
+**Resolution chain (Malfini):** a manual `PriceOverride` for the SKU wins; otherwise the
+rule applies — `roundToPriceGrid(netCost × (1 + árrés%) × (1 + VAT%), grid)`. Defaults:
+árrés **30%**, VAT 27%, grid 100. Cost is the **lowest** quantity tier, so the realised
+árrés only ever beats the figure shown. `MalfiniPriceDetail.origin` says which branch
+produced the price, and `computedHuf` always carries what the rule would have charged.
+
+**Why overrides exist:** Malfini's implied retail markup is *not* uniform. Measured per
+product across the designer catalog, recommended ÷ cost runs 1.50× (min) – 1.56× (median)
+– **3.08× (max)**. A flat árrés therefore prices well under the market on the high-ratio
+products: moving off the recommended price cut 16 of 186 products by more than 10% (7 of
+them by more than 25% — e.g. 269 Grand −46%, 167 Racer −30%), while 162 stayed within
+±10%. Those outliers get a hand-set price on `/admin/products/malfini/[code]`; everything
+else keeps following the árrés setting.
+
+An override is a **gross price charged verbatim** — the árrés setting no longer applies to
+that SKU, so a cost change will not move it. The admin table shows the rule price and the
+live árrés beside the input so the consequence stays visible.
 
 **Price grid:** allowed prices sit one forint below a multiple of `grid`, so grid 100 gives
 …99 endings. Direction is decided by the remainder — **≤ half the grid rounds down, above it
