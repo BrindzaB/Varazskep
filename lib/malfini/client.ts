@@ -267,7 +267,8 @@ export function buildAvailabilityMap(
 // ISR: the unfiltered response is ~3.7MB, far past the 2MB ISR data-cache limit.
 // The DERIVED map is cached, not the raw response.
 
-let costsCache: { data: Record<string, number>; expiresAt: number } | null = null;
+let costsCache: { data: Record<string, number>; expiresAt: number } | null =
+  null;
 
 /**
  * Collapses the quantity-break rows into one net price per SKU, keeping the
@@ -277,7 +278,7 @@ let costsCache: { data: Record<string, number>; expiresAt: number } | null = nul
  */
 export function buildCostMap(
   rows: MalfiniProductPrice[],
-  convertEurToHuf: (eur: number) => number,
+  convertEurToHuf: (eur: number) => number
 ): Record<string, number> {
   const best = new Map<string, { limit: number; huf: number }>();
   for (const r of rows) {
@@ -290,12 +291,12 @@ export function buildCostMap(
     }
   }
   return Object.fromEntries(
-    Array.from(best, ([sku, v]) => [sku, Math.round(v.huf)]),
+    Array.from(best, ([sku, v]) => [sku, Math.round(v.huf)])
   );
 }
 
 async function fetchAndCacheCosts(
-  convertEurToHuf: (eur: number) => number,
+  convertEurToHuf: (eur: number) => number
 ): Promise<Record<string, number>> {
   try {
     const token = await getMalfiniToken();
@@ -311,7 +312,9 @@ async function fetchAndCacheCosts(
       return fetchAndCacheCosts(convertEurToHuf);
     }
     if (!res.ok) {
-      throw new Error(`Malfini API error ${res.status} for /api/v4/product/prices`);
+      throw new Error(
+        `Malfini API error ${res.status} for /api/v4/product/prices`
+      );
     }
 
     const data: unknown = await res.json();
@@ -323,7 +326,9 @@ async function fetchAndCacheCosts(
     const redis = getRedisClient();
     if (redis) {
       try {
-        await redis.set(REDIS_KEY_COSTS, map, { ex: REDIS_CATALOG_TTL_SECONDS });
+        await redis.set(REDIS_KEY_COSTS, map, {
+          ex: REDIS_CATALOG_TTL_SECONDS,
+        });
       } catch (err) {
         console.error("[Malfini] Redis cost write failed:", err);
       }
@@ -339,7 +344,7 @@ async function fetchAndCacheCosts(
 
 // Returns { productSizeCode → net purchase price in HUF } for the whole catalog.
 export async function getMalfiniCostMap(
-  convertEurToHuf: (eur: number) => number,
+  convertEurToHuf: (eur: number) => number
 ): Promise<Record<string, number>> {
   const now = Date.now();
 
@@ -354,7 +359,10 @@ export async function getMalfiniCostMap(
         return cached;
       }
     } catch (err) {
-      console.error("[Malfini] Redis cost read failed, falling back to API:", err);
+      console.error(
+        "[Malfini] Redis cost read failed, falling back to API:",
+        err
+      );
     }
   }
 
@@ -364,7 +372,7 @@ export async function getMalfiniCostMap(
 // Unconditionally refreshes the cost caches. Called by the warmup cron alongside
 // warmupMalfiniCache() so the ~6s cost fetch never lands on a customer request.
 export async function warmupMalfiniCosts(
-  convertEurToHuf: (eur: number) => number,
+  convertEurToHuf: (eur: number) => number
 ): Promise<void> {
   await fetchAndCacheCosts(convertEurToHuf);
 }
@@ -372,6 +380,30 @@ export async function warmupMalfiniCosts(
 // Every sellable SKU of a product — the input pricing callers need.
 export function malfiniProductSkus(product: MalfiniProduct): string[] {
   return product.variants.flatMap((v) =>
-    v.nomenclatures.map((n) => n.productSizeCode),
+    v.nomenclatures.map((n) => n.productSizeCode)
   );
+}
+
+/**
+ * Finds the product that owns a 7-char SKU by scanning the cached catalog.
+ *
+ * Prefer this over the `productCode` a client sends alongside the SKU: the two are
+ * separate fields in the cart payload, so trusting the code would let a tampered
+ * request pair an expensive SKU with a different product's designer config.
+ */
+export async function findMalfiniProductBySku(
+  productSizeCode: string,
+  language = "hu"
+): Promise<MalfiniProduct | null> {
+  const products = await getProducts(language);
+  for (const product of products) {
+    for (const variant of product.variants) {
+      if (
+        variant.nomenclatures.some((n) => n.productSizeCode === productSizeCode)
+      ) {
+        return product;
+      }
+    }
+  }
+  return null;
 }

@@ -12,6 +12,7 @@ import {
   malfiniProductSkus,
 } from "@/lib/malfini/client";
 import { getMalfiniPriceMap } from "@/lib/pricing/resolve";
+import { getPricingSettings } from "@/lib/pricing/settings";
 
 export const metadata: Metadata = {
   title: "Tervező – Varázskép",
@@ -43,6 +44,14 @@ const DESIGNER_PRODUCT_CODES = [
 ];
 
 export default async function DesignerPage({ searchParams }: Props) {
+  // Print fees are admin-editable, so the designer must read them rather than
+  // hardcode them — otherwise it quotes a fee the checkout will not charge.
+  const { printFeeSmallHuf, printFeeLargeHuf } = await getPricingSettings();
+  const printFees = {
+    smallHuf: printFeeSmallHuf,
+    largeHuf: printFeeLargeHuf,
+  };
+
   // ── Empty state: no URL params — show product picker ──────────────────────
   if (!searchParams.code && !searchParams.slug) {
     const allProducts = await getProducts("hu");
@@ -104,6 +113,7 @@ export default async function DesignerPage({ searchParams }: Props) {
               initialNomenclature={bgNomenclature}
               priceMap={bgPriceMap}
               availabilityMap={bgAvailabilityMap}
+              printFees={printFees}
             />
           </div>
         )}
@@ -147,6 +157,7 @@ export default async function DesignerPage({ searchParams }: Props) {
         initialNomenclature={nomenclature}
         priceMap={priceMap}
         availabilityMap={availabilityMap}
+        printFees={printFees}
       />
     );
   }
@@ -184,6 +195,7 @@ export default async function DesignerPage({ searchParams }: Props) {
       product={product}
       initialColor={initialColor}
       initialSize={initialSize}
+      printFees={printFees}
     />
   );
 }

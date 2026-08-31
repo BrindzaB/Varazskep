@@ -51,7 +51,8 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 |---|---|
 | `lib/malfini/client.ts` | `getProducts()`, `getProduct()`, `getMalfiniCostMap()`, `warmupMalfiniCache()` |
 | `lib/pricing/resolve.ts` | **Every product price resolves here** — see ARCHITECTURE.md § Pricing |
-| `lib/pricing/settings.ts` | Admin-editable árrés / VAT / price grid (`PricingSetting` table) |
+| `lib/pricing/settings.ts` | Admin-editable árrés / VAT / price grid / print fees (`PricingSetting` table) |
+| `lib/pricing/printFee.ts` | Per-object print fee + A4 tier — shared by the designer and the checkout |
 | `lib/malfini/categoryConfig.ts` | categoryCode → designer print area config |
 | `lib/malfini/types.ts` | TypeScript interfaces for Malfini API responses |
 | `lib/redis.ts` | Upstash Redis singleton + key/TTL constants |

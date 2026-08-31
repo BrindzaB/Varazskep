@@ -191,6 +191,8 @@ describe("validatePricingSettings", () => {
     vatPct: 27,
     roundGridHuf: 100,
     eurHufRate: 400,
+    printFeeSmallHuf: 3000,
+    printFeeLargeHuf: 3500,
   };
 
   it("accepts a well-formed payload", () => {
@@ -216,6 +218,18 @@ describe("validatePricingSettings", () => {
 
   it("rejects a non-numeric value", () => {
     expect(validatePricingSettings({ ...valid, vatPct: "sok" }).ok).toBe(false);
+  });
+
+  it("rejects a fractional print fee", () => {
+    expect(
+      validatePricingSettings({ ...valid, printFeeSmallHuf: 3000.5 }).ok
+    ).toBe(false);
+  });
+
+  it("accepts a zero print fee", () => {
+    expect(validatePricingSettings({ ...valid, printFeeSmallHuf: 0 }).ok).toBe(
+      true
+    );
   });
 
   it("rejects a null body", () => {

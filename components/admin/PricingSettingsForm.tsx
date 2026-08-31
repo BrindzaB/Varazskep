@@ -9,6 +9,7 @@ import {
   realisedMarkupPct,
 } from "@/lib/pricing/compute";
 import type { PricingSettings } from "@/lib/pricing/settings";
+import { A4_WIDTH_CM, A4_HEIGHT_CM } from "@/lib/pricing/printFee";
 
 interface Sample {
   name: string;
@@ -30,6 +31,8 @@ function toFormState(s: PricingSettings): FormState {
     vatPct: String(s.vatPct),
     roundGridHuf: String(s.roundGridHuf),
     eurHufRate: String(s.eurHufRate),
+    printFeeSmallHuf: String(s.printFeeSmallHuf),
+    printFeeLargeHuf: String(s.printFeeLargeHuf),
   };
 }
 
@@ -39,6 +42,8 @@ function toNumbers(f: FormState): PricingSettings {
     vatPct: Number(f.vatPct),
     roundGridHuf: Number(f.roundGridHuf),
     eurHufRate: Number(f.eurHufRate),
+    printFeeSmallHuf: Number(f.printFeeSmallHuf),
+    printFeeLargeHuf: Number(f.printFeeLargeHuf),
   };
 }
 
@@ -200,6 +205,39 @@ export default function PricingSettingsForm({ initial, samples }: Props) {
           )}
           {error && <span className="text-sm text-red-600">{error}</span>}
         </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
+        <h2 className="text-sm font-semibold text-gray-900">Nyomtatási díj</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          A tervezőbe helyezett minták díja darabonként. A besorolás A4-hez
+          képest történik: ha a minta szélessége vagy magassága meghaladja az
+          A4-et ({A4_WIDTH_CM}×{A4_HEIGHT_CM} cm), a nagyobb díj érvényes.
+        </p>
+
+        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <Field
+            label="A4-en belüli minta"
+            hint="Mindkét mérete A4-en belül van."
+            suffix="Ft / minta"
+            value={form.printFeeSmallHuf}
+            onChange={(v) => set("printFeeSmallHuf", v)}
+          />
+          <Field
+            label="A4-nél nagyobb minta"
+            hint="Legalább az egyik mérete meghaladja az A4-et."
+            suffix="Ft / minta"
+            value={form.printFeeLargeHuf}
+            onChange={(v) => set("printFeeLargeHuf", v)}
+          />
+        </div>
+
+        <p className="mt-4 text-xs text-gray-500">
+          A díjat a rendszer a mentett terv geometriájából számolja újra a
+          fizetéskor, nem a böngészőtől kapja — a tervezőben látott összeg csak
+          tájékoztatás. Egy kétoldalas, oldalanként egy mintás terv két díjat
+          jelent.
+        </p>
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">

@@ -68,8 +68,10 @@ varazskep/
 │   │   └── categoryConfig.ts            # categoryCode → { printArea, hasSides }
 │   ├── pricing/                         # THE source of every product price — see § Pricing
 │   │   ├── compute.ts                   # pure: computeGrossPrice(), roundToPriceGrid(), realisedMarkupPct()
+│   │   ├── printFee.ts                  # pure: computePrintFeeHuf(), objectSizeCm(), A4 tier thresholds
 │   │   ├── settings.ts                  # PricingSetting table: árrés %, VAT %, price grid, EUR rate
-│   │   └── resolve.ts                   # getMalfiniPriceMap(), getMalfiniPriceDetails(), resolveLocalVariantPrice()
+│   │   └── resolve.ts                   # getMalfiniPriceMap(), getMalfiniPriceDetails(),
+│   │                                    # resolveLocalVariantPrice(), resolvePrintFeeHuf()
 │   ├── kvikk/                           # Kvikk Shipping API: client, pricing, account, types, deliveryPointMap
 │   ├── shipping/
 │   │   ├── config.ts                    # SHIPPING_LABELS (legacy labels only)
@@ -184,6 +186,7 @@ are retained for historical orders.
 ```prisma
 model PricingSetting {
   key       String   @id  // malfini_markup_pct | vat_pct | round_grid_huf | eur_huf_rate
+                           // | print_fee_small_huf | print_fee_large_huf
   value     String        // numeric, stored as text; validated on read
   updatedAt DateTime @updatedAt
 }
@@ -363,7 +366,7 @@ Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L →
 - Auth: JWT in HTTP-only cookie (24h expiry) — all `/admin/*` routes protected by middleware
 - **Orders:** list + detail with status updater, design SVG preview, coordinate table, customer upload download links, GDPR erasure button
 - **Products:** local product CRUD + read-only Malfini catalog browser (with cost/price/margin per SKU)
-- **Pricing:** `/admin/pricing` — árrés, VAT, price grid, EUR rate, with a live preview on real products
+- **Pricing:** `/admin/pricing` — árrés, VAT, price grid, EUR rate and the two print fees, with a live preview on real products
 - **Clipart:** upload SVG to `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive
 - **GDPR erasure:** nulls `customerName`, `customerEmail`, `shippingAddress` — order row retained 8 years
 
@@ -378,8 +381,9 @@ could not change without a deploy.
 | File | Role |
 |---|---|
 | `lib/pricing/compute.ts` | Pure arithmetic: gross price, the …99 price grid, realised árrés, profit per piece. No DB/network — unit-tested. |
-| `lib/pricing/settings.ts` | `PricingSetting` key/value table: árrés %, VAT %, price grid, EUR rate. Missing rows fall back to `PRICING_DEFAULTS`, so an empty table prices correctly. |
-| `lib/pricing/resolve.ts` | The entry point. `getMalfiniPriceMap(skus)` (storefront), `getMalfiniPriceDetails(skus)` (admin), `resolveLocalVariantPrice(id)` (checkout). |
+| `lib/pricing/settings.ts` | `PricingSetting` key/value table: árrés %, VAT %, price grid, EUR rate, print fees. Missing rows fall back to `PRICING_DEFAULTS`, so an empty table prices correctly. |
+| `lib/pricing/printFee.ts` | Pure: per-object print fee from the design geometry + the A4 tier. Shared by the designer and the checkout. |
+| `lib/pricing/resolve.ts` | The entry point. `getMalfiniPriceMap(skus)` (storefront), `getMalfiniPriceDetails(skus)` (admin), `resolveLocalVariantPrice(id)` + `resolvePrintFeeHuf(ref)` (checkout). |
 
 **Terminology — "árrés" means markup on cost.** The difference between the net selling
 price and the purchase price, as a percentage *of the purchase price*. 1200 Ft cost at 30%
@@ -411,9 +415,40 @@ no árrés applied. Editable per variant on the product page, as before.
 the daily `/api/warmup` cron. Not ISR: the raw `/product/prices` response is ~3.7 MB, past the
 2 MB ISR limit. The *derived* SKU→cost map is what gets cached.
 
-**Not yet unified** (see the checkout route): the designer print fee is still hardcoded in
-`components/designer/DesignerCanvas.tsx` and computed client-side; orders still store only
-`totalAmount`, not a per-item price snapshot.
+### Print fee
+
+Charged per design object, in two tiers decided against A4 (21 × 29.7 cm): an object is
+"large" if it exceeds A4 in **either** dimension — comparing areas would leave a wide,
+short line of text in the cheap tier forever. Both fees are admin-editable
+(`printFeeSmallHuf` / `printFeeLargeHuf`, default 3000 / 3500).
+
+`lib/pricing/printFee.ts` is pure and shared by both sides. The designer computes the fee
+for immediate feedback; the checkout recomputes it via `resolvePrintFeeHuf()` from the
+stored `Design.canvasJson` and charges **that**. The client's `printFee` field is now
+display-only and never read server-side — previously it was trusted subject to a format
+check, so omitting the field bought free printing.
+
+Two details make the recomputation hard to game:
+
+- **Geometry, not the stored cm fields.** Objects carry `_wCm`/`_hCm` written by the
+  designer, but the fee is derived from `width × scaleX` instead. Understating `_wCm` would
+  buy the cheap tier while leaving the print large; shrinking the real scale shrinks the
+  delivered artwork too, so there is nothing to gain.
+- **The print area comes from server config**, never the request. For Malfini the product is
+  found by scanning the cached catalog for the SKU (`findMalfiniProductBySku()`), because the
+  `productCode` a client sends is a separate field — trusting it would let a request pair an
+  expensive garment with a mug's much smaller print area.
+
+If any object's geometry is unreadable, or the product has no designer template, the fee
+resolves to `null` and the checkout is rejected — charging a default would reopen the hole.
+
+Fabric rounds serialized numbers to 2 fraction digits, so the recomputed size lands within
+~0.02% of what the designer measured. That only matters within ~0.005 cm of the threshold.
+
+**Not yet unified:** orders still store only `totalAmount`, not a per-item price snapshot
+(unit price, print fee, quantity, cost). The denormalized `productName`/`colorName`/
+`sizeName` on an order are also still taken from the request rather than derived from the
+variant/SKU, so they can disagree with what was actually paid for.
 
 ---
 

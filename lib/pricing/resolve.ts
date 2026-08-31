@@ -9,7 +9,18 @@
 // Malfini products: net purchase price × markup × VAT, rounded (see compute.ts).
 
 import { prisma } from "@/lib/db";
-import { getMalfiniCostMap } from "@/lib/malfini/client";
+import {
+  findMalfiniProductBySku,
+  getMalfiniCostMap,
+} from "@/lib/malfini/client";
+import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import {
+  getMockupConfig,
+  type PrintArea,
+  type PrintSizeCm,
+} from "@/lib/designer/mockupConfig";
+import type { CanvasJson } from "@/lib/services/design";
+import { computePrintFeeHuf, PRINT_FEE_UNRESOLVABLE } from "./printFee";
 import { makeEurToHufConverter } from "@/lib/malfini/pricing";
 import {
   computeGrossPrice,
@@ -118,4 +129,89 @@ export async function resolveLocalVariantPrice(
     select: { price: true },
   });
   return variant?.price ?? null;
+}
+
+// ── Print fee ────────────────────────────────────────────────────────────────
+
+/** Identifies the product a designed cart item belongs to, for the print area lookup. */
+export type PrintFeeRef =
+  | { source: "local"; variantId: string; designId: string }
+  | { source: "malfini"; productSizeCode: string; designId: string };
+
+/**
+ * Authoritative print fee for one designed cart item, in gross HUF.
+ *
+ * Resolves the print area from server-held config — the local product's `mockupType`
+ * via the DB, or the Malfini product found by scanning the catalog for the SKU. The
+ * `productCode` a client sends is deliberately ignored: it is a separate field from
+ * the SKU, so trusting it would let a request pair an expensive garment with a mug's
+ * (much smaller) print area and land every object in the cheap tier.
+ *
+ * Returns null when the item cannot be priced — no design row, no designer template,
+ * or unreadable geometry. Callers must reject the checkout rather than charge 0.
+ */
+export async function resolvePrintFeeHuf(
+  ref: PrintFeeRef
+): Promise<number | null> {
+  const design = await prisma.design.findUnique({
+    where: { id: ref.designId },
+    select: { canvasJson: true },
+  });
+  if (!design?.canvasJson) {
+    console.error(`[pricing] print fee: design ${ref.designId} not found`);
+    return null;
+  }
+
+  const area = await resolvePrintArea(ref);
+  if (!area) {
+    console.error(
+      `[pricing] print fee: no designer template for ${JSON.stringify(ref)}`
+    );
+    return null;
+  }
+
+  const settings = await getPricingSettings();
+
+  try {
+    return computePrintFeeHuf(
+      design.canvasJson as unknown as CanvasJson,
+      area.printArea,
+      area.printAreaCm,
+      {
+        smallHuf: settings.printFeeSmallHuf,
+        largeHuf: settings.printFeeLargeHuf,
+      }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message === PRINT_FEE_UNRESOLVABLE) {
+      console.error(
+        `[pricing] print fee: unreadable object geometry in design ${ref.designId}`
+      );
+      return null;
+    }
+    throw err;
+  }
+}
+
+async function resolvePrintArea(
+  ref: PrintFeeRef
+): Promise<{ printArea: PrintArea; printAreaCm: PrintSizeCm } | null> {
+  if (ref.source === "local") {
+    const variant = await prisma.variant.findUnique({
+      where: { id: ref.variantId },
+      select: { product: { select: { mockupType: true } } },
+    });
+    const config = getMockupConfig(variant?.product.mockupType ?? null);
+    return config
+      ? { printArea: config.printArea, printAreaCm: config.printAreaCm }
+      : null;
+  }
+
+  const product = await findMalfiniProductBySku(ref.productSizeCode);
+  if (!product) return null;
+  const config = getCategoryConfig(product.categoryCode);
+  return config
+    ? { printArea: config.printArea, printAreaCm: config.printAreaCm }
+    : null;
 }

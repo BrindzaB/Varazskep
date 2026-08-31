@@ -23,6 +23,10 @@ export interface PricingSettings {
   // EUR→HUF rate, used only if Malfini ever returns EUR prices for this account
   // (it currently returns HUF). Replaces the former EUR_TO_HUF_RATE env var.
   eurHufRate: number;
+  // Print fee charged per design object, gross HUF. The tier is decided by the
+  // object's real-world size against A4 — see lib/pricing/printFee.ts.
+  printFeeSmallHuf: number; // both dimensions within A4
+  printFeeLargeHuf: number; // either dimension exceeds A4
 }
 
 export const PRICING_DEFAULTS: PricingSettings = {
@@ -30,6 +34,8 @@ export const PRICING_DEFAULTS: PricingSettings = {
   vatPct: 27,
   roundGridHuf: 100,
   eurHufRate: 400,
+  printFeeSmallHuf: 3000,
+  printFeeLargeHuf: 3500,
 };
 
 // Field ↔ database key mapping. Keys are stable; renaming a field is free.
@@ -38,6 +44,8 @@ const KEYS: Record<keyof PricingSettings, string> = {
   vatPct: "vat_pct",
   roundGridHuf: "round_grid_huf",
   eurHufRate: "eur_huf_rate",
+  printFeeSmallHuf: "print_fee_small_huf",
+  printFeeLargeHuf: "print_fee_large_huf",
 };
 
 export const PRICING_SETTING_KEYS = Object.values(KEYS);
@@ -70,6 +78,20 @@ const BOUNDS: Record<
     max: 10000,
     integer: false,
     error: "Az árfolyam 1 és 10000 között lehet.",
+  },
+  printFeeSmallHuf: {
+    min: 0,
+    max: 1000000,
+    integer: true,
+    error:
+      "Az A4-en belüli nyomtatási díj 0 és 1000000 Ft közötti egész szám legyen.",
+  },
+  printFeeLargeHuf: {
+    min: 0,
+    max: 1000000,
+    integer: true,
+    error:
+      "Az A4-nél nagyobb nyomtatási díj 0 és 1000000 Ft közötti egész szám legyen.",
   },
 };
 

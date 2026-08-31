@@ -3,10 +3,18 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import DesignerCanvas, { CANVAS_WIDTH, CANVAS_HEIGHT, type DesignerCanvasRef } from "./DesignerCanvas";
+import DesignerCanvas, {
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  type DesignerCanvasRef,
+} from "./DesignerCanvas";
+import type { PrintFees } from "@/lib/pricing/printFee";
 import { type ColorEntry } from "./ColorPicker";
 import ClipartPanel from "./ClipartPanel";
-import TextOptionsBar, { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
+import TextOptionsBar, {
+  DEFAULT_TEXT_FONT,
+  DEFAULT_TEXT_COLOR,
+} from "./TextOptionsBar";
 import { COLOR_MAP } from "@/lib/utils/colors";
 import { getMockupConfig } from "@/lib/designer/mockupConfig";
 import { buildColoredDataUrl } from "@/lib/designer/colorUtils";
@@ -14,17 +22,48 @@ import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
 import { useCartStore } from "@/lib/cart/cartStore";
 import { formatHuf } from "@/lib/utils/format";
 import type { ProductWithVariants } from "@/lib/services/product";
-import type { MalfiniProduct, MalfiniVariant, MalfiniNomenclature } from "@/lib/malfini/types";
+import type {
+  MalfiniProduct,
+  MalfiniVariant,
+  MalfiniNomenclature,
+} from "@/lib/malfini/types";
 
 // Malfini size ordering: adult sizes then kids numeric sizes
 const SIZE_ORDER = [
-  "3XS", "XXS", "XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL",
-  "86", "92", "98", "104", "110", "116", "122", "128", "134", "140", "146", "152", "158", "164", "170",
+  "3XS",
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+  "3XL",
+  "4XL",
+  "5XL",
+  "6XL",
+  "86",
+  "92",
+  "98",
+  "104",
+  "110",
+  "116",
+  "122",
+  "128",
+  "134",
+  "140",
+  "146",
+  "152",
+  "158",
+  "164",
+  "170",
 ];
 
-function sortNomenclatures(nomenclatures: MalfiniNomenclature[]): MalfiniNomenclature[] {
+function sortNomenclatures(
+  nomenclatures: MalfiniNomenclature[]
+): MalfiniNomenclature[] {
   return [...nomenclatures].sort(
-    (a, b) => SIZE_ORDER.indexOf(a.sizeCode) - SIZE_ORDER.indexOf(b.sizeCode),
+    (a, b) => SIZE_ORDER.indexOf(a.sizeCode) - SIZE_ORDER.indexOf(b.sizeCode)
   );
 }
 
@@ -32,7 +71,13 @@ function sortNomenclatures(nomenclatures: MalfiniNomenclature[]): MalfiniNomencl
 // Shrinks the canvas to fit the available container width on narrow screens.
 // Uses ResizeObserver so it reacts to layout changes without a window resize listener.
 // On desktop (container ≥ CANVAS_WIDTH) scale === 1 — no visual change.
-function ScaledCanvasWrapper({ children, canvasHeight = CANVAS_HEIGHT }: { children: ReactNode; canvasHeight?: number }) {
+function ScaledCanvasWrapper({
+  children,
+  canvasHeight = CANVAS_HEIGHT,
+}: {
+  children: ReactNode;
+  canvasHeight?: number;
+}) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(CANVAS_WIDTH);
 
@@ -52,7 +97,11 @@ function ScaledCanvasWrapper({ children, canvasHeight = CANVAS_HEIGHT }: { child
   const offsetX = (containerWidth - CANVAS_WIDTH * scale) / 2;
 
   return (
-    <div ref={wrapperRef} className="w-full overflow-hidden" style={{ height: canvasHeight * scale }}>
+    <div
+      ref={wrapperRef}
+      className="w-full overflow-hidden"
+      style={{ height: canvasHeight * scale }}
+    >
       <div
         style={{
           transform: `translateX(${offsetX}px) scale(${scale})`,
@@ -82,7 +131,7 @@ function DesignerToolbar({
   isUploading,
 }: ToolbarProps) {
   return (
-    <aside className="flex w-full flex-row justify-around bg-charcoal px-4 py-3 lg:w-20 lg:flex-shrink-0 lg:flex-col lg:items-center lg:justify-start lg:gap-6 lg:py-6 lg:px-0">
+    <aside className="flex w-full flex-row justify-around bg-charcoal px-4 py-3 lg:w-20 lg:flex-shrink-0 lg:flex-col lg:items-center lg:justify-start lg:gap-6 lg:px-0 lg:py-6">
       <Link
         href="/designer"
         title="Termék váltása"
@@ -185,7 +234,9 @@ function DesignerToolbar({
         aria-label="Szöveg hozzáadása"
         className="flex flex-col items-center gap-1 text-white/60 transition-colors hover:text-white"
       >
-        <span className="text-2xl font-bold leading-none" aria-hidden="true">T</span>
+        <span className="text-2xl font-bold leading-none" aria-hidden="true">
+          T
+        </span>
         <span className="text-xs font-medium">Szöveg</span>
       </button>
     </aside>
@@ -199,6 +250,9 @@ type LocalProps = {
   product: ProductWithVariants;
   initialColor: string;
   initialSize: string;
+  // Per-object print fees from the admin pricing settings. Shown to the customer;
+  // the checkout recomputes the charge from the saved design.
+  printFees: PrintFees;
 };
 
 type MalfiniProps = {
@@ -208,6 +262,7 @@ type MalfiniProps = {
   initialNomenclature: MalfiniNomenclature;
   priceMap: Record<string, number>;
   availabilityMap: Record<string, number>;
+  printFees: PrintFees;
 };
 
 type DesignerLayoutProps = LocalProps | MalfiniProps;
@@ -221,7 +276,12 @@ export default function DesignerLayout(props: DesignerLayoutProps) {
 
 const LOCAL_SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
 
-function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps) {
+function LocalDesignerLayout({
+  product,
+  initialColor,
+  initialSize,
+  printFees,
+}: LocalProps) {
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
 
@@ -230,7 +290,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   const mockupConfig = getMockupConfig(product.mockupType ?? null)!;
 
   const availableColors: ColorEntry[] = Array.from(
-    new Set(product.variants.map((v) => v.color)),
+    new Set(product.variants.map((v) => v.color))
   ).map((name) => ({ name, hex: COLOR_MAP[name] ?? "#9ca3af" }));
 
   // Per-colour product photo shown beside the canvas — sourced from the DB
@@ -260,7 +320,9 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   const [selectedSize, setSelectedSize] = useState(initialSize);
 
   const selectedVariant =
-    product.variants.find((v) => v.color === shirtColorName && v.size === selectedSize) ?? null;
+    product.variants.find(
+      (v) => v.color === shirtColorName && v.size === selectedSize
+    ) ?? null;
   const isInStock = selectedVariant ? selectedVariant.stock > 0 : false;
 
   const [printFee, setPrintFee] = useState(0);
@@ -279,7 +341,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
   const [imageUrl, setImageUrl] = useState<string>(
     !isColorReplaceable
       ? (mockupConfig.svgPaths[side] ?? mockupConfig.svgPaths.front)
-      : "",
+      : ""
   );
   const svgCacheRef = useRef<Partial<Record<"front" | "back", string>>>({});
 
@@ -297,11 +359,15 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         svgCacheRef.current[side] = await res.text();
       }
       if (!cancelled) {
-        setImageUrl(buildColoredDataUrl(svgCacheRef.current[side]!, shirtColorHex));
+        setImageUrl(
+          buildColoredDataUrl(svgCacheRef.current[side]!, shirtColorHex)
+        );
       }
     };
     load().catch(console.error);
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [side, shirtColorHex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleClipartSelect(svgUrl: string, darkSvgUrl: string | null) {
@@ -324,7 +390,10 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/designs/upload", { method: "POST", body: formData });
+      const res = await fetch("/api/designs/upload", {
+        method: "POST",
+        body: formData,
+      });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? "Upload failed");
@@ -332,7 +401,9 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
       const { url } = (await res.json()) as { url: string };
       await canvasRef.current?.addImage(url);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "A feltöltés sikertelen.");
+      setUploadError(
+        err instanceof Error ? err.message : "A feltöltés sikertelen."
+      );
     } finally {
       setIsUploading(false);
     }
@@ -340,13 +411,21 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
 
   function handleColorChange(name: string) {
     setShirtColorName(name);
-    const firstSize = product.variants.find((v) => v.color === name)?.size ?? "";
+    const firstSize =
+      product.variants.find((v) => v.color === name)?.size ?? "";
     setSelectedSize(firstSize);
   }
 
-  function handleActiveTextChange(isText: boolean, font: string, color: string) {
+  function handleActiveTextChange(
+    isText: boolean,
+    font: string,
+    color: string
+  ) {
     setIsTextSelected(isText);
-    if (isText) { setActiveFont(font); setActiveColor(color); }
+    if (isText) {
+      setActiveFont(font);
+      setActiveColor(color);
+    }
   }
 
   async function handleAddToCart() {
@@ -355,7 +434,10 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
     setAddToCartError(null);
 
     try {
-      const canvasData = canvasRef.current?.getCanvasJson() ?? { front: [], back: [] };
+      const canvasData = canvasRef.current?.getCanvasJson() ?? {
+        front: [],
+        back: [],
+      };
       const previewDataUrl = canvasRef.current?.getPreviewDataUrl() ?? null;
       const res = await fetch("/api/designs", {
         method: "POST",
@@ -402,23 +484,33 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         onChange={handleFileChange}
       />
 
-      <div className="flex flex-1 flex-col items-center overflow-x-hidden overflow-y-auto px-2 py-4">
+      <div className="flex flex-1 flex-col items-center overflow-y-auto overflow-x-hidden px-2 py-4">
         {hasClipartsWithDark && (
           <div className="mb-2 flex rounded-lg border border-border-light bg-white p-1">
             <button
-              onClick={() => { setShowDark(false); canvasRef.current?.swapClipartVariants(false); }}
+              onClick={() => {
+                setShowDark(false);
+                canvasRef.current?.swapClipartVariants(false);
+              }}
               aria-pressed={!showDark}
               className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
-                !showDark ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+                !showDark
+                  ? "bg-charcoal text-white"
+                  : "text-muted hover:text-charcoal"
               }`}
             >
               Világos alap
             </button>
             <button
-              onClick={() => { setShowDark(true); canvasRef.current?.swapClipartVariants(true); }}
+              onClick={() => {
+                setShowDark(true);
+                canvasRef.current?.swapClipartVariants(true);
+              }}
               aria-pressed={showDark}
               className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
-                showDark ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+                showDark
+                  ? "bg-charcoal text-white"
+                  : "text-muted hover:text-charcoal"
               }`}
             >
               Sötét alap
@@ -434,6 +526,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
               side={side}
               printArea={mockupConfig.printArea}
               printAreaCm={mockupConfig.printAreaCm}
+              printFees={printFees}
               onActiveTextChange={handleActiveTextChange}
               onPrintFeeChange={setPrintFee}
               onDarkClipartChange={setHasClipartsWithDark}
@@ -456,8 +549,14 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
             <TextOptionsBar
               currentFont={activeFont}
               currentColor={activeColor}
-              onFontChange={(font) => { setActiveFont(font); canvasRef.current?.setTextFont(font); }}
-              onColorChange={(color) => { setActiveColor(color); canvasRef.current?.setTextColor(color); }}
+              onFontChange={(font) => {
+                setActiveFont(font);
+                canvasRef.current?.setTextFont(font);
+              }}
+              onColorChange={(color) => {
+                setActiveColor(color);
+                canvasRef.current?.setTextColor(color);
+              }}
             />
           </div>
         )}
@@ -472,7 +571,9 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
               onClick={() => setSide("front")}
               aria-pressed={side === "front"}
               className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "front" ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+                side === "front"
+                  ? "bg-charcoal text-white"
+                  : "text-muted hover:text-charcoal"
               }`}
             >
               Elől
@@ -481,7 +582,9 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
               onClick={() => setSide("back")}
               aria-pressed={side === "back"}
               className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "back" ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+                side === "back"
+                  ? "bg-charcoal text-white"
+                  : "text-muted hover:text-charcoal"
               }`}
             >
               Hátul
@@ -490,7 +593,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         )}
       </div>
 
-      <aside className="flex flex-col border-t border-border-light bg-white p-4 lg:w-72 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:p-6">
+      <aside className="flex flex-col border-t border-border-light bg-white p-4 lg:w-72 lg:flex-shrink-0 lg:border-l lg:border-t-0 lg:p-6">
         <h2 className="text-lg font-semibold text-charcoal">{product.name}</h2>
 
         <div className="mt-4">
@@ -515,7 +618,8 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
 
         <div className="mt-4">
           <p className="mb-2 text-sm font-medium text-charcoal">
-            Szín: <span className="font-normal text-muted">{shirtColorName}</span>
+            Szín:{" "}
+            <span className="font-normal text-muted">{shirtColorName}</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {availableColors.map(({ name, hex }) => (
@@ -548,7 +652,7 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
                 <span>{formatHuf(printFee)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-semibold text-charcoal border-t border-border-light pt-1">
+            <div className="flex justify-between border-t border-border-light pt-1 text-base font-semibold text-charcoal">
               <span>Összesen</span>
               <span>{formatHuf(selectedVariant.price + printFee)}</span>
             </div>
@@ -556,9 +660,13 @@ function LocalDesignerLayout({ product, initialColor, initialSize }: LocalProps)
         )}
 
         {selectedVariant && !isInStock && (
-          <p className="mt-2 text-sm text-error">Ez a méret jelenleg nem elérhető.</p>
+          <p className="mt-2 text-sm text-error">
+            Ez a méret jelenleg nem elérhető.
+          </p>
         )}
-        {addToCartError && <p className="mt-2 text-sm text-error">{addToCartError}</p>}
+        {addToCartError && (
+          <p className="mt-2 text-sm text-error">{addToCartError}</p>
+        )}
 
         <div className="hidden flex-1 lg:block" />
 
@@ -589,6 +697,7 @@ function MalfiniDesignerLayout({
   initialNomenclature,
   priceMap,
   availabilityMap,
+  printFees,
 }: MalfiniProps) {
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
@@ -600,10 +709,10 @@ function MalfiniDesignerLayout({
   const printAreaCm = categoryConfig!.printAreaCm;
   const hasSides = categoryConfig!.hasSides;
 
-  const [selectedVariant, setSelectedVariant] = useState<MalfiniVariant>(initialVariant);
-  const [selectedNomenclature, setSelectedNomenclature] = useState<MalfiniNomenclature | null>(
-    initialNomenclature,
-  );
+  const [selectedVariant, setSelectedVariant] =
+    useState<MalfiniVariant>(initialVariant);
+  const [selectedNomenclature, setSelectedNomenclature] =
+    useState<MalfiniNomenclature | null>(initialNomenclature);
   const [side, setSide] = useState<"front" | "back">("front");
   const [isClipartOpen, setIsClipartOpen] = useState(false);
   const [isTextSelected, setIsTextSelected] = useState(false);
@@ -641,15 +750,26 @@ function MalfiniDesignerLayout({
   const isInStock = stock > 0;
 
   function handleColorChange(_name: string, variantCode: string) {
-    const newVariant = malfiniProduct.variants.find((v) => v.code === variantCode);
+    const newVariant = malfiniProduct.variants.find(
+      (v) => v.code === variantCode
+    );
     if (!newVariant) return;
     setSelectedVariant(newVariant);
-    setSelectedNomenclature(sortNomenclatures(newVariant.nomenclatures)[0] ?? null);
+    setSelectedNomenclature(
+      sortNomenclatures(newVariant.nomenclatures)[0] ?? null
+    );
   }
 
-  function handleActiveTextChange(isText: boolean, font: string, color: string) {
+  function handleActiveTextChange(
+    isText: boolean,
+    font: string,
+    color: string
+  ) {
     setIsTextSelected(isText);
-    if (isText) { setActiveFont(font); setActiveColor(color); }
+    if (isText) {
+      setActiveFont(font);
+      setActiveColor(color);
+    }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -663,7 +783,10 @@ function MalfiniDesignerLayout({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/designs/upload", { method: "POST", body: formData });
+      const res = await fetch("/api/designs/upload", {
+        method: "POST",
+        body: formData,
+      });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? "Upload failed");
@@ -671,7 +794,9 @@ function MalfiniDesignerLayout({
       const { url } = (await res.json()) as { url: string };
       await canvasRef.current?.addImage(url);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "A feltöltés sikertelen.");
+      setUploadError(
+        err instanceof Error ? err.message : "A feltöltés sikertelen."
+      );
     } finally {
       setIsUploading(false);
     }
@@ -683,7 +808,10 @@ function MalfiniDesignerLayout({
     setAddToCartError(null);
 
     try {
-      const canvasData = canvasRef.current?.getCanvasJson() ?? { front: [], back: [] };
+      const canvasData = canvasRef.current?.getCanvasJson() ?? {
+        front: [],
+        back: [],
+      };
       const previewDataUrl = canvasRef.current?.getPreviewDataUrl() ?? null;
       const res = await fetch("/api/designs", {
         method: "POST",
@@ -734,19 +862,29 @@ function MalfiniDesignerLayout({
         {hasClipartsWithDark && (
           <div className="mb-2 flex rounded-lg border border-border-light bg-white p-1">
             <button
-              onClick={() => { setShowDark(false); canvasRef.current?.swapClipartVariants(false); }}
+              onClick={() => {
+                setShowDark(false);
+                canvasRef.current?.swapClipartVariants(false);
+              }}
               aria-pressed={!showDark}
               className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
-                !showDark ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+                !showDark
+                  ? "bg-charcoal text-white"
+                  : "text-muted hover:text-charcoal"
               }`}
             >
               Világos alap
             </button>
             <button
-              onClick={() => { setShowDark(true); canvasRef.current?.swapClipartVariants(true); }}
+              onClick={() => {
+                setShowDark(true);
+                canvasRef.current?.swapClipartVariants(true);
+              }}
               aria-pressed={showDark}
               className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
-                showDark ? "bg-charcoal text-white" : "text-muted hover:text-charcoal"
+                showDark
+                  ? "bg-charcoal text-white"
+                  : "text-muted hover:text-charcoal"
               }`}
             >
               Sötét alap
@@ -761,6 +899,7 @@ function MalfiniDesignerLayout({
             side={side}
             printArea={printArea}
             printAreaCm={printAreaCm}
+            printFees={printFees}
             onActiveTextChange={handleActiveTextChange}
             onPrintFeeChange={setPrintFee}
             onDarkClipartChange={setHasClipartsWithDark}
@@ -772,8 +911,14 @@ function MalfiniDesignerLayout({
             <TextOptionsBar
               currentFont={activeFont}
               currentColor={activeColor}
-              onFontChange={(font) => { setActiveFont(font); canvasRef.current?.setTextFont(font); }}
-              onColorChange={(color) => { setActiveColor(color); canvasRef.current?.setTextColor(color); }}
+              onFontChange={(font) => {
+                setActiveFont(font);
+                canvasRef.current?.setTextFont(font);
+              }}
+              onColorChange={(color) => {
+                setActiveColor(color);
+                canvasRef.current?.setTextColor(color);
+              }}
             />
           </div>
         )}
@@ -783,12 +928,14 @@ function MalfiniDesignerLayout({
         )}
 
         {hasSides && (
-          <div className="mt-3 flex rounded-lg bg-white p-1 gap-2">
+          <div className="mt-3 flex gap-2 rounded-lg bg-white p-1">
             <button
               onClick={() => setSide("front")}
               aria-pressed={side === "front"}
               className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "front" ? "bg-brand-violet text-white border border-brand-violet" : "text-muted border border-border-medium hover:text-brand-violet hover:border-brand-violet"
+                side === "front"
+                  ? "border border-brand-violet bg-brand-violet text-white"
+                  : "border border-border-medium text-muted hover:border-brand-violet hover:text-brand-violet"
               }`}
             >
               Elől
@@ -797,7 +944,9 @@ function MalfiniDesignerLayout({
               onClick={() => setSide("back")}
               aria-pressed={side === "back"}
               className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "back" ? "bg-brand-violet text-white border border-brand-violet" : "text-muted border border-border-medium hover:text-brand-violet hover:border-brand-violet"
+                side === "back"
+                  ? "border border-brand-violet bg-brand-violet text-white"
+                  : "border border-border-medium text-muted hover:border-brand-violet hover:text-brand-violet"
               }`}
             >
               Hátul
@@ -806,15 +955,19 @@ function MalfiniDesignerLayout({
         )}
       </div>
 
-      <aside className="flex flex-col border-t border-border-light bg-white p-4 lg:w-72 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:p-6">
-        <h2 className="text-lg font-semibold text-charcoal">{malfiniProduct.name}</h2>
+      <aside className="flex flex-col border-t border-border-light bg-white p-4 lg:w-72 lg:flex-shrink-0 lg:border-l lg:border-t-0 lg:p-6">
+        <h2 className="text-lg font-semibold text-charcoal">
+          {malfiniProduct.name}
+        </h2>
 
         <div className="mt-4">
           <p className="mb-2 text-sm font-medium text-charcoal">Méret</p>
           <div className="flex flex-wrap gap-2">
             {sortedNomenclatures.map((nom) => {
-              const nomInStock = (availabilityMap[nom.productSizeCode] ?? 0) > 0;
-              const isSelected = nom.productSizeCode === selectedNomenclature?.productSizeCode;
+              const nomInStock =
+                (availabilityMap[nom.productSizeCode] ?? 0) > 0;
+              const isSelected =
+                nom.productSizeCode === selectedNomenclature?.productSizeCode;
               return (
                 <button
                   key={nom.productSizeCode}
@@ -826,7 +979,7 @@ function MalfiniDesignerLayout({
                       ? "border-brand-blue bg-brand-blue text-white"
                       : nomInStock
                         ? "border-border-medium text-charcoal hover:border-brand-blue hover:text-brand-blue"
-                        : "border-border-light text-muted line-through cursor-not-allowed"
+                        : "cursor-not-allowed border-border-light text-muted line-through"
                   }`}
                 >
                   {nom.sizeName}
@@ -838,7 +991,10 @@ function MalfiniDesignerLayout({
 
         <div className="mt-4">
           <p className="mb-2 text-sm font-medium text-charcoal">
-            Szín: <span className="font-normal text-muted">{selectedVariant.name}</span>
+            Szín:{" "}
+            <span className="font-normal text-muted">
+              {selectedVariant.name}
+            </span>
           </p>
           <div className="flex flex-wrap gap-2">
             {colorEntries.map(({ name, hex, iconUrl }) => (
@@ -855,7 +1011,11 @@ function MalfiniDesignerLayout({
                 }`}
               >
                 {iconUrl && (
-                  <img src={iconUrl} alt={name} className="h-full w-full object-cover" />
+                  <img
+                    src={iconUrl}
+                    alt={name}
+                    className="h-full w-full object-cover"
+                  />
                 )}
               </button>
             ))}
@@ -874,7 +1034,7 @@ function MalfiniDesignerLayout({
                 <span>{formatHuf(printFee)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-semibold text-charcoal border-t border-border-light pt-1">
+            <div className="flex justify-between border-t border-border-light pt-1 text-base font-semibold text-charcoal">
               <span>Összesen</span>
               <span>{formatHuf(price + printFee)}</span>
             </div>
@@ -882,9 +1042,13 @@ function MalfiniDesignerLayout({
         )}
 
         {selectedNomenclature && !isInStock && (
-          <p className="mt-2 text-sm text-error">Ez a méret jelenleg nem elérhető.</p>
+          <p className="mt-2 text-sm text-error">
+            Ez a méret jelenleg nem elérhető.
+          </p>
         )}
-        {addToCartError && <p className="mt-2 text-sm text-error">{addToCartError}</p>}
+        {addToCartError && (
+          <p className="mt-2 text-sm text-error">{addToCartError}</p>
+        )}
 
         <div className="hidden flex-1 lg:block" />
 
