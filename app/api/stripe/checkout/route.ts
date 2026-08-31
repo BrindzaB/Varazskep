@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { prisma } from "@/lib/db";
-import { getRecommendedPrices, buildPriceMap } from "@/lib/malfini/client";
-import { convertEurToHuf } from "@/lib/malfini/pricing";
+import {
+  getMalfiniPriceMap,
+  resolveLocalVariantPrice,
+  resolvePrintFeeHuf,
+} from "@/lib/pricing/resolve";
 import type { CartItem } from "@/lib/cart/cartStore";
 import { resolveParcelWeightGrams } from "@/lib/services/shipping";
 import { getShippingQuote } from "@/lib/kvikk/pricing";
@@ -120,19 +122,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
   let totalWeightGrams = 0;
 
-  // Fetch Malfini prices in one batch call before iterating items.
-  // Pass 3-char product codes — the API filters by product code, not nomenclature code.
-  // The response is keyed by productSizeCode (7-char), which we use for the per-item lookup.
-  const malfiniProductCodes = items
+  // Resolve Malfini prices in one batch before iterating items. These are the
+  // authoritative prices — the client-supplied cart price is never trusted.
+  const malfiniSkus = items
     .filter((i) => i.source === "malfini")
-    .map((i) => i.productCode)
+    .map((i) => i.productSizeCode)
     .filter((c): c is string => !!c);
 
-  let malfiniPriceMap: Record<string, number> = {};
-  if (malfiniProductCodes.length > 0) {
-    const prices = await getRecommendedPrices(malfiniProductCodes);
-    malfiniPriceMap = buildPriceMap(prices, convertEurToHuf);
-  }
+  const malfiniPriceMap = await getMalfiniPriceMap(malfiniSkus);
 
   // Build Stripe line items with authoritative prices and the metadata payload.
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
@@ -149,17 +146,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         );
       }
       // Look up the variant price from the DB — do not trust the client-provided price.
-      const variant = await prisma.variant.findUnique({
-        where: { id: item.variantId },
-        select: { price: true },
-      });
-      if (!variant) {
+      const price = await resolveLocalVariantPrice(item.variantId);
+      if (price === null) {
         return NextResponse.json(
           { error: "A termék változat nem található." },
           { status: 400 }
         );
       }
-      unitPriceHuf = variant.price;
+      unitPriceHuf = price;
       totalWeightGrams +=
         (await resolveParcelWeightGrams({
           source: "local",
@@ -198,24 +192,40 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       quantity: item.quantity,
     });
 
-    // Add a separate print fee line item if the item was created in the designer.
-    // Validate: must be a positive multiple of 500 and within a reasonable upper bound.
-    if (item.printFee && item.printFee > 0) {
-      const maxAllowed = item.quantity * 100 * 3500; // very generous cap
-      if (item.printFee % 500 !== 0 || item.printFee > maxAllowed) {
+    // Add a separate print fee line item for items created in the designer.
+    // The fee is recomputed from the stored design geometry — the client's
+    // `printFee` is display-only and is never read here. It used to be trusted
+    // subject to a format check, so omitting the field bought free printing.
+    if (item.designId) {
+      const printFee = await resolvePrintFeeHuf(
+        item.source === "local"
+          ? {
+              source: "local",
+              variantId: item.variantId!,
+              designId: item.designId,
+            }
+          : {
+              source: "malfini",
+              productSizeCode: item.productSizeCode!,
+              designId: item.designId,
+            }
+      );
+      if (printFee === null) {
         return NextResponse.json(
-          { error: "Érvénytelen nyomtatási díj." },
+          { error: "Nem sikerült kiszámolni a nyomtatási díjat." },
           { status: 400 }
         );
       }
-      lineItems.push({
-        price_data: {
-          currency: "huf",
-          product_data: { name: "Egyedi nyomtatás" },
-          unit_amount: item.printFee * 100,
-        },
-        quantity: item.quantity,
-      });
+      if (printFee > 0) {
+        lineItems.push({
+          price_data: {
+            currency: "huf",
+            product_data: { name: "Egyedi nyomtatás" },
+            unit_amount: printFee * 100,
+          },
+          quantity: item.quantity,
+        });
+      }
     }
 
     const meta: CartItemMeta = {

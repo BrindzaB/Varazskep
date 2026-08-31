@@ -49,7 +49,11 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 
 | File | Purpose |
 |---|---|
-| `lib/malfini/client.ts` | `getProducts()`, `getProduct()`, `warmupMalfiniCache()` |
+| `lib/malfini/client.ts` | `getProducts()`, `getProduct()`, `getMalfiniCostMap()`, `warmupMalfiniCache()` |
+| `lib/pricing/resolve.ts` | **Every product price resolves here** — see ARCHITECTURE.md § Pricing |
+| `lib/pricing/settings.ts` | Admin-editable árrés / VAT / price grid / print fees (`PricingSetting` table) |
+| `lib/pricing/printFee.ts` | Per-object print fee + A4 tier — shared by the designer and the checkout |
+| `lib/pricing/overrides.ts` | Manual per-SKU Malfini prices (`PriceOverride`) — wins over the árrés rule |
 | `lib/malfini/categoryConfig.ts` | categoryCode → designer print area config |
 | `lib/malfini/types.ts` | TypeScript interfaces for Malfini API responses |
 | `lib/redis.ts` | Upstash Redis singleton + key/TTL constants |
@@ -110,7 +114,7 @@ STRIPE_SECRET_KEY  STRIPE_WEBHOOK_SECRET  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 SUPABASE_SERVICE_ROLE_KEY  NEXT_PUBLIC_SUPABASE_URL
 SUPABASE_STORAGE_BUCKET_CLIPART  SUPABASE_STORAGE_BUCKET_DESIGNS
 RESEND_API_KEY  JWT_SECRET  NEXT_PUBLIC_APP_URL  CRON_SECRET
-MALFINI_API_URL  MALFINI_USERNAME  MALFINI_PASSWORD  EUR_TO_HUF_RATE
+MALFINI_API_URL  MALFINI_USERNAME  MALFINI_PASSWORD
 UPSTASH_REDIS_REST_URL  UPSTASH_REDIS_REST_TOKEN
 KVIKK_API_KEY  NEXT_PUBLIC_KVIKK_MAP_API_KEY  KVIKK_WEBHOOK_SECRET  KVIKK_LIVE
 ```

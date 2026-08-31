@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { warmupMalfiniCache } from "@/lib/malfini/client";
+import { warmupMalfiniCache, warmupMalfiniCosts } from "@/lib/malfini/client";
+import { makeEurToHufConverter } from "@/lib/malfini/pricing";
+import { getPricingSettings } from "@/lib/pricing/settings";
 
 export async function GET(request: NextRequest) {
   // Vercel Cron sends Authorization: Bearer <CRON_SECRET> automatically.
@@ -14,6 +16,12 @@ export async function GET(request: NextRequest) {
 
   // Unconditionally fetches fresh data from Malfini and writes to both
   // the module-level L1 cache and the shared Redis L2 cache.
-  await warmupMalfiniCache("hu");
+  // Costs feed every Malfini price (see lib/pricing/resolve.ts) and the fetch takes
+  // ~6s, so it is warmed here rather than on a customer request.
+  const { eurHufRate } = await getPricingSettings();
+  await Promise.all([
+    warmupMalfiniCache("hu"),
+    warmupMalfiniCosts(makeEurToHufConverter(eurHufRate)),
+  ]);
   return NextResponse.json({ ok: true, warmedAt: new Date().toISOString() });
 }

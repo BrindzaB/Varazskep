@@ -28,3 +28,8 @@ export const REDIS_KEY_CATALOG = "malfini:catalog:hu";
 // 25 hours — ensures the daily warmup cron (05:00 UTC) always refreshes Redis
 // before it expires, with a 1-hour safety overlap.
 export const REDIS_CATALOG_TTL_SECONDS = 25 * 60 * 60;
+
+// Redis key for the derived Malfini SKU → net purchase price map.
+// We cache the derived map, not the raw /product/prices response: the unfiltered
+// response is ~3.7MB across ~52k tier rows, while the map is ~17k entries.
+export const REDIS_KEY_COSTS = "malfini:costs:v1";

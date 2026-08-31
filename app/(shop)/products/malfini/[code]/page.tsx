@@ -2,12 +2,11 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   getProduct,
-  getRecommendedPrices,
   getAvailabilities,
-  buildPriceMap,
   buildAvailabilityMap,
+  malfiniProductSkus,
 } from "@/lib/malfini/client";
-import { convertEurToHuf } from "@/lib/malfini/pricing";
+import { getMalfiniPriceMap } from "@/lib/pricing/resolve";
 import MalfiniProductDetails from "@/components/shop/MalfiniProductDetails";
 
 interface Props {
@@ -31,13 +30,12 @@ export default async function MalfiniProductPage({ params }: Props) {
   const product = await getProduct(params.code, "hu");
   if (!product) notFound();
 
-  // Pass the 3-char product code — the API returns all nomenclature prices/availabilities for it.
-  const [prices, availabilities] = await Promise.all([
-    getRecommendedPrices([product.code]),
+  // Availabilities take the 3-char product code; pricing takes the SKUs it covers.
+  const [priceMap, availabilities] = await Promise.all([
+    getMalfiniPriceMap(malfiniProductSkus(product)),
     getAvailabilities([product.code]),
   ]);
 
-  const priceMap = buildPriceMap(prices, convertEurToHuf);
   const availabilityMap = buildAvailabilityMap(availabilities);
 
   return (

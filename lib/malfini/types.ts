@@ -62,3 +62,12 @@ export interface MalfiniRecommendedPrice {
   price: number; // currency-dependent — check `currency` field (may be HUF or EUR depending on account)
   currency: string;
 }
+
+// One price tier from GET /api/v4/product/prices — OUR net purchase price.
+// Malfini returns several rows per SKU, one per quantity break (`limit`).
+export interface MalfiniProductPrice {
+  productSizeCode: string;
+  limit: number; // minimum pieces that must be ordered for this price to apply
+  price: number; // net (VAT-free) price — this account is invoiced under EU reverse charge
+  currency: string;
+}
