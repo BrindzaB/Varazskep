@@ -7,12 +7,11 @@ import { getMockupConfig } from "@/lib/designer/mockupConfig";
 import {
   getProducts,
   getProduct,
-  getRecommendedPrices,
   getAvailabilities,
-  buildPriceMap,
   buildAvailabilityMap,
+  malfiniProductSkus,
 } from "@/lib/malfini/client";
-import { convertEurToHuf } from "@/lib/malfini/pricing";
+import { getMalfiniPriceMap } from "@/lib/pricing/resolve";
 
 export const metadata: Metadata = {
   title: "Tervező – Varázskép",
@@ -33,7 +32,15 @@ interface Props {
 }
 
 // Products shown in the picker modal when the designer is opened with no URL params.
-const DESIGNER_PRODUCT_CODES = ["129", "134", "138", "P41", "840", "P21", "P22"];
+const DESIGNER_PRODUCT_CODES = [
+  "129",
+  "134",
+  "138",
+  "P41",
+  "840",
+  "P21",
+  "P22",
+];
 
 export default async function DesignerPage({ searchParams }: Props) {
   // ── Empty state: no URL params — show product picker ──────────────────────
@@ -46,30 +53,50 @@ export default async function DesignerPage({ searchParams }: Props) {
     const pickerProducts = settled
       .filter((p): p is NonNullable<typeof p> => p !== null)
       .flatMap((p) => {
-        const variant = p.variants.find((v) => v.images.some((i) => i.viewCode === "a"));
+        const variant = p.variants.find((v) =>
+          v.images.some((i) => i.viewCode === "a")
+        );
         const imageUrl = variant?.images.find((i) => i.viewCode === "a")?.link;
         if (!imageUrl) return [];
-        return [{ code: p.code, name: p.name, categoryName: p.categoryName, imageUrl, genderCode: p.genderCode ?? null }];
+        return [
+          {
+            code: p.code,
+            name: p.name,
+            categoryName: p.categoryName,
+            imageUrl,
+            genderCode: p.genderCode ?? null,
+          },
+        ];
       });
 
     // Load the first available product as a blurred background designer.
     const bgCode = pickerProducts[0]?.code;
-    const bgProduct = bgCode ? (settled.find((p) => p?.code === bgCode) ?? null) : null;
-    const bgVariant = bgProduct?.variants.find((v) => v.images.some((i) => i.viewCode === "a")) ?? null;
+    const bgProduct = bgCode
+      ? (settled.find((p) => p?.code === bgCode) ?? null)
+      : null;
+    const bgVariant =
+      bgProduct?.variants.find((v) =>
+        v.images.some((i) => i.viewCode === "a")
+      ) ?? null;
     const bgNomenclature = bgVariant?.nomenclatures[0] ?? null;
 
-    const [bgPrices, bgAvailabilities] = bgCode
-      ? await Promise.all([getRecommendedPrices([bgCode]), getAvailabilities([bgCode])])
-      : [[], []];
+    const [bgPriceMap, bgAvailabilities] = bgProduct
+      ? await Promise.all([
+          getMalfiniPriceMap(malfiniProductSkus(bgProduct)),
+          getAvailabilities([bgProduct.code]),
+        ])
+      : [{}, []];
 
-    const bgPriceMap = buildPriceMap(bgPrices, convertEurToHuf);
     const bgAvailabilityMap = buildAvailabilityMap(bgAvailabilities);
 
     return (
       <div className="relative h-[calc(100vh-4rem)] overflow-hidden">
         {/* Blurred designer background */}
         {bgProduct && bgVariant && bgNomenclature && (
-          <div className="pointer-events-none absolute inset-0 select-none blur-sm" aria-hidden="true">
+          <div
+            className="pointer-events-none absolute inset-0 select-none blur-sm"
+            aria-hidden="true"
+          >
             <DesignerLayout
               source="malfini"
               malfiniProduct={bgProduct}
@@ -106,11 +133,10 @@ export default async function DesignerPage({ searchParams }: Props) {
 
     if (!nomenclature) redirect("/products");
 
-    const [prices, availabilities] = await Promise.all([
-      getRecommendedPrices([product.code]),
+    const [priceMap, availabilities] = await Promise.all([
+      getMalfiniPriceMap(malfiniProductSkus(product)),
       getAvailabilities([product.code]),
     ]);
-    const priceMap = buildPriceMap(prices, convertEurToHuf);
     const availabilityMap = buildAvailabilityMap(availabilities);
 
     return (
@@ -138,7 +164,9 @@ export default async function DesignerPage({ searchParams }: Props) {
     redirect("/products");
   }
 
-  const availableColors = Array.from(new Set(product.variants.map((v) => v.color)));
+  const availableColors = Array.from(
+    new Set(product.variants.map((v) => v.color))
+  );
   const initialColor = availableColors.includes(searchParams.color ?? "")
     ? searchParams.color!
     : (availableColors[0] ?? "");

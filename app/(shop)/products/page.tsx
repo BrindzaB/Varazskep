@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import { getActiveProducts } from "@/lib/services/product";
-import {
-  getProducts,
-  getRecommendedPrices,
-  buildPriceMap,
-} from "@/lib/malfini/client";
-import { convertEurToHuf } from "@/lib/malfini/pricing";
+import { getProducts } from "@/lib/malfini/client";
+import { getMalfiniPriceMap } from "@/lib/pricing/resolve";
 import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
 import ProductsPageClient from "@/components/shop/ProductsPageClient";
 
@@ -26,27 +22,27 @@ export default async function ProductsPage() {
   const clothingProducts = allMalfiniProducts.filter(
     (p) =>
       getCategoryConfig(p.categoryCode) !== null &&
-      p.variants.some((v) => v.images.some((i) => i.viewCode === "a")),
+      p.variants.some((v) => v.images.some((i) => i.viewCode === "a"))
   );
 
-  // Pass 3-char product codes — the API filters by product code, not SKU.
-  // Response contains all per-size prices; we look up the representative SKU for card display.
-  const productCodes = clothingProducts.map((p) => p.code);
+  // The card shows a single "X Ft-tól" label, so only the representative SKU of
+  // each product needs a price — the first variant's first size.
+  const reprSkus = clothingProducts.map(
+    (p) => p.variants[0]?.nomenclatures[0]?.productSizeCode ?? ""
+  );
+  const priceMap = await getMalfiniPriceMap(reprSkus.filter(Boolean));
 
-  const prices = await getRecommendedPrices(productCodes);
-  const priceMap = buildPriceMap(prices, convertEurToHuf);
-
-  // Attach the representative retail price to each product for the "X Ft-tól" card label.
-  // Use the first variant's first nomenclature as the representative SKU.
-  const clothingWithPrices = clothingProducts.map((p) => {
-    const reprCode = p.variants[0]?.nomenclatures[0]?.productSizeCode ?? "";
-    return { ...p, minPrice: priceMap[reprCode] ?? 0 };
-  });
+  const clothingWithPrices = clothingProducts.map((p, i) => ({
+    ...p,
+    minPrice: priceMap[reprSkus[i]] ?? 0,
+  }));
 
   return (
     <section className="px-4 py-10">
       <div className="mx-auto max-w-layout">
-        <h1 className="mb-8 text-2xl font-bold text-brand-blue uppercase">Termékek</h1>
+        <h1 className="mb-8 text-2xl font-bold uppercase text-brand-blue">
+          Termékek
+        </h1>
         <ProductsPageClient
           clothingProducts={clothingWithPrices}
           localProducts={localProducts}

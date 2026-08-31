@@ -68,6 +68,15 @@ model Design {
   order      Order?
 }
 
+// Admin-editable pricing parameters. Key/value so new knobs need no migration.
+// Read through lib/pricing/settings.ts, which supplies defaults for missing rows —
+// an empty table is a valid state and yields the documented defaults.
+model PricingSetting {
+  key       String   @id // see PRICING_SETTING_KEYS in lib/pricing/settings.ts
+  value     String // numeric values stored as text; parsed + validated on read
+  updatedAt DateTime @updatedAt
+}
+
 model Order {
   id                    String         @id @default(cuid())
   stripeSessionId       String         @unique

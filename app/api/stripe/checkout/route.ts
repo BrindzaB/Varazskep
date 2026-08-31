@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { prisma } from "@/lib/db";
-import { getRecommendedPrices, buildPriceMap } from "@/lib/malfini/client";
-import { convertEurToHuf } from "@/lib/malfini/pricing";
+import {
+  getMalfiniPriceMap,
+  resolveLocalVariantPrice,
+} from "@/lib/pricing/resolve";
 import type { CartItem } from "@/lib/cart/cartStore";
 import { resolveParcelWeightGrams } from "@/lib/services/shipping";
 import { getShippingQuote } from "@/lib/kvikk/pricing";
@@ -120,19 +121,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
   let totalWeightGrams = 0;
 
-  // Fetch Malfini prices in one batch call before iterating items.
-  // Pass 3-char product codes — the API filters by product code, not nomenclature code.
-  // The response is keyed by productSizeCode (7-char), which we use for the per-item lookup.
-  const malfiniProductCodes = items
+  // Resolve Malfini prices in one batch before iterating items. These are the
+  // authoritative prices — the client-supplied cart price is never trusted.
+  const malfiniSkus = items
     .filter((i) => i.source === "malfini")
-    .map((i) => i.productCode)
+    .map((i) => i.productSizeCode)
     .filter((c): c is string => !!c);
 
-  let malfiniPriceMap: Record<string, number> = {};
-  if (malfiniProductCodes.length > 0) {
-    const prices = await getRecommendedPrices(malfiniProductCodes);
-    malfiniPriceMap = buildPriceMap(prices, convertEurToHuf);
-  }
+  const malfiniPriceMap = await getMalfiniPriceMap(malfiniSkus);
 
   // Build Stripe line items with authoritative prices and the metadata payload.
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
@@ -149,17 +145,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         );
       }
       // Look up the variant price from the DB — do not trust the client-provided price.
-      const variant = await prisma.variant.findUnique({
-        where: { id: item.variantId },
-        select: { price: true },
-      });
-      if (!variant) {
+      const price = await resolveLocalVariantPrice(item.variantId);
+      if (price === null) {
         return NextResponse.json(
           { error: "A termék változat nem található." },
           { status: 400 }
         );
       }
-      unitPriceHuf = variant.price;
+      unitPriceHuf = price;
       totalWeightGrams +=
         (await resolveParcelWeightGrams({
           source: "local",

@@ -62,9 +62,14 @@ varazskep/
 │   │   ├── types.ts                     # MalfiniProduct, MalfiniVariant, MalfiniNomenclature interfaces
 │   │   ├── auth.ts                      # Bearer token fetch + module-level cache; clearCachedToken()
 │   │   ├── client.ts                    # getProducts(), getProduct(), getAvailabilities(), getRecommendedPrices(),
-│   │   │                                # buildPriceMap(), buildAvailabilityMap(), warmupMalfiniCache()
-│   │   ├── pricing.ts                   # convertEurToHuf()
+│   │   │                                # getMalfiniCostMap(), buildCostMap(), buildPriceMap(),
+│   │   │                                # buildAvailabilityMap(), malfiniProductSkus(), warmup*()
+│   │   ├── pricing.ts                   # eurToHuf(), makeEurToHufConverter()
 │   │   └── categoryConfig.ts            # categoryCode → { printArea, hasSides }
+│   ├── pricing/                         # THE source of every product price — see § Pricing
+│   │   ├── compute.ts                   # pure: computeGrossPrice(), roundToPriceGrid(), realisedMarkupPct()
+│   │   ├── settings.ts                  # PricingSetting table: árrés %, VAT %, price grid, EUR rate
+│   │   └── resolve.ts                   # getMalfiniPriceMap(), getMalfiniPriceDetails(), resolveLocalVariantPrice()
 │   ├── kvikk/                           # Kvikk Shipping API: client, pricing, account, types, deliveryPointMap
 │   ├── shipping/
 │   │   ├── config.ts                    # SHIPPING_LABELS (legacy labels only)
@@ -176,7 +181,15 @@ The `Order` model also carries Kvikk shipping fields: `shippingCourier`, `delive
 (see `prisma/schema.prisma` — source of truth). Legacy `shippingMethod`/`pickupPointId`
 are retained for historical orders.
 
-**Key rules:** Prices in HUF integers. Design JSON stored as JSONB — never stringify manually. Orders only created in `stripe/webhook`.
+```prisma
+model PricingSetting {
+  key       String   @id  // malfini_markup_pct | vat_pct | round_grid_huf | eur_huf_rate
+  value     String        // numeric, stored as text; validated on read
+  updatedAt DateTime @updatedAt
+}
+```
+
+**Key rules:** Prices in HUF integers. Design JSON stored as JSONB — never stringify manually. Orders only created in `stripe/webhook`. Product prices resolve only through `lib/pricing/` — see § Pricing.
 
 ---
 
@@ -282,7 +295,22 @@ Customers upload PNG/JPG/WebP (≤10MB) via the "Kép" toolbar button in the des
 | `GET /api/v4/product/availabilities?productCodes=...&includeFuture=true` | ISR 5min | Stock per SKU. Same `productCodes` rule. |
 
 ### Pricing
-This account returns prices in **HUF** (`currency: "HUF"`). `buildPriceMap()` checks currency before converting. Retail prices rounded to nearest 10 HUF. Do not apply a markup multiplier — recommended prices are the intended retail prices.
+This account returns prices in **HUF** (`currency: "HUF"`), and is invoiced under EU
+reverse charge — **every Malfini figure is NET** (verified on invoice `26F1HU0100027073`:
+`vatRate: 0`, `vatCode: "PEZ00"`). Hungarian VAT is our own liability on the sale.
+
+| Endpoint | What it is | Used for |
+|---|---|---|
+| `/product/prices` | **Our net purchase cost**, with quantity tiers (`limit` 1/10/100/1000) | Drives every selling price |
+| `/product/recommended-prices` | Malfini's suggested retail figure | Admin reference only |
+
+Selling prices are **not** taken from `recommended-prices` any more: measured across all
+11 143 sellable SKUs it yields a ~17.5% median margin, i.e. it is a net figure. Prices now
+come from `lib/pricing/` — net cost × markup × VAT, rounded — with the parameters editable
+at `/admin/pricing`. See "Pricing" below.
+
+Cost lookups verified against a real order: KT18039054 bought SKU `1340015` at 10 pieces
+for `unitNetPrice` 1189 HUF, exactly the `limit: 10` tier.
 
 ### Images
 `viewCode` lowercase: `"a"` = front, `"b"` = back, `"c"` = detail. **Always filter** products/variants to those with at least one `viewCode === "a"` image.
@@ -334,9 +362,58 @@ Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L →
 - Single admin user — credentials in env vars; no self-registration
 - Auth: JWT in HTTP-only cookie (24h expiry) — all `/admin/*` routes protected by middleware
 - **Orders:** list + detail with status updater, design SVG preview, coordinate table, customer upload download links, GDPR erasure button
-- **Products:** local product CRUD + read-only Malfini catalog browser
+- **Products:** local product CRUD + read-only Malfini catalog browser (with cost/price/margin per SKU)
+- **Pricing:** `/admin/pricing` — árrés, VAT, price grid, EUR rate, with a live preview on real products
 - **Clipart:** upload SVG to `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive
 - **GDPR erasure:** nulls `customerName`, `customerEmail`, `shippingAddress` — order row retained 8 years
+
+---
+
+## Pricing
+
+Every customer-facing product price resolves through `lib/pricing/` — previously five
+call sites each ran `buildPriceMap()` on Malfini's recommended prices, so pricing policy
+could not change without a deploy.
+
+| File | Role |
+|---|---|
+| `lib/pricing/compute.ts` | Pure arithmetic: gross price, the …99 price grid, realised árrés, profit per piece. No DB/network — unit-tested. |
+| `lib/pricing/settings.ts` | `PricingSetting` key/value table: árrés %, VAT %, price grid, EUR rate. Missing rows fall back to `PRICING_DEFAULTS`, so an empty table prices correctly. |
+| `lib/pricing/resolve.ts` | The entry point. `getMalfiniPriceMap(skus)` (storefront), `getMalfiniPriceDetails(skus)` (admin), `resolveLocalVariantPrice(id)` (checkout). |
+
+**Terminology — "árrés" means markup on cost.** The difference between the net selling
+price and the purchase price, as a percentage *of the purchase price*. 1200 Ft cost at 30%
+árrés → 1560 Ft net → 1981.2 Ft gross → **1999 Ft** on the price grid. Do not silently
+reinterpret it as a share of revenue.
+
+**Formula (Malfini):** `roundToPriceGrid(netCost × (1 + árrés%) × (1 + VAT%), grid)`.
+Defaults: árrés **30%**, VAT 27%, grid 100. Cost is the **lowest** quantity tier, so the
+realised árrés only ever beats the figure shown.
+
+**Price grid:** allowed prices sit one forint below a multiple of `grid`, so grid 100 gives
+…99 endings. Direction is decided by the remainder — **≤ half the grid rounds down, above it
+up** (at grid 100: "50-ig lefelé, utána felfelé"). 2045 → 1999, 2060 → 2099.
+
+A coarser grid looks tidier but distorts the árrés, because its error is a fixed number of
+forints against a variable price. Measured over all 11 141 sellable SKUs at 30%:
+
+| Grid | Realised árrés | SKUs under 25% |
+|---|---|---|
+| 100 (…99) | 25.9 – 38.3%, median 29.9% | 0 |
+| 500 (…499/…999) | 4.9 – 72.9%, median 30.3% | 1912 |
+
+Hence 100. The admin screen warns above grid 400.
+
+**Local products:** `Variant.price` is the admin-entered gross price and is used verbatim —
+no árrés applied. Editable per variant on the product page, as before.
+
+**Caching:** costs come from `getMalfiniCostMap()` — L1 module (1h) + Redis (25h), warmed by
+the daily `/api/warmup` cron. Not ISR: the raw `/product/prices` response is ~3.7 MB, past the
+2 MB ISR limit. The *derived* SKU→cost map is what gets cached.
+
+**Not yet unified** (see the checkout route): the designer print fee is still hardcoded in
+`components/designer/DesignerCanvas.tsx` and computed client-side; orders still store only
+`totalAmount`, not a per-item price snapshot.
 
 ---
 

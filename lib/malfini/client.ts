@@ -12,10 +12,12 @@ import {
   getRedisClient,
   REDIS_KEY_CATALOG,
   REDIS_CATALOG_TTL_SECONDS,
+  REDIS_KEY_COSTS,
 } from "@/lib/redis";
 import type {
   MalfiniAvailability,
   MalfiniProduct,
+  MalfiniProductPrice,
   MalfiniRecommendedPrice,
 } from "./types";
 
@@ -254,4 +256,122 @@ export function buildAvailabilityMap(
     map[a.productSizeCode] = (map[a.productSizeCode] ?? 0) + a.quantity;
   }
   return map;
+}
+
+// ── Purchase prices (our cost) ───────────────────────────────────────────────
+// GET /api/v4/product/prices returns OUR net purchase price per SKU, with one row
+// per quantity break. Verified against a real invoice: order KT18039054 bought SKU
+// 1340015 at 10 pieces for unitNetPrice 1189 HUF, exactly the `limit: 10` tier.
+//
+// Cached like the catalog (L1 module 1h + L2 Redis 25h) rather than via Next.js
+// ISR: the unfiltered response is ~3.7MB, far past the 2MB ISR data-cache limit.
+// The DERIVED map is cached, not the raw response.
+
+let costsCache: { data: Record<string, number>; expiresAt: number } | null = null;
+
+/**
+ * Collapses the quantity-break rows into one net price per SKU, keeping the
+ * LOWEST quantity tier — the price we pay when restocking a single customer
+ * order. Bulk purchases only ever beat it, so margins computed from this are a
+ * conservative floor.
+ */
+export function buildCostMap(
+  rows: MalfiniProductPrice[],
+  convertEurToHuf: (eur: number) => number,
+): Record<string, number> {
+  const best = new Map<string, { limit: number; huf: number }>();
+  for (const r of rows) {
+    if (!r.productSizeCode || !Number.isFinite(r.price)) continue;
+    const limit = Number.isFinite(r.limit) ? r.limit : 1;
+    const huf = r.currency === "HUF" ? r.price : convertEurToHuf(r.price);
+    const prev = best.get(r.productSizeCode);
+    if (!prev || limit < prev.limit) {
+      best.set(r.productSizeCode, { limit, huf });
+    }
+  }
+  return Object.fromEntries(
+    Array.from(best, ([sku, v]) => [sku, Math.round(v.huf)]),
+  );
+}
+
+async function fetchAndCacheCosts(
+  convertEurToHuf: (eur: number) => number,
+): Promise<Record<string, number>> {
+  try {
+    const token = await getMalfiniToken();
+    // No productCodes filter — one global fetch is simpler than per-page filtering
+    // and only ~0.9MB larger than the designer-category subset.
+    const res = await fetch(`${BASE()}/api/v4/product/prices`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+
+    if (res.status === 401) {
+      clearCachedToken();
+      return fetchAndCacheCosts(convertEurToHuf);
+    }
+    if (!res.ok) {
+      throw new Error(`Malfini API error ${res.status} for /api/v4/product/prices`);
+    }
+
+    const data: unknown = await res.json();
+    const rows = Array.isArray(data) ? (data as MalfiniProductPrice[]) : [];
+    const map = buildCostMap(rows, convertEurToHuf);
+
+    costsCache = { data: map, expiresAt: Date.now() + 3600 * 1000 };
+
+    const redis = getRedisClient();
+    if (redis) {
+      try {
+        await redis.set(REDIS_KEY_COSTS, map, { ex: REDIS_CATALOG_TTL_SECONDS });
+      } catch (err) {
+        console.error("[Malfini] Redis cost write failed:", err);
+      }
+    }
+
+    return map;
+  } catch (err) {
+    console.error("[Malfini] fetchAndCacheCosts failed:", err);
+    // Serving a stale map beats pricing nothing at all.
+    return costsCache?.data ?? {};
+  }
+}
+
+// Returns { productSizeCode → net purchase price in HUF } for the whole catalog.
+export async function getMalfiniCostMap(
+  convertEurToHuf: (eur: number) => number,
+): Promise<Record<string, number>> {
+  const now = Date.now();
+
+  if (costsCache && costsCache.expiresAt > now) return costsCache.data;
+
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      const cached = await redis.get<Record<string, number>>(REDIS_KEY_COSTS);
+      if (cached && Object.keys(cached).length > 0) {
+        costsCache = { data: cached, expiresAt: now + 3600 * 1000 };
+        return cached;
+      }
+    } catch (err) {
+      console.error("[Malfini] Redis cost read failed, falling back to API:", err);
+    }
+  }
+
+  return fetchAndCacheCosts(convertEurToHuf);
+}
+
+// Unconditionally refreshes the cost caches. Called by the warmup cron alongside
+// warmupMalfiniCache() so the ~6s cost fetch never lands on a customer request.
+export async function warmupMalfiniCosts(
+  convertEurToHuf: (eur: number) => number,
+): Promise<void> {
+  await fetchAndCacheCosts(convertEurToHuf);
+}
+
+// Every sellable SKU of a product — the input pricing callers need.
+export function malfiniProductSkus(product: MalfiniProduct): string[] {
+  return product.variants.flatMap((v) =>
+    v.nomenclatures.map((n) => n.productSizeCode),
+  );
 }

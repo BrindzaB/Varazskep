@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "/admin/orders", label: "Rendelések" },
   { href: "/admin/shipping", label: "Futárrendelés" },
   { href: "/admin/products", label: "Termékek" },
+  { href: "/admin/pricing", label: "Árazás" },
   { href: "/admin/clipart", label: "Minták" },
 ];
 
