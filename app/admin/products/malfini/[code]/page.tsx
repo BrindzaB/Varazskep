@@ -139,9 +139,10 @@ export default async function AdminMalfiniProductPage({
         <p className="mb-6 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600">
           Alapból a szabály áraz: nettó beszerzés{" "}
           <strong>+{settings.malfiniMarkupPct}% árrés</strong>, majd{" "}
-          <strong>{settings.vatPct}% ÁFA</strong>, a legközelebbi{" "}
-          {settings.roundGridHuf - 1}-re végződő árra kerekítve. A „Bolti ár”
-          mezőt átírva ez a méret kézi árat kap, a többi változatlan marad.{" "}
+          <strong>{settings.vatPct}% ÁFA</strong>, majd a legközelebbi{" "}
+          {settings.priceEndings.map((e) => `…${e}`).join(" vagy ")} árra
+          kerekítve. A „Bolti ár” mezőt átírva ez a méret kézi árat kap, a többi
+          változatlan marad.{" "}
           <Link href="/admin/pricing" className="underline hover:text-gray-900">
             Árazási beállítások
           </Link>

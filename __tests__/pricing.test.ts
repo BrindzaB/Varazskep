@@ -14,85 +14,111 @@ import {
   netRevenue,
   profitPerPieceHuf,
   realisedMarkupPct,
-  roundToPriceGrid,
+  roundToEndings,
 } from "@/lib/pricing/compute";
 import {
+  formatEndings,
+  parseEndings,
   validatePricingSettings,
   PRICING_DEFAULTS,
 } from "@/lib/pricing/settings";
 import { buildCostMap } from "@/lib/malfini/client";
 import type { MalfiniProductPrice } from "@/lib/malfini/types";
 
-// The default formula the shop ships with: 30% markup on net cost, 27% VAT, …99 prices.
+// The default formula the shop ships with: 30% markup on net cost, 27% VAT, …90 prices.
 const DEFAULT_FORMULA = {
   markupPct: PRICING_DEFAULTS.malfiniMarkupPct,
   vatPct: PRICING_DEFAULTS.vatPct,
-  roundGridHuf: PRICING_DEFAULTS.roundGridHuf,
+  endings: PRICING_DEFAULTS.priceEndings,
 };
 
-describe("roundToPriceGrid", () => {
-  // The shop's rule at grid 100: "50-ig lefelé, utána felfelé".
-  it("rounds down when the remainder is 50 or less", () => {
-    expect(roundToPriceGrid(2045, 100)).toBe(1999);
-    expect(roundToPriceGrid(2004.3, 100)).toBe(1999);
-    expect(roundToPriceGrid(2050, 100)).toBe(1999);
-    expect(roundToPriceGrid(1238, 100)).toBe(1199);
+describe("roundToEndings", () => {
+  it("snaps product prices to the nearest …90", () => {
+    expect(roundToEndings(1981.2, [90])).toBe(1990);
+    expect(roundToEndings(2004.3, [90])).toBe(1990);
+    expect(roundToEndings(2756, [90])).toBe(2790);
+    expect(roundToEndings(751.3, [90])).toBe(790);
   });
 
-  it("rounds up when the remainder is above 50", () => {
-    expect(roundToPriceGrid(2051, 100)).toBe(2099);
-    expect(roundToPriceGrid(2060, 100)).toBe(2099);
-    expect(roundToPriceGrid(1981.2, 100)).toBe(1999);
-    expect(roundToPriceGrid(2756, 100)).toBe(2799);
+  it("crosses the block boundary when the upper ending is nearer", () => {
+    // 2045 is 55 above 1990 but only 45 below 2090.
+    expect(roundToEndings(2045, [90])).toBe(2090);
+    expect(roundToEndings(2039, [90])).toBe(1990);
   });
 
-  it("always lands one forint below a multiple of the grid", () => {
+  it("keeps the lower price on an exact tie", () => {
+    // Midway between 1990 and 2090.
+    expect(roundToEndings(2040, [90])).toBe(1990);
+  });
+
+  it("supports several endings per block", () => {
+    // Shipping permits …50 and …90.
+    expect(roundToEndings(1473, [50, 90])).toBe(1490);
+    expect(roundToEndings(1016, [50, 90])).toBe(990);
+    expect(roundToEndings(1194, [50, 90])).toBe(1190);
+    expect(roundToEndings(1600, [50, 90])).toBe(1590);
+  });
+
+  it('only ever rounds up in "up" mode', () => {
+    // The shipping fee must never land under the courier's cost.
+    expect(roundToEndings(1016, [50, 90], "up")).toBe(1050);
+    expect(roundToEndings(1473, [50, 90], "up")).toBe(1490);
+    expect(roundToEndings(1600, [50, 90], "up")).toBe(1650);
+    expect(roundToEndings(2007, [50, 90], "up")).toBe(2050);
+  });
+
+  it('leaves a value already on an ending untouched in "up" mode', () => {
+    expect(roundToEndings(1490, [50, 90], "up")).toBe(1490);
+    expect(roundToEndings(1050, [50, 90], "up")).toBe(1050);
+  });
+
+  it("always lands on one of the permitted endings", () => {
     for (const v of [751, 1238, 2045, 3210, 6934, 28716]) {
-      expect(roundToPriceGrid(v, 100) % 100).toBe(99);
+      expect(roundToEndings(v, [90]) % 100).toBe(90);
+      expect([50, 90]).toContain(roundToEndings(v, [50, 90]) % 100);
+      expect([50, 90]).toContain(roundToEndings(v, [50, 90], "up") % 100);
     }
   });
 
-  it("generalises to a coarser grid", () => {
-    // Grid 500 permits …499 / …999.
-    expect(roundToPriceGrid(2045, 500)).toBe(1999);
-    expect(roundToPriceGrid(2560, 500)).toBe(2499);
-    expect(roundToPriceGrid(2756, 500)).toBe(2999);
+  it("never returns a non-positive price", () => {
+    expect(roundToEndings(10, [90])).toBe(90);
+    expect(roundToEndings(10, [50, 90])).toBe(50);
   });
 
-  it("never drops below the cheapest point the grid allows", () => {
-    expect(roundToPriceGrid(40, 100)).toBe(99);
-    expect(roundToPriceGrid(1, 100)).toBe(99);
+  it("ignores out-of-range endings", () => {
+    expect(roundToEndings(1981.2, [90, 150, -5, 1.5])).toBe(1990);
   });
 
-  it("returns whole forints for a grid of 1 or less", () => {
-    expect(roundToPriceGrid(1864.4, 1)).toBe(1864);
-    expect(roundToPriceGrid(1864.6, 0)).toBe(1865);
+  it("falls back to whole forints when no ending is usable", () => {
+    expect(roundToEndings(1864.4, [])).toBe(1864);
+    expect(roundToEndings(1864.6, [200])).toBe(1865);
   });
 
-  it("never returns NaN for a non-finite or non-positive input", () => {
-    expect(roundToPriceGrid(NaN, 100)).toBe(0);
-    expect(roundToPriceGrid(0, 100)).toBe(0);
-    expect(roundToPriceGrid(-5, 100)).toBe(0);
+  it("returns 0 for a non-finite or non-positive input", () => {
+    expect(roundToEndings(NaN, [90])).toBe(0);
+    expect(roundToEndings(0, [90])).toBe(0);
+    expect(roundToEndings(-5, [90])).toBe(0);
   });
 });
 
 describe("computeGrossPrice", () => {
   it("matches the shop's worked example", () => {
-    // 1200 × 1.30 = 1560 net → × 1.27 = 1981.2 gross → 1999 on the …99 grid.
-    expect(computeGrossPrice(1200, DEFAULT_FORMULA)).toBe(1999);
+    // 1200 × 1.30 = 1560 net → × 1.27 = 1981.2 gross → 1990 on the …90 endings.
+    expect(computeGrossPrice(1200, DEFAULT_FORMULA)).toBe(1990);
   });
 
   it("prices the reference SKU from its real purchase cost", () => {
     // SKU 1340012, net cost 1214 Ft from GET /product/prices.
-    // 1214 × 1.30 = 1578.2 → × 1.27 = 2004.3 → 1999.
-    expect(computeGrossPrice(1214, DEFAULT_FORMULA)).toBe(1999);
+    // 1214 × 1.30 = 1578.2 → × 1.27 = 2004.3 → 1990.
+    expect(computeGrossPrice(1214, DEFAULT_FORMULA)).toBe(1990);
   });
 
   it("applies the markup to cost, then VAT to the marked-up net price", () => {
+    // No endings → exact arithmetic, so the two steps can be checked in isolation.
     const gross = computeGrossPrice(1000, {
       markupPct: 30,
       vatPct: 27,
-      roundGridHuf: 1,
+      endings: [],
     });
     expect(gross).toBe(Math.round(1000 * 1.3 * 1.27));
     expect(netRevenue(gross, 27)).toBeCloseTo(1300, 0);
@@ -106,16 +132,15 @@ describe("computeGrossPrice", () => {
 
   it("honours a zero markup", () => {
     expect(
-      computeGrossPrice(1000, { markupPct: 0, vatPct: 27, roundGridHuf: 1 })
+      computeGrossPrice(1000, { markupPct: 0, vatPct: 27, endings: [] })
     ).toBe(1270);
   });
 });
 
 describe("realisedMarkupPct", () => {
-  it("stays near the configured markup on the …99 grid", () => {
-    // The grid moves the price a little, so the realised árrés drifts off 30%.
-    const gross = computeGrossPrice(1214, DEFAULT_FORMULA); // 1999
-    expect(realisedMarkupPct(gross, 1214, 27)).toBeCloseTo(29.66, 1);
+  it("stays near the configured markup on the …90 endings", () => {
+    const gross = computeGrossPrice(1214, DEFAULT_FORMULA); // 1990
+    expect(realisedMarkupPct(gross, 1214, 27)).toBeCloseTo(29.07, 2);
   });
 
   it("is the ratio of profit to cost, not to revenue", () => {
@@ -128,15 +153,59 @@ describe("realisedMarkupPct", () => {
   });
 
   it("returns 0 rather than dividing by zero", () => {
-    expect(realisedMarkupPct(1999, 0, 27)).toBe(0);
+    expect(realisedMarkupPct(1990, 0, 27)).toBe(0);
   });
 });
 
 describe("profitPerPieceHuf", () => {
   it("reports the forints kept per piece", () => {
-    const gross = computeGrossPrice(1200, DEFAULT_FORMULA); // 1999
-    // 1999 / 1.27 = 1574.0 net revenue, less the 1200 cost.
-    expect(profitPerPieceHuf(gross, 1200, 27)).toBeCloseTo(374.0, 0);
+    const gross = computeGrossPrice(1200, DEFAULT_FORMULA); // 1990
+    // 1990 / 1.27 = 1566.9 net revenue, less the 1200 cost.
+    expect(profitPerPieceHuf(gross, 1200, 27)).toBeCloseTo(366.9, 0);
+  });
+});
+
+describe("parseEndings / formatEndings", () => {
+  it("parses a comma-separated list", () => {
+    expect(parseEndings("50,90")).toEqual([50, 90]);
+    expect(parseEndings("90")).toEqual([90]);
+    expect(parseEndings(" 90 , 50 ")).toEqual([50, 90]);
+  });
+
+  it("sorts and de-duplicates", () => {
+    expect(parseEndings("90,50,90")).toEqual([50, 90]);
+  });
+
+  it("accepts an array as well as a string", () => {
+    expect(parseEndings([90, 50])).toEqual([50, 90]);
+  });
+
+  it("keeps 0 as a valid ending", () => {
+    expect(parseEndings("0")).toEqual([0]);
+  });
+
+  it("rejects anything outside 0–99 or non-integer", () => {
+    for (const bad of [
+      "100",
+      "-1",
+      "1.5",
+      "kilencven",
+      "",
+      "50,",
+      ",",
+      null,
+      5.5,
+    ]) {
+      expect(parseEndings(bad)).toBeNull();
+    }
+  });
+
+  it("rejects an absurdly long list", () => {
+    expect(parseEndings(Array.from({ length: 11 }, (_, i) => i))).toBeNull();
+  });
+
+  it("round-trips through formatEndings", () => {
+    expect(parseEndings(formatEndings([50, 90]))).toEqual([50, 90]);
   });
 });
 
@@ -189,14 +258,21 @@ describe("validatePricingSettings", () => {
   const valid = {
     malfiniMarkupPct: 30,
     vatPct: 27,
-    roundGridHuf: 100,
+    priceEndings: "90",
+    shippingPriceEndings: "50,90",
     eurHufRate: 400,
     printFeeSmallHuf: 3000,
     printFeeLargeHuf: 3500,
   };
 
-  it("accepts a well-formed payload", () => {
-    expect(validatePricingSettings(valid)).toEqual({ ok: true, value: valid });
+  it("accepts a well-formed payload and normalises the endings", () => {
+    const result = validatePricingSettings(valid);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.priceEndings).toEqual([90]);
+      expect(result.value.shippingPriceEndings).toEqual([50, 90]);
+      expect(result.value.malfiniMarkupPct).toBe(30);
+    }
   });
 
   it("rejects an out-of-range markup", () => {
@@ -205,15 +281,23 @@ describe("validatePricingSettings", () => {
     );
   });
 
-  it("rejects a non-integer price grid", () => {
-    expect(validatePricingSettings({ ...valid, roundGridHuf: 2.5 }).ok).toBe(
+  it("rejects an unusable endings list", () => {
+    expect(validatePricingSettings({ ...valid, priceEndings: "100" }).ok).toBe(
       false
     );
+    expect(validatePricingSettings({ ...valid, priceEndings: "" }).ok).toBe(
+      false
+    );
+    expect(
+      validatePricingSettings({ ...valid, shippingPriceEndings: "abc" }).ok
+    ).toBe(false);
   });
 
   it("rejects a missing field rather than silently defaulting it", () => {
-    const { vatPct: _omitted, ...withoutVat } = valid;
+    const { vatPct: _omittedVat, ...withoutVat } = valid;
     expect(validatePricingSettings(withoutVat).ok).toBe(false);
+    const { priceEndings: _omittedEndings, ...withoutEndings } = valid;
+    expect(validatePricingSettings(withoutEndings).ok).toBe(false);
   });
 
   it("rejects a non-numeric value", () => {
