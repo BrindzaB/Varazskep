@@ -51,7 +51,7 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 |---|---|
 | `lib/malfini/client.ts` | `getProducts()`, `getProduct()`, `getMalfiniCostMap()`, `warmupMalfiniCache()` |
 | `lib/pricing/resolve.ts` | **Every product price resolves here** — see ARCHITECTURE.md § Pricing |
-| `lib/pricing/settings.ts` | Admin-editable árrés / VAT / price grid / print fees (`PricingSetting` table) |
+| `lib/pricing/settings.ts` | Admin-editable árrés / VAT / price endings / print fees (`PricingSetting` table) |
 | `lib/pricing/printFee.ts` | Per-object print fee + A4 tier — shared by the designer and the checkout |
 | `lib/pricing/overrides.ts` | Manual per-SKU Malfini prices (`PriceOverride`) — wins over the árrés rule |
 | `lib/malfini/categoryConfig.ts` | categoryCode → designer print area config |
@@ -60,6 +60,7 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 | `lib/services/design.ts` | Design serialization + SVG export |
 | `lib/services/order.ts` | Order business logic |
 | `lib/cart/cartStore.ts` | Zustand cart (`source: "local" \| "malfini"`) |
+| `lib/kvikk/pricing.ts` | Shipping fee: Kvikk net cost + VAT, rounded UP to a permitted ending |
 | `lib/kvikk/` | Kvikk Shipping API: `client.ts`, `pricing.ts`, `account.ts`, `deliveryOptions.ts`, `deliveryPointMap.ts`, `types.ts` |
 | `lib/services/shipping.ts` | Parcel weight resolver + create-shipment + delivery-note (admin) |
 | `lib/shipping/display.ts` | `describeShipping()` — courier/point label for an order (Kvikk + legacy fallback) |

@@ -2,19 +2,25 @@
 // Single source of truth for the customer-facing shipping fee — used by both the checkout
 // Map widget config and the server-side checkout validation, so the two can never diverge.
 //
-// Kvikk pricing is NET (VAT excluded); customer prices are gross. We add Hungarian VAT.
+// Kvikk pricing is NET (VAT excluded); customer prices are gross. The VAT rate and the
+// permitted price endings come from the admin pricing settings, the same ones that drive
+// product prices, so shipping and products can never disagree about VAT.
+//
 // Pricing is keyed by a PRICE KEY + country: the bare courier slug for home delivery
 // (e.g. "mpl"), or a deliveryPointType slug for a delivery point (e.g. "mpl_automata").
+//
+// Kvikk revises its price list monthly. Nothing here needs updating for that: the tables
+// come live from GET /account-details (cached 1h in lib/kvikk/account.ts), so a new list
+// takes effect within the hour with no deploy.
 
 import { getCachedAccountDetails } from "./account";
+import { roundToEndings } from "@/lib/pricing/compute";
+import { getPricingSettings } from "@/lib/pricing/settings";
 import type { KvikkCourier } from "./types";
-
-// Hungarian standard VAT rate (27%). Kvikk list prices are net of VAT.
-export const VAT_RATE = 0.27;
 
 export interface ShippingQuote {
   netHuf: number; // Kvikk net cost (our internal cost)
-  grossHuf: number; // customer-facing price, incl. VAT, rounded to whole HUF
+  grossHuf: number; // customer-facing price, incl. VAT, snapped to a permitted ending
 }
 
 export interface ShippingQuoteParams {
@@ -33,7 +39,10 @@ export async function getShippingQuote(
   const country = params.country ?? "HU";
   const priceKey = params.deliveryPointType ?? params.courier;
 
-  const { pricing } = await getCachedAccountDetails();
+  const [{ pricing }, settings] = await Promise.all([
+    getCachedAccountDetails(),
+    getPricingSettings(),
+  ]);
 
   const table = pricing.shipping.find(
     (s) => s.courier === priceKey && s.country === country
@@ -46,6 +55,14 @@ export async function getShippingQuote(
   if (!range) return null;
 
   const netHuf = range.cost;
-  const grossHuf = Math.round(netHuf * (1 + VAT_RATE));
+  const withVat = netHuf * (1 + settings.vatPct / 100);
+
+  // Rounded UP, unlike product prices. Kvikk's cost is fixed and our shipping markup is
+  // zero, so the nearest permitted ending would often land below cost: measured over the
+  // 80 weight bands we offer, rounding to the nearest …50/…90 put 52 of them under cost
+  // (worst case −23 Ft per parcel). Rounding up costs the customer at most a few tens of
+  // forints and never sells a shipment at a loss.
+  const grossHuf = roundToEndings(withVat, settings.shippingPriceEndings, "up");
+
   return { netHuf, grossHuf };
 }

@@ -67,9 +67,9 @@ varazskep/
 │   │   ├── pricing.ts                   # eurToHuf(), makeEurToHufConverter()
 │   │   └── categoryConfig.ts            # categoryCode → { printArea, hasSides }
 │   ├── pricing/                         # THE source of every product price — see § Pricing
-│   │   ├── compute.ts                   # pure: computeGrossPrice(), roundToPriceGrid(), realisedMarkupPct()
+│   │   ├── compute.ts                   # pure: computeGrossPrice(), roundToEndings(), realisedMarkupPct()
 │   │   ├── printFee.ts                  # pure: computePrintFeeHuf(), objectSizeCm(), A4 tier thresholds
-│   │   ├── settings.ts                  # PricingSetting table: árrés %, VAT %, price grid, EUR rate, print fees
+│   │   ├── settings.ts                  # PricingSetting table: árrés %, VAT %, price endings, EUR rate, print fees
 │   │   ├── overrides.ts                 # PriceOverride table: manual per-SKU prices
 │   │   └── resolve.ts                   # getMalfiniPriceMap(), getMalfiniPriceDetails(),
 │   │                                    # resolveLocalVariantPrice(), resolvePrintFeeHuf()
@@ -377,7 +377,7 @@ Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L →
 - Auth: JWT in HTTP-only cookie (24h expiry) — all `/admin/*` routes protected by middleware
 - **Orders:** list + detail with status updater, design SVG preview, coordinate table, customer upload download links, GDPR erasure button
 - **Products:** local product CRUD + Malfini catalog browser with an editable per-SKU price (cost / rule price / árrés / Malfini reference shown alongside)
-- **Pricing:** `/admin/pricing` — árrés, VAT, price grid, EUR rate and the two print fees, with a live preview on real products
+- **Pricing:** `/admin/pricing` — árrés, VAT, product + shipping price endings, EUR rate and the two print fees, with live previews on real products and real courier prices
 - **Clipart:** upload SVG to `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive
 - **GDPR erasure:** nulls `customerName`, `customerEmail`, `shippingAddress` — order row retained 8 years
 
@@ -391,20 +391,20 @@ could not change without a deploy.
 
 | File | Role |
 |---|---|
-| `lib/pricing/compute.ts` | Pure arithmetic: gross price, the …99 price grid, realised árrés, profit per piece. No DB/network — unit-tested. |
-| `lib/pricing/settings.ts` | `PricingSetting` key/value table: árrés %, VAT %, price grid, EUR rate, print fees. Missing rows fall back to `PRICING_DEFAULTS`, so an empty table prices correctly. |
+| `lib/pricing/compute.ts` | Pure arithmetic: gross price, `roundToEndings()`, realised árrés, profit per piece. No DB/network — unit-tested. |
+| `lib/pricing/settings.ts` | `PricingSetting` key/value table: árrés %, VAT %, product + shipping price endings, EUR rate, print fees. Missing rows fall back to `PRICING_DEFAULTS`, so an empty table prices correctly. |
 | `lib/pricing/printFee.ts` | Pure: per-object print fee from the design geometry + the A4 tier. Shared by the designer and the checkout. |
 | `lib/pricing/overrides.ts` | `PriceOverride` table: manual per-SKU prices, top of the resolution chain. Sparse — clearing one is a delete. |
 | `lib/pricing/resolve.ts` | The entry point. `getMalfiniPriceMap(skus)` (storefront), `getMalfiniPriceDetails(skus)` (admin), `resolveLocalVariantPrice(id)` + `resolvePrintFeeHuf(ref)` (checkout). |
 
 **Terminology — "árrés" means markup on cost.** The difference between the net selling
 price and the purchase price, as a percentage *of the purchase price*. 1200 Ft cost at 30%
-árrés → 1560 Ft net → 1981.2 Ft gross → **1999 Ft** on the price grid. Do not silently
+árrés → 1560 Ft net → 1981.2 Ft gross → **1990 Ft** on the permitted endings. Do not silently
 reinterpret it as a share of revenue.
 
 **Resolution chain (Malfini):** a manual `PriceOverride` for the SKU wins; otherwise the
-rule applies — `roundToPriceGrid(netCost × (1 + árrés%) × (1 + VAT%), grid)`. Defaults:
-árrés **30%**, VAT 27%, grid 100. Cost is the **lowest** quantity tier, so the realised
+rule applies — `roundToEndings(netCost × (1 + árrés%) × (1 + VAT%), endings)`. Defaults:
+árrés **30%**, VAT 27%, endings [90]. Cost is the **lowest** quantity tier, so the realised
 árrés only ever beats the figure shown. `MalfiniPriceDetail.origin` says which branch
 produced the price, and `computedHuf` always carries what the rule would have charged.
 
@@ -420,9 +420,14 @@ An override is a **gross price charged verbatim** — the árrés setting no lon
 that SKU, so a cost change will not move it. The admin table shows the rule price and the
 live árrés beside the input so the consequence stays visible.
 
-**Price grid:** allowed prices sit one forint below a multiple of `grid`, so grid 100 gives
-…99 endings. Direction is decided by the remainder — **≤ half the grid rounds down, above it
-up** (at grid 100: "50-ig lefelé, utána felfelé"). 2045 → 1999, 2060 → 2099.
+**Price endings:** `roundToEndings(value, endings, mode)` snaps a gross price onto the
+permitted last-two-digit endings. `endings` lists what is allowed inside each 100 Ft block:
+`[90]` permits 90, 190, 290 …; `[50, 90]` permits 50, 90, 150, 190 … Products round to the
+**nearest** permitted price (an exact tie keeps the lower one); the shipping fee rounds **up**
+— see § Shipping pricing. 1981.2 → 1990, 2045 → 2090 (nearer 2090 than 1990), 2040 → 1990.
+
+Both lists are admin-editable, stored comma-separated (`price_endings` = "90",
+`shipping_price_endings` = "50,90") and parsed by `parseEndings()`.
 
 A coarser grid looks tidier but distorts the árrés, because its error is a fixed number of
 forints against a variable price. Measured over all 11 141 sellable SKUs at 30%:
@@ -471,6 +476,29 @@ resolves to `null` and the checkout is rejected — charging a default would reo
 Fabric rounds serialized numbers to 2 fraction digits, so the recomputed size lands within
 ~0.02% of what the designer measured. That only matters within ~0.005 cm of the threshold.
 
+### Shipping pricing
+
+Kvikk's tables are NET and its cost is fixed — we add no markup to shipping, only VAT. The
+customer-facing figure is `getShippingQuote()` in `lib/kvikk/pricing.ts`:
+
+```
+roundToEndings(kvikkNetCost × (1 + VAT%), shippingPriceEndings, "up")
+```
+
+The VAT rate is the **same admin setting** the product prices use, so the two can never drift
+apart (it used to be a hardcoded `VAT_RATE = 0.27` here).
+
+**Rounded up, not to the nearest.** With no markup to absorb it, the nearest permitted ending
+usually lands below cost: over the 80 weight bands we offer, rounding to the nearest …50/…90
+put 52 of them under the Kvikk cost, worst case −23 Ft per parcel. Rounding up costs the
+customer 2–46 Ft more and never ships at a loss. The admin preview shows what is left per
+option, in red if it ever goes negative.
+
+**Monthly Kvikk revisions need no work.** The tables come live from `GET /account-details`,
+cached 1h (module + Redis), so a new list takes effect within the hour with no deploy and no
+manual entry. `docs/kvikk-arlista-*.pdf` is a reference document only — no code reads it.
+What *is* code-side is which options we offer (`lib/kvikk/deliveryOptions.ts`).
+
 **Not yet unified:** orders still store only `totalAmount`, not a per-item price snapshot
 (unit price, print fee, quantity, cost). The denormalized `productName`/`colorName`/
 `sizeName` on an order are also still taken from the request rather than derived from the
@@ -499,7 +527,7 @@ Packeta, DPD). API reference: `docs/kvikk-api.md`; migration history: `docs/kvik
    (shipped → SHIPPED, delivered → COMPLETE, returned → RETURNED, monotonic) and sends the
    "on its way" email (`emails/ShipmentNotification.tsx`) with the tracking link.
 
-**Pricing** is dynamic from `GET /account-details` (cached), keyed by a *price key* + country:
+**Pricing** is dynamic from `GET /account-details` (cached 1h), keyed by a *price key* + country:
 the bare courier slug for home delivery (e.g. `mpl`) or a `deliveryPointType` slug for a point
 (e.g. `mpl_automata`). Never hardcoded.
 

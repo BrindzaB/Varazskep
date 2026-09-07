@@ -10,42 +10,75 @@
 export interface PriceFormula {
   markupPct: number; // markup applied to the net supplier cost
   vatPct: number; // VAT added on top of the marked-up net price
-  roundGridHuf: number; // price grid for the final gross price (see roundToPriceGrid)
+  endings: number[]; // permitted last-two-digit price endings (see roundToEndings)
 }
 
+// How to pick between the two neighbouring permitted prices.
+export type RoundingMode =
+  // Closest permitted price; an exact tie goes down.
+  | "nearest"
+  // The first permitted price at or above the value. Used where rounding down would
+  // put the price under our own cost — see lib/kvikk/pricing.ts.
+  | "up";
+
 /**
- * Snaps a gross price onto the shop's "…99" price grid.
+ * Snaps a gross price onto the shop's permitted price endings.
  *
- * Allowed price points sit one forint below each multiple of `gridHuf`, so a grid
- * of 100 permits 99, 199, … 1999, 2099. The remainder decides the direction: up to
- * and including half the grid we round DOWN, above it UP — at grid 100 exactly the
- * shop's rule, "50-ig lefelé, utána felfelé".
+ * `endings` lists the allowed last-two-digit values within each 100 Ft block, so [90]
+ * permits 90, 190, 290 … and [50, 90] permits 50, 90, 150, 190, 250, 290 …
  *
- *   1981.2 → 1999    (remainder 81 → up)
- *   2045   → 1999    (remainder 45 → down)
- *   2060   → 2099    (remainder 60 → up)
+ *   roundToEndings(1981.2, [90])           → 1990
+ *   roundToEndings(2045,   [90])           → 2090   (2045 is nearer 2090 than 1990)
+ *   roundToEndings(1473,   [50, 90], "up") → 1490
  *
- * A coarser grid looks tidier but distorts the margin, because its error is a fixed
- * number of forints against a variable price. Measured over all 11 141 sellable SKUs
- * at a 30% markup: a 100 Ft grid holds the realised margin within 25.9–38.3%, while
- * a 500 Ft grid (…499/…999) spreads it across 4.9–72.9% and leaves 1912 SKUs under
- * 25%. Hence 100 is the default.
+ * Coarser endings look tidier but distort the margin, because the error is a fixed
+ * number of forints against a variable price. Measured over all 11 136 sellable SKUs at
+ * a 30% árrés: [90] holds the realised árrés at 24.9–36.7% (median 29.8%), whereas
+ * 500 Ft steps spread it across 4.9–72.9% and leave 1912 SKUs under 25%.
  */
-export function roundToPriceGrid(value: number, gridHuf: number): number {
+export function roundToEndings(
+  value: number,
+  endings: number[],
+  mode: RoundingMode = "nearest"
+): number {
   if (!Number.isFinite(value) || value <= 0) return 0;
-  if (gridHuf <= 1) return Math.round(value);
-  const base = Math.floor(value / gridHuf) * gridHuf;
-  const remainder = value - base;
-  const rounded = remainder <= gridHuf / 2 ? base - 1 : base + gridHuf - 1;
-  // Never fall below the cheapest point the grid allows.
-  return Math.max(gridHuf - 1, rounded);
+
+  const valid = endings
+    .filter((e) => Number.isInteger(e) && e >= 0 && e <= 99)
+    .sort((a, b) => a - b);
+  if (valid.length === 0) return Math.round(value);
+
+  // One block either side covers every neighbour of a value inside the middle block.
+  const base = Math.floor(value / 100) * 100;
+  const candidates: number[] = [];
+  for (const offset of [-100, 0, 100]) {
+    for (const ending of valid) {
+      const candidate = base + offset + ending;
+      if (candidate > 0) candidates.push(candidate);
+    }
+  }
+  candidates.sort((a, b) => a - b);
+
+  if (mode === "up") {
+    // The +100 block guarantees a candidate at or above any value in the base block.
+    return (
+      candidates.find((c) => c >= value) ?? candidates[candidates.length - 1]
+    );
+  }
+
+  // Ascending order means an exact tie keeps the lower candidate.
+  let best = candidates[0];
+  for (const c of candidates) {
+    if (Math.abs(value - c) < Math.abs(value - best)) best = c;
+  }
+  return best;
 }
 
 // Net supplier cost → customer-facing gross price.
 export function computeGrossPrice(costNetHuf: number, f: PriceFormula): number {
   if (!Number.isFinite(costNetHuf) || costNetHuf <= 0) return 0;
   const markedUpNet = costNetHuf * (1 + f.markupPct / 100);
-  return roundToPriceGrid(markedUpNet * (1 + f.vatPct / 100), f.roundGridHuf);
+  return roundToEndings(markedUpNet * (1 + f.vatPct / 100), f.endings);
 }
 
 // The VAT-excluded revenue we keep from a gross sale price.
@@ -77,4 +110,39 @@ export function profitPerPieceHuf(
   vatPct: number
 ): number {
   return netRevenue(grossHuf, vatPct) - costNetHuf;
+}
+
+// ── Endings serialisation ────────────────────────────────────────────────────
+// Kept here rather than in ./settings.ts so client components (the admin pricing form)
+// can use them: settings.ts imports prisma, which drags Node built-ins into the bundle.
+
+// Endings are stored as a comma-separated string, e.g. "50,90".
+export function formatEndings(endings: number[]): string {
+  return endings.join(",");
+}
+
+/**
+ * Parses "50,90" (or an array of numbers) into a sorted, de-duplicated list.
+ * Returns null when the input is unusable, so callers can decide between falling back
+ * to a default (on read) and reporting an error (on write).
+ */
+export function parseEndings(raw: unknown): number[] | null {
+  const parts: unknown[] = Array.isArray(raw)
+    ? raw
+    : typeof raw === "string"
+      ? raw.split(",")
+      : [];
+  if (parts.length === 0 || parts.length > 10) return null;
+
+  const out = new Set<number>();
+  for (const part of parts) {
+    // A blank entry ("" or a trailing comma) must be rejected, not read as 0:
+    // Number("") is 0, which would silently turn "" into the …00 ending.
+    if (typeof part === "string" && part.trim() === "") return null;
+    const value = typeof part === "string" ? Number(part.trim()) : Number(part);
+    if (!Number.isInteger(value) || value < 0 || value > 99) return null;
+    out.add(value);
+  }
+  if (out.size === 0) return null;
+  return Array.from(out).sort((a, b) => a - b);
 }

@@ -11,15 +11,24 @@
 // did nothing", with no meaningful saving.
 
 import { prisma } from "@/lib/db";
+import { formatEndings, parseEndings } from "./compute";
+
+// Re-exported for convenience: the endings helpers are pure and live in ./compute.ts
+// so client components can import them without pulling in prisma.
+export { formatEndings, parseEndings };
 
 export interface PricingSettings {
   // Markup applied to the net Malfini purchase price (percentage OF COST).
   malfiniMarkupPct: number;
-  // Hungarian VAT added on top of the marked-up net price.
+  // Hungarian VAT. Applies to both product prices and the shipping fee, so the two
+  // can never drift apart.
   vatPct: number;
-  // Price grid for the final gross price: prices land one forint below a multiple
-  // of this (100 -> ...99). See roundToPriceGrid in ./compute.ts.
-  roundGridHuf: number;
+  // Permitted last-two-digit endings for PRODUCT prices, e.g. [90] → …90.
+  // See roundToEndings in ./compute.ts.
+  priceEndings: number[];
+  // Permitted endings for the SHIPPING fee, e.g. [50, 90]. Rounded UP, never down —
+  // Kvikk's cost is fixed, so rounding down would ship at a loss (see lib/kvikk/pricing.ts).
+  shippingPriceEndings: number[];
   // EUR→HUF rate, used only if Malfini ever returns EUR prices for this account
   // (it currently returns HUF). Replaces the former EUR_TO_HUF_RATE env var.
   eurHufRate: number;
@@ -32,7 +41,8 @@ export interface PricingSettings {
 export const PRICING_DEFAULTS: PricingSettings = {
   malfiniMarkupPct: 30,
   vatPct: 27,
-  roundGridHuf: 100,
+  priceEndings: [90],
+  shippingPriceEndings: [50, 90],
   eurHufRate: 400,
   printFeeSmallHuf: 3000,
   printFeeLargeHuf: 3500,
@@ -42,7 +52,8 @@ export const PRICING_DEFAULTS: PricingSettings = {
 const KEYS: Record<keyof PricingSettings, string> = {
   malfiniMarkupPct: "malfini_markup_pct",
   vatPct: "vat_pct",
-  roundGridHuf: "round_grid_huf",
+  priceEndings: "price_endings",
+  shippingPriceEndings: "shipping_price_endings",
   eurHufRate: "eur_huf_rate",
   printFeeSmallHuf: "print_fee_small_huf",
   printFeeLargeHuf: "print_fee_large_huf",
@@ -50,9 +61,17 @@ const KEYS: Record<keyof PricingSettings, string> = {
 
 export const PRICING_SETTING_KEYS = Object.values(KEYS);
 
-// Accepted range per field, with the Hungarian message shown when it is violated.
-const BOUNDS: Record<
-  keyof PricingSettings,
+type NumberField = {
+  [K in keyof PricingSettings]: PricingSettings[K] extends number ? K : never;
+}[keyof PricingSettings];
+
+type EndingsField = {
+  [K in keyof PricingSettings]: PricingSettings[K] extends number[] ? K : never;
+}[keyof PricingSettings];
+
+// Accepted range per numeric field, with the Hungarian message shown when violated.
+const NUMBER_BOUNDS: Record<
+  NumberField,
   { min: number; max: number; integer: boolean; error: string }
 > = {
   malfiniMarkupPct: {
@@ -66,12 +85,6 @@ const BOUNDS: Record<
     max: 100,
     integer: false,
     error: "Az ÁFA 0 és 100% között lehet.",
-  },
-  roundGridHuf: {
-    min: 2,
-    max: 10000,
-    integer: true,
-    error: "Az árrács 2 és 10000 Ft közötti egész szám legyen.",
   },
   eurHufRate: {
     min: 1,
@@ -95,18 +108,43 @@ const BOUNDS: Record<
   },
 };
 
-function parseSetting(
-  field: keyof PricingSettings,
+const ENDINGS_ERRORS: Record<EndingsField, string> = {
+  priceEndings:
+    "A termékárak végződése 0 és 99 közötti egész számok vesszővel elválasztott listája legyen (pl. 90).",
+  shippingPriceEndings:
+    "A szállítási díj végződése 0 és 99 közötti egész számok vesszővel elválasztott listája legyen (pl. 50,90).",
+};
+
+const NUMBER_FIELDS = Object.keys(NUMBER_BOUNDS) as NumberField[];
+const ENDINGS_FIELDS = Object.keys(ENDINGS_ERRORS) as EndingsField[];
+
+function parseNumberSetting(
+  field: NumberField,
   raw: string | undefined
 ): number {
   if (raw === undefined) return PRICING_DEFAULTS[field];
   const parsed = Number(raw);
-  const b = BOUNDS[field];
+  const b = NUMBER_BOUNDS[field];
   if (!Number.isFinite(parsed) || parsed < b.min || parsed > b.max) {
     console.error(
       `[pricing] Invalid stored value for ${KEYS[field]}: ${JSON.stringify(raw)} — using default.`
     );
     return PRICING_DEFAULTS[field];
+  }
+  return parsed;
+}
+
+function parseEndingsSetting(
+  field: EndingsField,
+  raw: string | undefined
+): number[] {
+  if (raw === undefined) return [...PRICING_DEFAULTS[field]];
+  const parsed = parseEndings(raw);
+  if (parsed === null) {
+    console.error(
+      `[pricing] Invalid stored value for ${KEYS[field]}: ${JSON.stringify(raw)} — using default.`
+    );
+    return [...PRICING_DEFAULTS[field]];
   }
   return parsed;
 }
@@ -125,8 +163,11 @@ export async function getPricingSettings(): Promise<PricingSettings> {
 
   const byKey = new Map(rows.map((r) => [r.key, r.value]));
   const out = {} as PricingSettings;
-  for (const field of Object.keys(KEYS) as (keyof PricingSettings)[]) {
-    out[field] = parseSetting(field, byKey.get(KEYS[field]));
+  for (const field of NUMBER_FIELDS) {
+    out[field] = parseNumberSetting(field, byKey.get(KEYS[field]));
+  }
+  for (const field of ENDINGS_FIELDS) {
+    out[field] = parseEndingsSetting(field, byKey.get(KEYS[field]));
   }
   return out;
 }
@@ -142,8 +183,8 @@ export function validatePricingSettings(
   const b = (raw ?? {}) as Record<string, unknown>;
   const out = {} as PricingSettings;
 
-  for (const field of Object.keys(KEYS) as (keyof PricingSettings)[]) {
-    const bound = BOUNDS[field];
+  for (const field of NUMBER_FIELDS) {
+    const bound = NUMBER_BOUNDS[field];
     const value = Number(b[field]);
     if (b[field] === undefined || b[field] === null || b[field] === "") {
       return { ok: false, error: bound.error };
@@ -157,22 +198,35 @@ export function validatePricingSettings(
     out[field] = value;
   }
 
+  for (const field of ENDINGS_FIELDS) {
+    const parsed = parseEndings(b[field]);
+    if (parsed === null) {
+      return { ok: false, error: ENDINGS_ERRORS[field] };
+    }
+    out[field] = parsed;
+  }
+
   return { ok: true, value: out };
 }
 
 export async function updatePricingSettings(
   input: PricingSettings
 ): Promise<void> {
-  const fields = Object.keys(KEYS) as (keyof PricingSettings)[];
+  const entries: { key: string; value: string }[] = [
+    ...NUMBER_FIELDS.map((f) => ({ key: KEYS[f], value: String(input[f]) })),
+    ...ENDINGS_FIELDS.map((f) => ({
+      key: KEYS[f],
+      value: formatEndings(input[f]),
+    })),
+  ];
+
   await prisma.$transaction(
-    fields.map((field) => {
-      const key = KEYS[field];
-      const value = String(input[field]);
-      return prisma.pricingSetting.upsert({
+    entries.map(({ key, value }) =>
+      prisma.pricingSetting.upsert({
         where: { key },
         create: { key, value },
         update: { value },
-      });
-    })
+      })
+    )
   );
 }

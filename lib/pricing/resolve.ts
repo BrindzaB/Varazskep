@@ -137,7 +137,7 @@ function grossFor(costNetHuf: number, settings: PricingSettings): number {
   return computeGrossPrice(costNetHuf, {
     markupPct: settings.malfiniMarkupPct,
     vatPct: settings.vatPct,
-    roundGridHuf: settings.roundGridHuf,
+    endings: settings.priceEndings,
   });
 }
 
