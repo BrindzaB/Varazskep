@@ -183,7 +183,9 @@ model OrderItem {
   designId        String?  @unique
 }
 
-enum OrderStatus    { PENDING PAID IN_PRODUCTION SHIPPED COMPLETE RETURNED CANCELLED }
+enum OrderChannel   { WEBSHOP ORDER_FORM }
+enum OrderStatus    { REQUESTED PENDING PAID IN_PRODUCTION SHIPPED COMPLETE RETURNED CANCELLED }
+                    // REQUESTED = ORDER_FORM order received, not yet processed
 enum ShippingMethod { FOXPOST_LOCKER MPL_HOME_DELIVERY }  // LEGACY — pre-Kvikk orders only
 enum DeliveryType   { HOME_DELIVERY DELIVERY_POINT }       // Kvikk orders
 ```
@@ -211,9 +213,28 @@ model PriceOverride {
   updatedAt       DateTime @updatedAt
   @@index([productCode])
 }
+
+// Malfini products offered without browsing: designer picker + order form. Admin-editable.
+model FeaturedMalfiniProduct {
+  productCode String @id
+  position    Int
+}
+
+// File uploaded with an ORDER_FORM order — private `order-files` bucket.
+model OrderAttachment {
+  id          String   @id @default(cuid())
+  orderId     String   // onDelete: Cascade
+  storagePath String   @unique
+  fileName    String
+  contentType String?
+  sizeBytes   Int
+}
 ```
 
-**Key rules:** Prices in HUF integers. Design JSON stored as JSONB — never stringify manually. Orders only created in `stripe/webhook`. Product prices resolve only through `lib/pricing/` — see § Pricing.
+`ORDER_FORM` orders leave `stripeSessionId`, `shippingAddress`, `totalAmount` and the line
+prices (`OrderItem.unitPriceHuf`/`printFeeHuf`) null, and carry `customerNote` + attachments.
+
+**Key rules:** Prices in HUF integers. Design JSON stored as JSONB — never stringify manually. Webshop orders only created in `stripe/webhook` (order form orders: § Order form). Product prices resolve only through `lib/pricing/` — see § Pricing.
 
 ---
 
@@ -224,6 +245,7 @@ model PriceOverride {
 | `clipart` | `{uuid}.svg` | Admin upload form | Permanent |
 | `designs` | `{designId}.svg` | Stripe webhook (SVG export) | 45 days |
 | `designs` | `uploads/{uuid}.{ext}` | `POST /api/designs/upload` | 45 days |
+| `order-files` (private) | `{yyyy-mm}/{uuid}.{ext}` | Browser, via signed upload URL from `POST /api/order-form/upload-url` | None set |
 
 Deleting an `Order` row does **not** cascade to `Design` or Storage — the FK is on `Order`.
 
@@ -251,7 +273,28 @@ Request → L1: module-level cache (per instance, 1h TTL, ~0ms)
 
 ## Architectural Decisions
 
-**Orders only via Stripe webhook:** Checkout can be abandoned or fraudulent. The webhook fires only after successful payment — single source of truth.
+**Orders only via Stripe webhook:** Checkout can be abandoned or fraudulent. The webhook fires only after successful payment — single source of truth. This holds for every *paid* order; the order form below is a separate, unpaid channel.
+
+**Order form (megrendelő lap):** `/megrendelo-lap` — a quick request for larger, typically
+corporate orders, replacing the old site's `/rendeles` form (permanently redirected). Linked
+only from the Termékek page header, so the designer stays the primary path. No prices, no
+payment, no shipping choice: the shop agrees the price, delivery and payment with the
+customer afterwards.
+
+- **Catalogue:** the featured Malfini products (`FeaturedMalfiniProduct`, edited at
+  `/admin/products/malfini`, shared with the designer picker) + every active local product
+  (`getOrderFormCatalog()` in `lib/services/orderForm.ts`).
+- **Submission** (`POST /api/order-form`): validated by `lib/orderForm/validate.ts` against
+  that catalogue — names/colours/sizes are taken from it, never from the request. Creates an
+  `ORDER_FORM` order in `REQUESTED` status (→ `IN_PRODUCTION` once agreed), emails the
+  customer a confirmation and `info.varazskep@gmail.com` a notification (Reply-To: customer).
+  Honeypot field + Redis rate limit (5 / 10 min / IP) against bots.
+- **Uploads:** PNG/JPG/WebP/PDF/SVG/AI/EPS, ≤ 20 MB, ≤ 10 files. The browser uploads
+  straight to the private `order-files` bucket with a signed upload URL — a Vercel function
+  cannot accept a body over ~4.5 MB. The bucket's own `fileSizeLimit` enforces the cap (the
+  client-declared size is not trusted). The submission only accepts paths in the shape the
+  upload route issues and checks each object exists. The admin downloads through
+  `/api/admin/orders/[id]/attachments/[attachmentId]` → 60 s signed URL.
 
 **Guest checkout:** Small local business; registration kills conversion. Email order tracking is sufficient.
 

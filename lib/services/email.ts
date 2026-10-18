@@ -3,6 +3,8 @@ import { render } from "@react-email/components";
 import OrderConfirmation from "@/emails/OrderConfirmation";
 import ShipmentNotification from "@/emails/ShipmentNotification";
 import PickupReady from "@/emails/PickupReady";
+import OrderFormReceived from "@/emails/OrderFormReceived";
+import OrderFormNotification from "@/emails/OrderFormNotification";
 import { formatHuf } from "@/lib/utils/format";
 import { describeShipping } from "@/lib/shipping/display";
 import type {
@@ -11,6 +13,90 @@ import type {
 } from "@/lib/generated/prisma/client";
 
 const FROM_ADDRESS = "Varázskép <rendeles@varazskep.hu>";
+
+// Where the shop is notified about new order form (megrendelő lap) orders.
+const SHOP_NOTIFICATION_ADDRESS = "info.varazskep@gmail.com";
+
+interface OrderFormEmailInput {
+  orderId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  note: string;
+  items: {
+    productName: string;
+    colorName: string;
+    sizeName: string;
+    quantity: number;
+  }[];
+  attachmentNames: string[];
+}
+
+function describeOrderFormItems(items: OrderFormEmailInput["items"]) {
+  return items.map((item) => ({
+    description: `${item.productName} – ${item.colorName}, ${item.sizeName}`,
+    quantity: item.quantity,
+  }));
+}
+
+// Confirmation to the customer after an order form submission.
+export async function sendOrderFormReceivedEmail(
+  input: OrderFormEmailInput
+): Promise<void> {
+  if (!process.env.RESEND_API_KEY) {
+    return;
+  }
+
+  const html = await render(
+    OrderFormReceived({
+      customerName: input.customerName,
+      orderId: input.orderId,
+      items: describeOrderFormItems(input.items),
+      note: input.note,
+      attachmentNames: input.attachmentNames,
+    })
+  );
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: input.customerEmail,
+    subject: "Megrendelésed megérkezett – Varázskép",
+    html,
+  });
+}
+
+// Notification to the shop about a new order form order. Reply-To is the customer, so
+// answering the email reaches them directly.
+export async function sendOrderFormNotificationEmail(
+  input: OrderFormEmailInput
+): Promise<void> {
+  if (!process.env.RESEND_API_KEY) {
+    return;
+  }
+
+  const html = await render(
+    OrderFormNotification({
+      orderId: input.orderId,
+      adminUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/orders/${input.orderId}`,
+      customerName: input.customerName,
+      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone,
+      items: describeOrderFormItems(input.items),
+      note: input.note,
+      attachmentNames: input.attachmentNames,
+    })
+  );
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: SHOP_NOTIFICATION_ADDRESS,
+    replyTo: input.customerEmail,
+    subject: `Új megrendelés (megrendelő lap) – ${input.customerName}`,
+    html,
+  });
+}
 
 interface SendOrderConfirmationInput {
   orderId: string;
@@ -21,8 +107,9 @@ interface SendOrderConfirmationInput {
     colorName: string;
     sizeName: string;
     quantity: number;
-    unitPriceHuf: number;
-    printFeeHuf: number; // per piece
+    // Nullable in the schema for ORDER_FORM lines; always set on paid webshop orders.
+    unitPriceHuf: number | null;
+    printFeeHuf: number | null; // per piece
   }[];
   totalAmount: number; // HUF integer
   shippingAddress: {
@@ -62,9 +149,9 @@ export async function sendOrderConfirmationEmail(
       items: input.items.map((item) => ({
         description: `${item.productName} – ${item.colorName}, ${item.sizeName}`,
         quantity: item.quantity,
-        withPrint: item.printFeeHuf > 0,
+        withPrint: (item.printFeeHuf ?? 0) > 0,
         lineTotal: formatHuf(
-          (item.unitPriceHuf + item.printFeeHuf) * item.quantity
+          ((item.unitPriceHuf ?? 0) + (item.printFeeHuf ?? 0)) * item.quantity
         ),
       })),
       totalAmount: formatHuf(input.totalAmount),

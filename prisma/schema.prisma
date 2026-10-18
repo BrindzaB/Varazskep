@@ -92,10 +92,22 @@ model PriceOverride {
   @@index([productCode])
 }
 
+// Malfini products offered without browsing the whole catalogue: the designer's product
+// picker and the order form (megrendelő lap). Admin-editable; position = display order.
+model FeaturedMalfiniProduct {
+  productCode String @id // 3-char Malfini product code
+  position    Int
+}
+
 model Order {
   id                    String         @id @default(cuid())
-  stripeSessionId       String         @unique
+  // Where the order came from. WEBSHOP orders are paid by Stripe; ORDER_FORM orders are
+  // requests with no price or payment — the shop settles them with the customer later.
+  channel               OrderChannel   @default(WEBSHOP)
+  stripeSessionId       String?        @unique // null for ORDER_FORM orders
   status                OrderStatus    @default(PENDING)
+  customerNote          String? // ORDER_FORM: the customer's free-text order description
+  attachments           OrderAttachment[] // ORDER_FORM: files uploaded with the order
   // The ordered products, one row per cart line. Empty on legacy orders.
   items                 OrderItem[]
   // LEGACY single-item fields: orders created before OrderItem stored their one product
@@ -114,8 +126,8 @@ model Order {
   customerName          String
   customerEmail         String
   customerPhone         String? // recipient phone — needed to create the Kvikk shipment
-  shippingAddress       Json // { address, city, postalCode, country }
-  totalAmount           Int // in HUF (includes shipping cost)
+  shippingAddress       Json? // { address, city, postalCode, country } — null for ORDER_FORM
+  totalAmount           Int? // in HUF (includes shipping cost) — null for ORDER_FORM (unpriced)
   gdprConsent           Boolean
   // Shipping method and cost
   shippingMethod        ShippingMethod @default(MPL_HOME_DELIVERY)
@@ -155,11 +167,27 @@ model OrderItem {
   colorName       String
   sizeName        String
   quantity        Int
-  unitPriceHuf    Int // gross product price per piece, as charged
-  printFeeHuf     Int      @default(0) // gross print fee per piece, as charged (0 = no design)
+  // Both null on ORDER_FORM lines, which are priced later by the shop.
+  unitPriceHuf    Int? // gross product price per piece, as charged
+  printFeeHuf     Int? // gross print fee per piece, as charged (0 = no design)
   // Design (optional — set for lines created in the designer)
   designId        String?  @unique
   design          Design?  @relation(fields: [designId], references: [id])
+
+  @@index([orderId])
+}
+
+// A file the customer uploaded with an ORDER_FORM order (artwork, logo, brief). Stored in
+// the private order-files bucket; the admin downloads it through a short-lived signed URL.
+model OrderAttachment {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  storagePath String   @unique // object path inside the order-files bucket
+  fileName    String // original file name, for display and download
+  contentType String?
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
 
   @@index([orderId])
 }
@@ -179,7 +207,13 @@ enum DeliveryType {
   DELIVERY_POINT
 }
 
+enum OrderChannel {
+  WEBSHOP // cart + Stripe checkout
+  ORDER_FORM // megrendelő lap — request without price or payment
+}
+
 enum OrderStatus {
+  REQUESTED // ORDER_FORM order received, not yet processed
   PENDING // Stripe session created, payment not yet confirmed
   PAID // Stripe webhook received — order is now real
   IN_PRODUCTION // Admin has started processing

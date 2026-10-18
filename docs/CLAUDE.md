@@ -16,7 +16,7 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 | Framework | Next.js 14 (App Router) | TypeScript strict mode |
 | Database | PostgreSQL via Supabase | Prisma ORM; migrations only |
 | Designer | Fabric.js v7 | Client-side canvas; serializes types as `"Image"` / `"IText"` (capital I) |
-| Storage | Supabase Storage | `clipart` bucket (permanent) · `designs` bucket (45-day expiry) |
+| Storage | Supabase Storage | `clipart` bucket (permanent) · `designs` bucket (45-day expiry) · `order-files` bucket (private) |
 | Cache | Upstash Redis | Shared L2 for Malfini catalog (25h TTL); L1 = module-level per instance (1h) |
 | Payments | Stripe | Checkout + Webhooks |
 | Email | Resend + React Email | Hungarian templates |
@@ -29,7 +29,9 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 ## Hard Constraints
 
 - Guest-only checkout — no user accounts
-- Orders created **only** in `stripe/webhook` handler, never before
+- Webshop orders created **only** in `stripe/webhook` handler, never before. The one
+  exception is the unpaid order form (megrendelő lap, `POST /api/order-form`), which creates
+  `channel: ORDER_FORM` orders with no price — see ARCHITECTURE.md § Order form
 - All customer-facing text in **Hungarian**
 - No `any` type — TypeScript strict throughout
 - No inline `style={{}}` — Tailwind only (exceptions: hex backgroundColor, fontFamily from data)

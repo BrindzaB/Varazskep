@@ -143,7 +143,8 @@ export default async function OrderConfirmationPage({ params }: Props) {
             <div className="flex justify-between border-t border-border-light pt-4">
               <span className="font-semibold text-charcoal">Összesen</span>
               <span className="font-semibold text-charcoal">
-                {formatHuf(order.totalAmount)}
+                {/* Reached via a Stripe session, so always a paid webshop order. */}
+                {formatHuf(order.totalAmount ?? 0)}
               </span>
             </div>
           </div>

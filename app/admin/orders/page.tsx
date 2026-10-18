@@ -2,38 +2,50 @@ import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import { getAllOrders } from "@/lib/services/order";
 import { getOrderLines, summarizeOrderLines } from "@/lib/orders/lines";
-import type { OrderStatus } from "@/lib/generated/prisma/client";
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING: "Függőben",
-  PAID: "Fizetve",
-  IN_PRODUCTION: "Gyártásban",
-  SHIPPED: "Kiszállítva",
-  COMPLETE: "Teljesítve",
-  RETURNED: "Visszaküldve",
-  CANCELLED: "Törölve",
-};
-
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  PENDING: "bg-yellow-100 text-yellow-800",
-  PAID: "bg-blue-100 text-blue-800",
-  IN_PRODUCTION: "bg-purple-100 text-purple-800",
-  SHIPPED: "bg-orange-100 text-orange-800",
-  COMPLETE: "bg-green-100 text-green-800",
-  RETURNED: "bg-red-100 text-red-800",
-  CANCELLED: "bg-gray-100 text-gray-600",
-};
+import { CHANNEL_LABELS, STATUS_COLORS, STATUS_LABELS } from "@/lib/orders/status";
+import type { OrderChannel } from "@/lib/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminOrdersPage() {
-  const orders = await getAllOrders();
+const CHANNEL_FILTERS: { label: string; value: OrderChannel | null }[] = [
+  { label: "Összes", value: null },
+  { label: "Webshop", value: "WEBSHOP" },
+  { label: "Megrendelő lap", value: "ORDER_FORM" },
+];
+
+function parseChannel(raw: string | undefined): OrderChannel | null {
+  return raw === "WEBSHOP" || raw === "ORDER_FORM" ? raw : null;
+}
+
+export default async function AdminOrdersPage({
+  searchParams,
+}: {
+  searchParams: { channel?: string };
+}) {
+  const channel = parseChannel(searchParams.channel);
+  const orders = await getAllOrders(channel ?? undefined);
 
   return (
     <div>
       <AdminNav />
       <main className="max-w-6xl mx-auto px-6 py-8">
         <h1 className="text-2xl font-semibold text-gray-900 mb-6">Rendelések</h1>
+
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          {CHANNEL_FILTERS.map((f) => (
+            <Link
+              key={f.label}
+              href={f.value ? `/admin/orders?channel=${f.value}` : "/admin/orders"}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                channel === f.value
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {f.label}
+            </Link>
+          ))}
+        </div>
 
         {orders.length === 0 ? (
           <p className="text-gray-500">Még nincs rendelés.</p>
@@ -63,10 +75,17 @@ export default async function AdminOrdersPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-900">{order.customerName}</td>
                     <td className="px-4 py-3 text-gray-700">
-                      {summarizeOrderLines(getOrderLines(order))}
+                      {order.channel === "ORDER_FORM" && (
+                        <span className="mr-2 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
+                          {CHANNEL_LABELS.ORDER_FORM}
+                        </span>
+                      )}
+                      {summarizeOrderLines(getOrderLines(order)) || "Lásd a megrendelés szövegét"}
                     </td>
                     <td className="px-4 py-3 text-gray-900">
-                      {order.totalAmount.toLocaleString("hu-HU")} Ft
+                      {order.totalAmount !== null
+                        ? `${order.totalAmount.toLocaleString("hu-HU")} Ft`
+                        : "Egyeztetendő"}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[order.status]}`}>

@@ -3,23 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OrderStatus } from "@/lib/generated/prisma/client";
+import { STATUS_LABELS } from "@/lib/orders/status";
 
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING: "Függőben",
+// Button label for moving an order INTO the given status.
+const TRANSITION_BUTTON_LABELS: Record<OrderStatus, string> = {
+  REQUESTED: "",
+  PENDING: "",
   PAID: "Fizetve",
-  IN_PRODUCTION: "Gyártásban",
+  IN_PRODUCTION: "Gyártásba küld",
   SHIPPED: "Kiszállítva",
   COMPLETE: "Teljesítve",
-  RETURNED: "Visszaküldve",
-  CANCELLED: "Törölve",
-};
-
-const NEXT_STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING: "Fizetve",
-  PAID: "Gyártásba küld",
-  IN_PRODUCTION: "Kiszállítva",
-  SHIPPED: "Teljesítve",
-  COMPLETE: "",
   RETURNED: "",
   CANCELLED: "",
 };
@@ -28,6 +21,7 @@ const NEXT_STATUS_LABELS: Record<OrderStatus, string> = {
 // RETURNED is intentionally not a manual button — it is set by the Kvikk webhook — so it
 // is absent from SHIPPED's list here even though the server permits SHIPPED → RETURNED.
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  REQUESTED: ["IN_PRODUCTION", "CANCELLED"],
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],
   IN_PRODUCTION: ["SHIPPED", "CANCELLED"],
@@ -98,7 +92,7 @@ export default function OrderStatusUpdater({ orderId, currentStatus }: Props) {
           >
             {loading === status
               ? "Mentés..."
-              : NEXT_STATUS_LABELS[status] || STATUS_LABELS[status]}
+              : TRANSITION_BUTTON_LABELS[status] || STATUS_LABELS[status]}
           </button>
         ))}
       </div>
