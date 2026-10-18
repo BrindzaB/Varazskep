@@ -13,9 +13,12 @@ import {
 interface OrderConfirmationProps {
   customerName: string;
   orderId: string;
-  productName: string;
-  variantColor: string;
-  variantSize: string;
+  items: {
+    description: string; // e.g. "Póló – Fekete, M"
+    quantity: number;
+    withPrint: boolean;
+    lineTotal: string; // pre-formatted, product + print fee × quantity
+  }[];
   totalAmount: string; // pre-formatted, e.g. "4 990 Ft"
   shippingAddress: {
     address: string;
@@ -32,9 +35,7 @@ interface OrderConfirmationProps {
 export default function OrderConfirmation({
   customerName,
   orderId,
-  productName,
-  variantColor,
-  variantSize,
+  items,
   totalAmount,
   shippingAddress,
   methodLabel,
@@ -63,10 +64,14 @@ export default function OrderConfirmation({
             <Text style={label}>Rendelés azonosítója</Text>
             <Text style={value}>{orderId}</Text>
 
-            <Text style={label}>Termék</Text>
-            <Text style={value}>
-              {productName} – {variantColor}, {variantSize}
-            </Text>
+            <Text style={label}>Termékek</Text>
+            {items.map((item, i) => (
+              <Text key={i} style={value}>
+                {item.description}
+                {item.withPrint ? " (egyedi nyomtatással)" : ""} ×{" "}
+                {item.quantity} – {item.lineTotal}
+              </Text>
+            ))}
 
             <Text style={label}>Végösszeg</Text>
             <Text style={value}>{totalAmount}</Text>

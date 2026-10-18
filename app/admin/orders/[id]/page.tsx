@@ -9,6 +9,7 @@ import { getDesignSvgSize, type CanvasJson } from "@/lib/services/design";
 import GdprEraseButton from "@/components/admin/GdprEraseButton";
 import type { OrderStatus } from "@/lib/generated/prisma/client";
 import { describeShipping } from "@/lib/shipping/display";
+import { getOrderLines, type OrderLine } from "@/lib/orders/lines";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING: "Függőben",
@@ -170,6 +171,172 @@ function DesignCoordinatesTable({ canvasJson }: { canvasJson: unknown }) {
   );
 }
 
+function OrderLinesTable({ lines }: { lines: OrderLine[] }) {
+  return (
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 className="mb-3 text-sm font-semibold text-gray-700">Tételek</h2>
+      <div className="overflow-x-auto">
+        <table className="w-full whitespace-nowrap text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 text-left text-gray-500">
+              <th className="pb-2 font-medium">Termék</th>
+              <th className="pb-2 font-medium">Szín</th>
+              <th className="pb-2 font-medium">Méret</th>
+              <th className="pb-2 text-right font-medium">Db</th>
+              <th className="pb-2 text-right font-medium">Egységár</th>
+              <th className="pb-2 text-right font-medium">Nyomtatás / db</th>
+              <th className="pb-2 text-right font-medium">Összesen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line) => (
+              <tr
+                key={line.key}
+                className="border-b border-gray-50 last:border-0"
+              >
+                <td className="py-1.5 text-gray-900">
+                  {line.productName}
+                  {line.productCode && (
+                    <span className="ml-2 font-mono text-xs text-gray-500">
+                      {line.productCode}
+                      {line.productSizeCode && ` · ${line.productSizeCode}`}
+                    </span>
+                  )}
+                </td>
+                <td className="py-1.5 text-gray-900">{line.colorName}</td>
+                <td className="py-1.5 text-gray-900">{line.sizeName}</td>
+                <td className="py-1.5 text-right text-gray-900">
+                  {line.quantity ?? "—"}
+                </td>
+                <td className="py-1.5 text-right text-gray-600">
+                  {formatHufOrDash(line.unitPriceHuf)}
+                </td>
+                <td className="py-1.5 text-right text-gray-600">
+                  {formatHufOrDash(line.printFeeHuf)}
+                </td>
+                <td className="py-1.5 text-right font-medium text-gray-900">
+                  {line.quantity !== null &&
+                  line.unitPriceHuf !== null &&
+                  line.printFeeHuf !== null
+                    ? formatHufOrDash(
+                        (line.unitPriceHuf + line.printFeeHuf) * line.quantity,
+                      )
+                    : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {lines.some((l) => l.quantity === null) && (
+        <p className="mt-3 text-xs text-gray-500">
+          Régi rendelés: a darabszám és a tételár nem lett eltárolva, és ha a
+          kosárban több termék volt, csak az első látszik. A pontos tartalom a
+          Stripe-ban ellenőrizhető.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function formatHufOrDash(value: number | null): string {
+  return value === null ? "—" : `${value.toLocaleString("hu-HU")} Ft`;
+}
+
+// Design preview. Served via our own route (Content-Disposition: inline) rather than
+// the Supabase public URL, which now forces an attachment download for SVGs.
+function DesignPreview({
+  orderId,
+  designId,
+  canvasJson,
+  previewUrl,
+  title,
+}: {
+  orderId: string;
+  designId: string;
+  canvasJson: unknown;
+  previewUrl: string | null;
+  title: string;
+}) {
+  // Size the design preview to the design's real aspect ratio (portrait for
+  // shirts, wide for mugs, square for pillows) instead of a fixed <object> box.
+  const svgSize = getDesignSvgSize(canvasJson as CanvasJson);
+  const fit = Math.min(420 / svgSize.width, 460 / svgSize.height, 1.5);
+  const box = {
+    width: Math.round(svgSize.width * fit),
+    height: Math.round(svgSize.height * fit),
+  };
+  const svgUrl = `/api/admin/orders/${orderId}/design?designId=${designId}`;
+
+  return (
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 className="mb-3 text-sm font-semibold text-gray-700">{title}</h2>
+      <div className="flex flex-wrap items-start gap-6">
+        {/* Composite — the product with the design, as the customer saw it */}
+        {previewUrl && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-gray-500">
+              Ahogy a vevő látta
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt="Terv előnézet a terméken"
+              className="block rounded border border-gray-200"
+              style={{ maxWidth: 320, height: "auto" }}
+            />
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+            >
+              Megnyitás új lapon
+            </a>
+          </div>
+        )}
+
+        {/* Design only — transparent background, real position + size */}
+        <div>
+          <p className="mb-2 text-xs font-medium text-gray-500">
+            Minta (átlátszó háttér)
+          </p>
+          <div
+            className="rounded border border-gray-200"
+            style={{
+              width: box.width,
+              height: box.height,
+              maxWidth: "100%",
+              backgroundImage:
+                "linear-gradient(45deg, #d1d5db 25%, transparent 25%)," +
+                "linear-gradient(-45deg, #d1d5db 25%, transparent 25%)," +
+                "linear-gradient(45deg, transparent 75%, #d1d5db 75%)," +
+                "linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
+              backgroundSize: "16px 16px",
+              backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
+              backgroundColor: "#f3f4f6",
+            }}
+          >
+            <object data={svgUrl} type="image/svg+xml" className="h-full w-full">
+              <span className="text-sm text-gray-500">
+                Az SVG nem tölthető be.
+              </span>
+            </object>
+          </div>
+          <a
+            href={svgUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+          >
+            Megnyitás új lapon
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default async function AdminOrderDetailPage({
   params,
 }: {
@@ -190,24 +357,14 @@ export default async function AdminOrderDetailPage({
         country: string;
       });
 
-  // Size the design preview to the design's real aspect ratio (portrait for
-  // shirts, wide for mugs, square for pillows) instead of a fixed <object> box.
-  const designSvgSize = order.design?.canvasJson
-    ? getDesignSvgSize(order.design.canvasJson as unknown as CanvasJson)
-    : null;
-  const designPreview = designSvgSize
-    ? (() => {
-        const fit = Math.min(
-          420 / designSvgSize.width,
-          460 / designSvgSize.height,
-          1.5,
-        );
-        return {
-          width: Math.round(designSvgSize.width * fit),
-          height: Math.round(designSvgSize.height * fit),
-        };
-      })()
-    : null;
+  const lines = getOrderLines(order);
+  // Each designed line with its stored design. Legacy orders keep theirs on the order.
+  const designedLines = lines.flatMap((line) => {
+    const design =
+      order.items.find((item) => item.id === line.key)?.design ??
+      (line.key === order.id ? order.design : null);
+    return design?.canvasJson ? [{ line, design }] : [];
+  });
 
   return (
     <div>
@@ -291,24 +448,12 @@ export default async function AdminOrderDetailPage({
             </h2>
             <dl className="space-y-1 text-sm">
               <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-gray-500">Termék:</dt>
+                <dt className="w-24 shrink-0 text-gray-500">Darabszám:</dt>
                 <dd className="text-gray-900">
-                  {order.productName}
-                  {order.productCode && (
-                    <span className="ml-2 font-mono text-xs text-gray-500">
-                      {order.productCode}
-                      {order.productSizeCode && ` · ${order.productSizeCode}`}
-                    </span>
-                  )}
+                  {lines.every((l) => l.quantity !== null)
+                    ? `${lines.reduce((sum, l) => sum + (l.quantity ?? 0), 0)} db`
+                    : "—"}
                 </dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-gray-500">Szín:</dt>
-                <dd className="text-gray-900">{order.colorName}</dd>
-              </div>
-              <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-gray-500">Méret:</dt>
-                <dd className="text-gray-900">{order.sizeName}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="w-24 shrink-0 text-gray-500">Összeg:</dt>
@@ -325,6 +470,8 @@ export default async function AdminOrderDetailPage({
             </dl>
           </div>
         </div>
+
+        <OrderLinesTable lines={lines} />
 
         {/* Shipping info */}
         <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
@@ -378,91 +525,27 @@ export default async function AdminOrderDetailPage({
           )}
         </div>
 
-        {/* Design preview. Served via our own route (Content-Disposition: inline) rather than
-            the Supabase public URL, which now forces an attachment download for SVGs. */}
-        {order.design?.canvasJson && designPreview && (
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">
-              Egyedi terv
-            </h2>
-            <div className="flex flex-wrap items-start gap-6">
-              {/* Composite — the product with the design, as the customer saw it */}
-              {order.design.previewUrl && (
-                <div>
-                  <p className="mb-2 text-xs font-medium text-gray-500">
-                    Ahogy a vevő látta
-                  </p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={order.design.previewUrl}
-                    alt="Terv előnézet a terméken"
-                    className="block rounded border border-gray-200"
-                    style={{ maxWidth: 320, height: "auto" }}
-                  />
-                  <a
-                    href={order.design.previewUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block text-sm text-blue-600 hover:underline"
-                  >
-                    Megnyitás új lapon
-                  </a>
-                </div>
-              )}
+        {designedLines.map(({ line, design }) => (
+          <div key={design.id}>
+            <DesignPreview
+              orderId={order.id}
+              designId={design.id}
+              canvasJson={design.canvasJson}
+              previewUrl={design.previewUrl}
+              title={
+                designedLines.length > 1
+                  ? `Egyedi terv – ${line.productName} (${line.colorName} / ${line.sizeName})`
+                  : "Egyedi terv"
+              }
+            />
 
-              {/* Design only — transparent background, real position + size */}
-              <div>
-                <p className="mb-2 text-xs font-medium text-gray-500">
-                  Minta (átlátszó háttér)
-                </p>
-                <div
-                  className="rounded border border-gray-200"
-                  style={{
-                    width: designPreview.width,
-                    height: designPreview.height,
-                    maxWidth: "100%",
-                    backgroundImage:
-                      "linear-gradient(45deg, #d1d5db 25%, transparent 25%)," +
-                      "linear-gradient(-45deg, #d1d5db 25%, transparent 25%)," +
-                      "linear-gradient(45deg, transparent 75%, #d1d5db 75%)," +
-                      "linear-gradient(-45deg, transparent 75%, #d1d5db 75%)",
-                    backgroundSize: "16px 16px",
-                    backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
-                    backgroundColor: "#f3f4f6",
-                  }}
-                >
-                  <object
-                    data={`/api/admin/orders/${order.id}/design`}
-                    type="image/svg+xml"
-                    className="h-full w-full"
-                  >
-                    <span className="text-sm text-gray-500">
-                      Az SVG nem tölthető be.
-                    </span>
-                  </object>
-                </div>
-                <a
-                  href={`/api/admin/orders/${order.id}/design`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-block text-sm text-blue-600 hover:underline"
-                >
-                  Megnyitás új lapon
-                </a>
-              </div>
-            </div>
+            {/* Customer uploaded images — extracted from canvasJson */}
+            <CustomerUploadedImages canvasJson={design.canvasJson} />
+
+            {/* Design coordinates — parsed from canvasJson */}
+            <DesignCoordinatesTable canvasJson={design.canvasJson} />
           </div>
-        )}
-
-        {/* Customer uploaded images — extracted from canvasJson */}
-        {order.design?.canvasJson && (
-          <CustomerUploadedImages canvasJson={order.design.canvasJson} />
-        )}
-
-        {/* Design coordinates — parsed from canvasJson */}
-        {order.design?.canvasJson && (
-          <DesignCoordinatesTable canvasJson={order.design.canvasJson} />
-        )}
+        ))}
 
         {/* Status update */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">

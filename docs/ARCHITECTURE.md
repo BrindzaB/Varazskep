@@ -150,15 +150,9 @@ model Order {
   id                 String         @id @default(cuid())
   stripeSessionId    String         @unique
   status             OrderStatus    @default(PENDING)
-  variantId          String?        // local orders only
-  variant            Variant?       @relation(fields: [variantId], references: [id])
-  productSizeCode    String?        // Malfini orders only — 7-char SKU e.g. "M150XM0"
-  productCode        String?        // Malfini orders only — 3-char e.g. "M150"
-  productName        String         // always set (8-year retention)
-  colorName          String
-  sizeName           String
-  designId           String?        @unique
-  design             Design?        @relation(fields: [designId], references: [id])
+  items              OrderItem[]    // one row per cart line
+  // LEGACY single-item fields (variantId, productSizeCode, productCode, productName,
+  // colorName, sizeName, designId) — read-only, set only on pre-OrderItem orders
   customerName       String
   customerEmail      String
   shippingAddress    Json           // { address, city, postalCode, country }
@@ -171,6 +165,22 @@ model Order {
   pickupPointAddress String?        // Foxpost locker formatted address
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
+}
+
+model OrderItem {
+  id              String   @id @default(cuid())
+  orderId         String   // onDelete: Cascade
+  position        Int      // 0-based cart line order
+  variantId       String?  // local lines only
+  productSizeCode String?  // Malfini lines only — 7-char SKU
+  productCode     String?  // Malfini lines only — 3-char
+  productName     String   // denormalized (8-year retention)
+  colorName       String
+  sizeName        String
+  quantity        Int
+  unitPriceHuf    Int      // gross, as charged
+  printFeeHuf     Int      @default(0)  // gross per piece, as charged
+  designId        String?  @unique
 }
 
 enum OrderStatus    { PENDING PAID IN_PRODUCTION SHIPPED COMPLETE RETURNED CANCELLED }
@@ -247,7 +257,7 @@ Request → L1: module-level cache (per instance, 1h TTL, ~0ms)
 
 **Single Next.js app:** No separate backend needed at this scale. Extract to a separate service if traffic warrants (v2 concern).
 
-**Design record before payment:** Canvas JSON exceeds Stripe metadata limits (500 chars/value). A `Design` row is created when the customer clicks "Kosárba" — only the `Design`, never the `Order`. The `designId` travels through Stripe metadata and is linked to the `Order` by the webhook.
+**Design record before payment:** Canvas JSON exceeds Stripe metadata limits (500 chars/value). A `Design` row is created when the customer clicks "Kosárba" — only the `Design`, never the `Order`. The `designId` travels through Stripe metadata and is linked to its `OrderItem` by the webhook.
 
 **Clipart catalog via database:** Admin manages clipart through the admin panel. SVG files live in Supabase `clipart` bucket (permanent). The `Clipart` table stores metadata + public URL.
 
@@ -499,10 +509,16 @@ cached 1h (module + Redis), so a new list takes effect within the hour with no d
 manual entry. `docs/kvikk-arlista-*.pdf` is a reference document only — no code reads it.
 What *is* code-side is which options we offer (`lib/kvikk/deliveryOptions.ts`).
 
-**Not yet unified:** orders still store only `totalAmount`, not a per-item price snapshot
-(unit price, print fee, quantity, cost). The denormalized `productName`/`colorName`/
-`sizeName` on an order are also still taken from the request rather than derived from the
-variant/SKU, so they can disagree with what was actually paid for.
+**Order lines:** each cart line is an `OrderItem` with its quantity and the unit price +
+per-piece print fee actually charged. The lines travel through Stripe metadata as one
+`item_<n>` key each plus `itemCount` (`lib/checkout/cartMetadata.ts`) — a single JSON value
+for the whole cart overflowed Stripe's 500-character limit after two or three lines. Orders
+created before this kept only the first cart line on the `Order` row and no quantity;
+`lib/orders/lines.ts` shows them as one line with an unknown quantity.
+
+**Not yet unified:** the denormalized `productName`/`colorName`/`sizeName` on a line are
+still taken from the request rather than derived from the variant/SKU, so they can disagree
+with what was actually paid for. The purchase cost is not snapshotted.
 
 ---
 

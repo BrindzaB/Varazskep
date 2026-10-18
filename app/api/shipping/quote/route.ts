@@ -31,7 +31,7 @@ interface PointQuote {
 
 // Computes the shipping options + prices for the current cart. Parcel weight is resolved
 // SERVER-SIDE from the product data (never trusting the client), summed across the cart as
-// a single parcel (the cart is single-product in v1), then priced per offered option.
+// a single parcel, then priced per offered option.
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let body: unknown;
   try {

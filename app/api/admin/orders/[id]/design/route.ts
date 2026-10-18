@@ -20,7 +20,12 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const canvasJson = await getDesignCanvasByOrderId(params.id);
+  const designId = req.nextUrl.searchParams.get("designId");
+  if (!designId) {
+    return NextResponse.json({ error: "Missing designId" }, { status: 400 });
+  }
+
+  const canvasJson = await getDesignCanvasByOrderId(params.id, designId);
   if (!canvasJson) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

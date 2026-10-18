@@ -11,6 +11,11 @@ import { getShippingQuote } from "@/lib/kvikk/pricing";
 import { normalizeHungarianPhone } from "@/lib/utils/phone";
 import { COURIER_LABELS } from "@/lib/shipping/display";
 import type { KvikkCourier } from "@/lib/kvikk/types";
+import {
+  encodeCartItems,
+  MAX_CART_LINES,
+  type CartItemMeta,
+} from "@/lib/checkout/cartMetadata";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-03-25.dahlia",
@@ -46,23 +51,6 @@ interface CheckoutRequestBody {
   gdprConsent: boolean;
 }
 
-// Shape embedded in Stripe session metadata (cartItems field).
-// Webhook reads this to reconstruct the order.
-interface CartItemMeta {
-  source: "local" | "malfini";
-  // Local only:
-  variantId?: string;
-  // Malfini only:
-  productSizeCode?: string;
-  productCode?: string;
-  // Always set — denormalized for 8-year retention:
-  productName: string;
-  colorName: string;
-  sizeName: string;
-  quantity: number;
-  designId?: string;
-}
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   let body: unknown;
   try {
@@ -79,6 +67,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     parsed.items.length === 0
   ) {
     return NextResponse.json({ error: "A kosár üres." }, { status: 400 });
+  }
+
+  if (parsed.items.length > MAX_CART_LINES) {
+    return NextResponse.json(
+      { error: `Egy rendelésben legfeljebb ${MAX_CART_LINES} tétel lehet.` },
+      { status: 400 }
+    );
+  }
+
+  // The quantity becomes both the Stripe line quantity and the stored OrderItem
+  // quantity, so it must be a real piece count.
+  if (
+    !parsed.items.every((i) => Number.isInteger(i.quantity) && i.quantity > 0)
+  ) {
+    return NextResponse.json(
+      { error: "Érvénytelen darabszám." },
+      { status: 400 }
+    );
   }
 
   if (!parsed.customer || !parsed.gdprConsent || !parsed.shipping) {
@@ -196,6 +202,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // The fee is recomputed from the stored design geometry — the client's
     // `printFee` is display-only and is never read here. It used to be trusted
     // subject to a format check, so omitting the field bought free printing.
+    let printFeeHuf = 0;
     if (item.designId) {
       const printFee = await resolvePrintFeeHuf(
         item.source === "local"
@@ -226,6 +233,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           quantity: item.quantity,
         });
       }
+      printFeeHuf = printFee;
     }
 
     const meta: CartItemMeta = {
@@ -234,6 +242,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       colorName: item.colorName,
       sizeName: item.sizeName,
       quantity: item.quantity,
+      unitPriceHuf,
+      printFeeHuf,
       ...(item.designId ? { designId: item.designId } : {}),
     };
     if (item.source === "local") {
@@ -277,6 +287,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     quantity: 1,
   });
 
+  const cartMetadata = encodeCartItems(cartItemsMeta);
+  if (!cartMetadata) {
+    return NextResponse.json(
+      { error: "Túl hosszú terméknév a kosárban." },
+      { status: 400 }
+    );
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     line_items: lineItems,
@@ -289,7 +307,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       customerPhone: normalizedPhone,
       shippingAddress: JSON.stringify(customer.shippingAddress),
       gdprConsent: String(gdprConsent),
-      cartItems: JSON.stringify(cartItemsMeta),
+      ...cartMetadata,
       shippingCourier: shipping.courier,
       deliveryType: shipping.deliveryType,
       shippingCost: String(shipping.cost),

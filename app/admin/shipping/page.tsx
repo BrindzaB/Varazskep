@@ -1,6 +1,7 @@
 import AdminNav from "@/components/admin/AdminNav";
 import { getDispatchableOrders } from "@/lib/services/order";
 import DeliveryNoteForm from "@/components/admin/DeliveryNoteForm";
+import { getOrderLines, summarizeOrderLines } from "@/lib/orders/lines";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export default async function AdminShippingPage() {
     trackingNumber: o.kvikkTrackingNumber ?? "",
     courier: o.shippingCourier ?? "",
     customerName: o.customerName,
-    productName: o.productName,
+    productName: summarizeOrderLines(getOrderLines(o)),
   }));
 
   return (
