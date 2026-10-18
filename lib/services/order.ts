@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
-import type { DeliveryType, OrderStatus } from "@/lib/generated/prisma/client";
+import type {
+  DeliveryType,
+  OrderChannel,
+  OrderStatus,
+} from "@/lib/generated/prisma/client";
 
 export interface CreateOrderItemInput {
   // One of these must be set — never both.
@@ -191,11 +195,12 @@ export async function updateOrderStatus(
 }
 
 /**
- * Returns all orders sorted by creation date descending, with variant + product info.
- * Used by the admin order list.
+ * Returns all orders (optionally of one channel) sorted by creation date descending, with
+ * their line items. Used by the admin order list.
  */
-export async function getAllOrders() {
+export async function getAllOrders(channel?: OrderChannel) {
   return prisma.order.findMany({
+    where: channel ? { channel } : undefined,
     orderBy: { createdAt: "desc" },
     include: { items: { orderBy: { position: "asc" } } },
   });
@@ -211,6 +216,7 @@ export async function getOrderById(orderId: string) {
     include: {
       items: { orderBy: { position: "asc" }, include: { design: true } },
       design: true, // LEGACY single-item orders
+      attachments: { orderBy: { createdAt: "asc" } },
     },
   });
 }
@@ -269,6 +275,7 @@ export async function applyShipmentStatus(
 
   // Forward-only progression for SHIPPED / COMPLETE.
   const rank: Record<OrderStatus, number> = {
+    REQUESTED: 0,
     PENDING: 0,
     PAID: 1,
     IN_PRODUCTION: 2,
@@ -288,6 +295,7 @@ export async function applyShipmentStatus(
 }
 
 const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
+  REQUESTED: ["IN_PRODUCTION", "CANCELLED"], // ORDER_FORM: accepted after agreeing with the customer
   PENDING: ["PAID", "CANCELLED"],
   PAID: ["IN_PRODUCTION", "CANCELLED"],
   IN_PRODUCTION: ["SHIPPED", "CANCELLED"],
@@ -313,6 +321,7 @@ export async function eraseOrderPii(orderId: string) {
       customerEmail: PII_ERASED_SENTINEL,
       customerPhone: PII_ERASED_SENTINEL,
       shippingAddress: {},
+      customerNote: null, // ORDER_FORM free text — may name people, addresses
     },
   });
 }

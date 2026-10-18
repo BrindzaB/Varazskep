@@ -7,29 +7,9 @@ import OrderPhoneEditor from "@/components/admin/OrderPhoneEditor";
 import { getOrderById, PII_ERASED_SENTINEL } from "@/lib/services/order";
 import { getDesignSvgSize, type CanvasJson } from "@/lib/services/design";
 import GdprEraseButton from "@/components/admin/GdprEraseButton";
-import type { OrderStatus } from "@/lib/generated/prisma/client";
 import { describeShipping } from "@/lib/shipping/display";
 import { getOrderLines, type OrderLine } from "@/lib/orders/lines";
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING: "Függőben",
-  PAID: "Fizetve",
-  IN_PRODUCTION: "Gyártásban",
-  SHIPPED: "Kiszállítva",
-  COMPLETE: "Teljesítve",
-  RETURNED: "Visszaküldve",
-  CANCELLED: "Törölve",
-};
-
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  PENDING: "bg-yellow-100 text-yellow-800",
-  PAID: "bg-blue-100 text-blue-800",
-  IN_PRODUCTION: "bg-purple-100 text-purple-800",
-  SHIPPED: "bg-orange-100 text-orange-800",
-  COMPLETE: "bg-green-100 text-green-800",
-  RETURNED: "bg-red-100 text-red-800",
-  CANCELLED: "bg-gray-100 text-gray-600",
-};
+import { CHANNEL_LABELS, STATUS_COLORS, STATUS_LABELS } from "@/lib/orders/status";
 
 export const dynamic = "force-dynamic";
 
@@ -171,7 +151,23 @@ function DesignCoordinatesTable({ canvasJson }: { canvasJson: unknown }) {
   );
 }
 
-function OrderLinesTable({ lines }: { lines: OrderLine[] }) {
+function OrderLinesTable({
+  lines,
+  showPrices,
+}: {
+  lines: OrderLine[];
+  showPrices: boolean; // ORDER_FORM lines have no price — the shop prices them later
+}) {
+  if (lines.length === 0) {
+    return (
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="mb-3 text-sm font-semibold text-gray-700">Tételek</h2>
+        <p className="text-sm text-gray-500">
+          Nincs kiválasztott termék — lásd a megrendelés szövegét.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
       <h2 className="mb-3 text-sm font-semibold text-gray-700">Tételek</h2>
@@ -183,9 +179,15 @@ function OrderLinesTable({ lines }: { lines: OrderLine[] }) {
               <th className="pb-2 font-medium">Szín</th>
               <th className="pb-2 font-medium">Méret</th>
               <th className="pb-2 text-right font-medium">Db</th>
-              <th className="pb-2 text-right font-medium">Egységár</th>
-              <th className="pb-2 text-right font-medium">Nyomtatás / db</th>
-              <th className="pb-2 text-right font-medium">Összesen</th>
+              {showPrices && (
+                <>
+                  <th className="pb-2 text-right font-medium">Egységár</th>
+                  <th className="pb-2 text-right font-medium">
+                    Nyomtatás / db
+                  </th>
+                  <th className="pb-2 text-right font-medium">Összesen</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -208,21 +210,26 @@ function OrderLinesTable({ lines }: { lines: OrderLine[] }) {
                 <td className="py-1.5 text-right text-gray-900">
                   {line.quantity ?? "—"}
                 </td>
-                <td className="py-1.5 text-right text-gray-600">
-                  {formatHufOrDash(line.unitPriceHuf)}
-                </td>
-                <td className="py-1.5 text-right text-gray-600">
-                  {formatHufOrDash(line.printFeeHuf)}
-                </td>
-                <td className="py-1.5 text-right font-medium text-gray-900">
-                  {line.quantity !== null &&
-                  line.unitPriceHuf !== null &&
-                  line.printFeeHuf !== null
-                    ? formatHufOrDash(
-                        (line.unitPriceHuf + line.printFeeHuf) * line.quantity,
-                      )
-                    : "—"}
-                </td>
+                {showPrices && (
+                  <>
+                    <td className="py-1.5 text-right text-gray-600">
+                      {formatHufOrDash(line.unitPriceHuf)}
+                    </td>
+                    <td className="py-1.5 text-right text-gray-600">
+                      {formatHufOrDash(line.printFeeHuf)}
+                    </td>
+                    <td className="py-1.5 text-right font-medium text-gray-900">
+                      {line.quantity !== null &&
+                      line.unitPriceHuf !== null &&
+                      line.printFeeHuf !== null
+                        ? formatHufOrDash(
+                            (line.unitPriceHuf + line.printFeeHuf) *
+                              line.quantity,
+                          )
+                        : "—"}
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
@@ -237,6 +244,12 @@ function OrderLinesTable({ lines }: { lines: OrderLine[] }) {
       )}
     </div>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 function formatHufOrDash(value: number | null): string {
@@ -348,9 +361,12 @@ export default async function AdminOrderDetailPage({
   const piiErased = order.customerName === PII_ERASED_SENTINEL;
   const shipping = describeShipping(order);
 
-  const address = piiErased
-    ? null
-    : (order.shippingAddress as {
+  const isOrderForm = order.channel === "ORDER_FORM";
+  // ORDER_FORM orders carry no address — delivery is agreed with the customer.
+  const address =
+    piiErased || !order.shippingAddress
+      ? null
+      : (order.shippingAddress as {
         address: string;
         city: string;
         postalCode: string;
@@ -426,16 +442,20 @@ export default async function AdminOrderDetailPage({
                     />
                   </dd>
                 </div>
-                <div className="flex gap-2">
-                  <dt className="w-24 shrink-0 text-gray-500">Cím:</dt>
-                  <dd className="text-gray-900">
-                    {address!.postalCode} {address!.city}, {address!.address}
-                  </dd>
-                </div>
-                <div className="flex gap-2">
-                  <dt className="w-24 shrink-0 text-gray-500">Ország:</dt>
-                  <dd className="text-gray-900">{address!.country}</dd>
-                </div>
+                {address && (
+                  <>
+                    <div className="flex gap-2">
+                      <dt className="w-24 shrink-0 text-gray-500">Cím:</dt>
+                      <dd className="text-gray-900">
+                        {address.postalCode} {address.city}, {address.address}
+                      </dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="w-24 shrink-0 text-gray-500">Ország:</dt>
+                      <dd className="text-gray-900">{address.country}</dd>
+                    </div>
+                  </>
+                )}
               </dl>
             )}
             {!piiErased && <GdprEraseButton orderId={order.id} />}
@@ -448,6 +468,10 @@ export default async function AdminOrderDetailPage({
             </h2>
             <dl className="space-y-1 text-sm">
               <div className="flex gap-2">
+                <dt className="w-24 shrink-0 text-gray-500">Forrás:</dt>
+                <dd className="text-gray-900">{CHANNEL_LABELS[order.channel]}</dd>
+              </div>
+              <div className="flex gap-2">
                 <dt className="w-24 shrink-0 text-gray-500">Darabszám:</dt>
                 <dd className="text-gray-900">
                   {lines.every((l) => l.quantity !== null)
@@ -458,72 +482,116 @@ export default async function AdminOrderDetailPage({
               <div className="flex gap-2">
                 <dt className="w-24 shrink-0 text-gray-500">Összeg:</dt>
                 <dd className="font-medium text-gray-900">
-                  {order.totalAmount.toLocaleString("hu-HU")} Ft
+                  {order.totalAmount !== null
+                    ? `${order.totalAmount.toLocaleString("hu-HU")} Ft`
+                    : "Utólag egyeztetendő"}
                 </dd>
               </div>
-              <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-gray-500">Stripe:</dt>
-                <dd className="break-all font-mono text-xs text-gray-600">
-                  {order.stripeSessionId}
-                </dd>
-              </div>
+              {order.stripeSessionId && (
+                <div className="flex gap-2">
+                  <dt className="w-24 shrink-0 text-gray-500">Stripe:</dt>
+                  <dd className="break-all font-mono text-xs text-gray-600">
+                    {order.stripeSessionId}
+                  </dd>
+                </div>
+              )}
             </dl>
           </div>
         </div>
 
-        <OrderLinesTable lines={lines} />
+        <OrderLinesTable lines={lines} showPrices={!isOrderForm} />
 
-        {/* Shipping info */}
-        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="mb-3 text-sm font-semibold text-gray-700">
-            Szállítás
-          </h2>
-          <dl className="space-y-1 text-sm">
-            <div className="flex gap-2">
-              <dt className="w-36 shrink-0 text-gray-500">Módszer:</dt>
-              <dd className="text-gray-900">{shipping.methodLabel}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="w-36 shrink-0 text-gray-500">Szállítási díj:</dt>
-              <dd className="text-gray-900">
-                {order.shippingCost.toLocaleString("hu-HU")} Ft
-              </dd>
-            </div>
-            {shipping.isDeliveryPoint && shipping.pointName && (
-              <>
-                <div className="flex gap-2">
-                  <dt className="w-36 shrink-0 text-gray-500">
-                    Átvételi pont:
-                  </dt>
-                  <dd className="text-gray-900">{shipping.pointName}</dd>
-                </div>
-                {(order.deliveryPointId ?? order.pickupPointId) && (
-                  <div className="flex gap-2">
-                    <dt className="w-36 shrink-0 text-gray-500">Pont kód:</dt>
-                    <dd className="font-mono text-xs text-gray-600">
-                      {order.deliveryPointId ?? order.pickupPointId}
-                    </dd>
-                  </div>
-                )}
-                {shipping.pointAddress && (
-                  <div className="flex gap-2">
-                    <dt className="w-36 shrink-0 text-gray-500">Pont cím:</dt>
-                    <dd className="text-gray-900">{shipping.pointAddress}</dd>
-                  </div>
-                )}
-              </>
+        {isOrderForm && (
+          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">
+              Megrendelés szövege
+            </h2>
+            {order.customerNote !== null ? (
+              <p className="whitespace-pre-wrap text-sm text-gray-900">
+                {order.customerNote}
+              </p>
+            ) : (
+              <p className="text-sm italic text-gray-400">Törölve.</p>
             )}
-          </dl>
-          {order.deliveryType && (
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              <ShipmentActions
-                orderId={order.id}
-                kvikkTrackingNumber={order.kvikkTrackingNumber}
-                courierTrackingNumber={order.courierTrackingNumber}
-              />
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {order.attachments.length > 0 && (
+          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">
+              Csatolt fájlok
+            </h2>
+            <ul className="space-y-1 text-sm">
+              {order.attachments.map((a) => (
+                <li key={a.id} className="flex flex-wrap items-baseline gap-2">
+                  <a
+                    href={`/api/admin/orders/${order.id}/attachments/${a.id}`}
+                    className="break-all text-blue-600 hover:underline"
+                  >
+                    {a.fileName}
+                  </a>
+                  <span className="text-xs text-gray-500">
+                    {formatFileSize(a.sizeBytes)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Shipping info — webshop orders only; ORDER_FORM delivery is agreed directly */}
+        {!isOrderForm && (
+          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">
+              Szállítás
+            </h2>
+            <dl className="space-y-1 text-sm">
+              <div className="flex gap-2">
+                <dt className="w-36 shrink-0 text-gray-500">Módszer:</dt>
+                <dd className="text-gray-900">{shipping.methodLabel}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-36 shrink-0 text-gray-500">Szállítási díj:</dt>
+                <dd className="text-gray-900">
+                  {order.shippingCost.toLocaleString("hu-HU")} Ft
+                </dd>
+              </div>
+              {shipping.isDeliveryPoint && shipping.pointName && (
+                <>
+                  <div className="flex gap-2">
+                    <dt className="w-36 shrink-0 text-gray-500">
+                      Átvételi pont:
+                    </dt>
+                    <dd className="text-gray-900">{shipping.pointName}</dd>
+                  </div>
+                  {(order.deliveryPointId ?? order.pickupPointId) && (
+                    <div className="flex gap-2">
+                      <dt className="w-36 shrink-0 text-gray-500">Pont kód:</dt>
+                      <dd className="font-mono text-xs text-gray-600">
+                        {order.deliveryPointId ?? order.pickupPointId}
+                      </dd>
+                    </div>
+                  )}
+                  {shipping.pointAddress && (
+                    <div className="flex gap-2">
+                      <dt className="w-36 shrink-0 text-gray-500">Pont cím:</dt>
+                      <dd className="text-gray-900">{shipping.pointAddress}</dd>
+                    </div>
+                  )}
+                </>
+              )}
+            </dl>
+            {order.deliveryType && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <ShipmentActions
+                  orderId={order.id}
+                  kvikkTrackingNumber={order.kvikkTrackingNumber}
+                  courierTrackingNumber={order.courierTrackingNumber}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {designedLines.map(({ line, design }) => (
           <div key={design.id}>

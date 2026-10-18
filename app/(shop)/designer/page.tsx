@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import DesignerLayout from "@/components/designer/DesignerLayout";
 import ProductPickerPanel from "@/components/designer/ProductPickerPanel";
 import { getProductBySlug } from "@/lib/services/product";
+import { getFeaturedMalfiniCodes } from "@/lib/services/featured";
 import { getMockupConfig } from "@/lib/designer/mockupConfig";
 import {
   getProducts,
@@ -32,17 +33,6 @@ interface Props {
   };
 }
 
-// Products shown in the picker modal when the designer is opened with no URL params.
-const DESIGNER_PRODUCT_CODES = [
-  "129",
-  "134",
-  "138",
-  "P41",
-  "840",
-  "P21",
-  "P22",
-];
-
 export default async function DesignerPage({ searchParams }: Props) {
   // Print fees are admin-editable, so the designer must read them rather than
   // hardcode them — otherwise it quotes a fee the checkout will not charge.
@@ -54,8 +44,12 @@ export default async function DesignerPage({ searchParams }: Props) {
 
   // ── Empty state: no URL params — show product picker ──────────────────────
   if (!searchParams.code && !searchParams.slug) {
-    const allProducts = await getProducts("hu");
-    const settled = DESIGNER_PRODUCT_CODES.map(
+    // Products shown in the picker — the admin-editable featured list.
+    const [allProducts, featuredCodes] = await Promise.all([
+      getProducts("hu"),
+      getFeaturedMalfiniCodes(),
+    ]);
+    const settled = featuredCodes.map(
       (code) => allProducts.find((p) => p.code === code) ?? null
     );
 

@@ -3,26 +3,24 @@ import AdminNav from "@/components/admin/AdminNav";
 import { getProducts } from "@/lib/malfini/client";
 import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
 import type { MalfiniProduct } from "@/lib/malfini/types";
+import { getFeaturedMalfiniCodes } from "@/lib/services/featured";
+import { GENDER_LABELS } from "@/lib/malfini/genderLabels";
+import FeaturedProductsEditor from "@/components/admin/FeaturedProductsEditor";
 
 // force-dynamic because content varies by searchParams;
 // getProducts() is module-level cached (1h) so no extra API calls per request.
 export const dynamic = "force-dynamic";
 
-const GENDER_LABELS: Record<string, string> = {
-  GENTS: "Férfi",
-  LADIES: "Női",
-  UNISEX: "Uniszex",
-  KIDS: "Gyerek",
-  "GENTS/KIDS": "Férfi/Gyerek",
-  "UNISEX/KIDS": "Uniszex/Gyerek",
-};
 
 export default async function AdminMalfiniCatalogPage({
   searchParams,
 }: {
   searchParams: { category?: string; gender?: string };
 }) {
-  const allProducts = await getProducts("hu");
+  const [allProducts, featuredCodes] = await Promise.all([
+    getProducts("hu"),
+    getFeaturedMalfiniCodes(),
+  ]);
 
   // Only show categories that are configured for the designer (t-shirts, polo-shirts, sweatshirts)
   const configuredProducts = allProducts.filter(
@@ -84,6 +82,20 @@ export default async function AdminMalfiniCatalogPage({
             {visibleProducts.length} termék · csak megtekintés
           </p>
         </div>
+
+        <FeaturedProductsEditor
+          initialCodes={featuredCodes}
+          options={configuredProducts.map((p) => ({
+            code: p.code,
+            label: [
+              p.name,
+              p.categoryName,
+              GENDER_LABELS[p.genderCode ?? ""] ?? p.genderCode,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          }))}
+        />
 
         {/* Filters */}
         <div className="flex flex-col gap-3 mb-6">

@@ -83,7 +83,9 @@ export async function createShipmentForOrder(
     postalCode: string;
     country: string;
   };
-  const goodsValue = Math.max(0, order.totalAmount - order.shippingCost);
+  // Only webshop orders reach this point (ORDER_FORM orders have no deliveryType),
+  // and those always carry a total.
+  const goodsValue = Math.max(0, (order.totalAmount ?? 0) - order.shippingCost);
   const weightGrams = order.parcelWeightGrams ?? DEFAULT_PARCEL_WEIGHT_GRAMS;
 
   const req: CreateShipmentRequest = {

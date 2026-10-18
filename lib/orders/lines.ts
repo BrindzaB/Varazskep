@@ -13,8 +13,8 @@ export interface OrderLine {
   colorName: string;
   sizeName: string;
   quantity: number | null; // null = legacy order, quantity was never stored
-  unitPriceHuf: number | null; // null = legacy order
-  printFeeHuf: number | null; // per piece; null = legacy order
+  unitPriceHuf: number | null; // null = legacy or ORDER_FORM order
+  printFeeHuf: number | null; // per piece; null = legacy or ORDER_FORM order
   designId: string | null;
 }
 
@@ -26,8 +26,8 @@ interface LineItemFields {
   colorName: string;
   sizeName: string;
   quantity: number;
-  unitPriceHuf: number;
-  printFeeHuf: number;
+  unitPriceHuf: number | null; // null on ORDER_FORM lines (priced later)
+  printFeeHuf: number | null;
   designId: string | null;
 }
 
@@ -58,6 +58,9 @@ export function getOrderLines(order: OrderWithLines): OrderLine[] {
       designId: item.designId,
     }));
   }
+  // No lines and no legacy product: an ORDER_FORM order whose products are described
+  // only in its free text.
+  if (order.productName === "") return [];
   return [
     {
       key: order.id,

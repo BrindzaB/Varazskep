@@ -21,3 +21,5 @@ export function createSupabaseAdmin() {
 export const BUCKET_CLIPART = process.env.SUPABASE_STORAGE_BUCKET_CLIPART ?? "clipart";
 export const BUCKET_DESIGNS = process.env.SUPABASE_STORAGE_BUCKET_DESIGNS ?? "designs";
 export const BUCKET_PRODUCTS = process.env.SUPABASE_STORAGE_BUCKET_PRODUCTS ?? "products";
+// Private — order form uploads, served to the admin only via signed URLs.
+export const BUCKET_ORDER_FILES = process.env.SUPABASE_STORAGE_BUCKET_ORDER_FILES ?? "order-files";

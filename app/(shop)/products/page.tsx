@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getActiveProducts } from "@/lib/services/product";
 import { getProducts } from "@/lib/malfini/client";
 import { getMalfiniPriceMap } from "@/lib/pricing/resolve";
@@ -40,9 +41,19 @@ export default async function ProductsPage() {
   return (
     <section className="px-4 py-10">
       <div className="mx-auto max-w-layout">
-        <h1 className="mb-8 text-2xl font-bold uppercase text-brand-blue">
-          Termékek
-        </h1>
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold uppercase text-brand-blue">
+            Termékek
+          </h1>
+          {/* Alternative for larger (typically corporate) orders — kept secondary
+              to the designer on purpose. */}
+          <Link
+            href="/megrendelo-lap"
+            className="rounded-sm border border-charcoal px-4 py-2 text-sm font-semibold text-charcoal transition-colors hover:bg-charcoal hover:text-white"
+          >
+            Rendelés megrendelő lapon
+          </Link>
+        </div>
         <ProductsPageClient
           clothingProducts={clothingWithPrices}
           localProducts={localProducts}

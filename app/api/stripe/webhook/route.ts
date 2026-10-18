@@ -156,7 +156,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         customerName: fullOrder.customerName,
         customerEmail: fullOrder.customerEmail,
         items: fullOrder.items,
-        totalAmount: fullOrder.totalAmount,
+        totalAmount,
         shippingAddress,
         shippingCost: fullOrder.shippingCost,
         shippingCourier: fullOrder.shippingCourier,
