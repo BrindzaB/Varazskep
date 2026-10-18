@@ -4,6 +4,7 @@ import { getOrderBySessionId } from "@/lib/services/order";
 import { formatHuf } from "@/lib/utils/format";
 import { describeShipping } from "@/lib/shipping/display";
 import CartClearer from "@/components/shop/CartClearer";
+import { getOrderLines } from "@/lib/orders/lines";
 
 export const metadata: Metadata = {
   title: "Rendelés visszaigazolás – Varázskép",
@@ -50,6 +51,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
   };
 
   const shipping = describeShipping(order);
+  const lines = getOrderLines(order);
 
   return (
     <section className="px-4 py-16">
@@ -82,24 +84,38 @@ export default async function OrderConfirmationPage({ params }: Props) {
           </div>
 
           <div className="space-y-4">
-            {/* Product */}
-            <div className="flex justify-between border-b border-border-light pb-4">
-              <div>
-                <p className="font-medium text-charcoal">
-                  {order.productName}
-                  {order.productCode && (
-                    <span className="ml-2 font-mono text-xs text-muted">
-                      {order.productCode}
-                    </span>
-                  )}
-                </p>
-                <p className="text-sm text-muted">
-                  {order.colorName}, {order.sizeName}
-                </p>
-              </div>
-              <p className="font-medium text-charcoal">
-                {formatHuf(order.totalAmount)}
-              </p>
+            {/* Products */}
+            <div className="space-y-3 border-b border-border-light pb-4">
+              {lines.map((line) => (
+                <div key={line.key} className="flex justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-charcoal">
+                      {line.productName}
+                      {line.quantity !== null && ` × ${line.quantity}`}
+                      {line.productCode && (
+                        <span className="ml-2 font-mono text-xs text-muted">
+                          {line.productCode}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-muted">
+                      {line.colorName}, {line.sizeName}
+                      {line.printFeeHuf !== null &&
+                        line.printFeeHuf > 0 &&
+                        " · egyedi nyomtatással"}
+                    </p>
+                  </div>
+                  {line.quantity !== null &&
+                    line.unitPriceHuf !== null &&
+                    line.printFeeHuf !== null && (
+                      <p className="shrink-0 font-medium text-charcoal">
+                        {formatHuf(
+                          (line.unitPriceHuf + line.printFeeHuf) * line.quantity
+                        )}
+                      </p>
+                    )}
+                </div>
+              ))}
             </div>
 
             {/* Shipping method */}

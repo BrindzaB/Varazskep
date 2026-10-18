@@ -40,6 +40,7 @@ vi.mock("@/lib/supabase", () => ({
 
 import { POST } from "@/app/api/stripe/webhook/route";
 import * as orderService from "@/lib/services/order";
+import * as designService from "@/lib/services/design";
 
 const mockCreateOrder = vi.mocked(orderService.createOrder);
 
@@ -53,6 +54,30 @@ function makeRequest(body: string, sig = "valid-sig"): NextRequest {
     body,
   });
 }
+
+const mugLine = {
+  source: "local",
+  variantId: "variant_abc",
+  productName: "Egyedi bögre",
+  colorName: "Fehér",
+  sizeName: "330ml",
+  quantity: 1,
+  unitPriceHuf: 3500,
+  printFeeHuf: 0,
+};
+
+const shirtLine = {
+  source: "malfini",
+  productSizeCode: "1290012",
+  productCode: "129",
+  productName: "Heavy póló",
+  colorName: "Fekete",
+  sizeName: "M",
+  quantity: 4,
+  unitPriceHuf: 2990,
+  printFeeHuf: 3000,
+  designId: "design_1",
+};
 
 function makeSession(overrides: Record<string, unknown> = {}): object {
   return {
@@ -70,16 +95,8 @@ function makeSession(overrides: Record<string, unknown> = {}): object {
         country: "HU",
       }),
       gdprConsent: "true",
-      cartItems: JSON.stringify([
-        {
-          source: "local",
-          variantId: "variant_abc",
-          productName: "Egyedi bögre",
-          colorName: "Fehér",
-          sizeName: "330ml",
-          quantity: 1,
-        },
-      ]),
+      itemCount: "1",
+      item_0: JSON.stringify(mugLine),
       shippingCourier: "mpl",
       deliveryType: "HOME_DELIVERY",
       shippingCost: "1490",
@@ -149,11 +166,18 @@ describe("POST /api/stripe/webhook", () => {
     expect(res.status).toBe(200);
     expect(mockCreateOrder).toHaveBeenCalledWith({
       stripeSessionId: "cs_test_123",
-      variantId: "variant_abc",
-      productName: "Egyedi bögre",
-      colorName: "Fehér",
-      sizeName: "330ml",
-      designId: undefined,
+      items: [
+        {
+          variantId: "variant_abc",
+          productName: "Egyedi bögre",
+          colorName: "Fehér",
+          sizeName: "330ml",
+          quantity: 1,
+          unitPriceHuf: 3500,
+          printFeeHuf: 0,
+          designId: undefined,
+        },
+      ],
       customerName: "Teszt Elek",
       customerEmail: "teszt@example.com",
       customerPhone: "+36301234567",
@@ -170,6 +194,55 @@ describe("POST /api/stripe/webhook", () => {
       deliveryType: "HOME_DELIVERY",
       parcelWeightGrams: 1000,
     });
+  });
+
+  it("stores every cart line, not just the first", async () => {
+    const base = makeSession() as { metadata: Record<string, string> };
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: makeSession({
+          metadata: {
+            ...base.metadata,
+            itemCount: "2",
+            item_1: JSON.stringify(shirtLine),
+          },
+        }),
+      },
+    });
+    mockCreateOrder.mockResolvedValue({ id: "order_1" } as never);
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+    const input = mockCreateOrder.mock.calls[0][0];
+    expect(input.items).toHaveLength(2);
+    expect(input.items[1]).toEqual({
+      productSizeCode: "1290012",
+      productCode: "129",
+      productName: "Heavy póló",
+      colorName: "Fekete",
+      sizeName: "M",
+      quantity: 4,
+      unitPriceHuf: 2990,
+      printFeeHuf: 3000,
+      designId: "design_1",
+    });
+    expect(vi.mocked(designService.exportDesignSvg)).toHaveBeenCalledWith(
+      "design_1"
+    );
+  });
+
+  it("returns 400 instead of storing a partial order when a line is missing", async () => {
+    const base = makeSession() as { metadata: Record<string, string> };
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: makeSession({ metadata: { ...base.metadata, itemCount: "2" } }),
+      },
+    });
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(400);
+    expect(mockCreateOrder).not.toHaveBeenCalled();
   });
 
   it("returns 400 when cartItems metadata is missing", async () => {

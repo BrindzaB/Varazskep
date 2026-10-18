@@ -16,9 +16,14 @@ interface SendOrderConfirmationInput {
   orderId: string;
   customerName: string;
   customerEmail: string;
-  productName: string;
-  variantColor: string;
-  variantSize: string;
+  items: {
+    productName: string;
+    colorName: string;
+    sizeName: string;
+    quantity: number;
+    unitPriceHuf: number;
+    printFeeHuf: number; // per piece
+  }[];
   totalAmount: number; // HUF integer
   shippingAddress: {
     address: string;
@@ -54,9 +59,14 @@ export async function sendOrderConfirmationEmail(
     OrderConfirmation({
       customerName: input.customerName,
       orderId: input.orderId,
-      productName: input.productName,
-      variantColor: input.variantColor,
-      variantSize: input.variantSize,
+      items: input.items.map((item) => ({
+        description: `${item.productName} – ${item.colorName}, ${item.sizeName}`,
+        quantity: item.quantity,
+        withPrint: item.printFeeHuf > 0,
+        lineTotal: formatHuf(
+          (item.unitPriceHuf + item.printFeeHuf) * item.quantity
+        ),
+      })),
       totalAmount: formatHuf(input.totalAmount),
       shippingAddress: {
         address: input.shippingAddress.address,

@@ -4,6 +4,7 @@ import { createOrder, getOrderBySessionId } from "@/lib/services/order";
 import { exportDesignSvg } from "@/lib/services/design";
 import { sendOrderConfirmationEmail } from "@/lib/services/email";
 import type { DeliveryType } from "@/lib/generated/prisma/client";
+import { decodeCartItems } from "@/lib/checkout/cartMetadata";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-03-25.dahlia",
@@ -46,14 +47,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const meta = session.metadata ?? {};
 
-  const cartItems = parseCartItems(meta.cartItems);
+  const cartItems = decodeCartItems(meta);
   if (cartItems.length === 0) {
     console.error(`[webhook] No cart items in session ${session.id}`);
     return NextResponse.json({ error: "No cart items" }, { status: 400 });
   }
-
-  // The current schema supports one item per order (cart enforces single-product in v1).
-  const firstItem = cartItems[0];
 
   let shippingAddress: {
     address: string;
@@ -88,19 +86,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     await createOrder({
       stripeSessionId: session.id,
-      // Source-specific identifiers:
-      ...(firstItem.source === "local"
-        ? { variantId: firstItem.variantId }
-        : {
-            productSizeCode: firstItem.productSizeCode,
-            productCode: firstItem.productCode,
-          }),
-      // Denormalized display fields — passed from metadata, not re-fetched.
-      // Guarantees 8-year retention even if the product is later removed or renamed.
-      productName: firstItem.productName,
-      colorName: firstItem.colorName,
-      sizeName: firstItem.sizeName,
-      designId: firstItem.designId,
+      // Display fields are passed from metadata, not re-fetched. Guarantees 8-year
+      // retention even if the product is later removed or renamed.
+      items: cartItems.map((item) => ({
+        // Source-specific identifiers:
+        ...(item.source === "local"
+          ? { variantId: item.variantId }
+          : {
+              productSizeCode: item.productSizeCode,
+              productCode: item.productCode,
+            }),
+        productName: item.productName,
+        colorName: item.colorName,
+        sizeName: item.sizeName,
+        quantity: item.quantity,
+        unitPriceHuf: item.unitPriceHuf,
+        printFeeHuf: item.printFeeHuf,
+        designId: item.designId,
+      })),
       customerName: meta.customerName ?? "",
       customerEmail: session.customer_email ?? "",
       customerPhone: meta.customerPhone,
@@ -132,10 +135,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // admin panel when the product is ready (step 8.9), then the courier is requested via a
   // delivery note. The webhook only persists the order + the customer's shipping choice.
 
-  // Export design SVG to Supabase Storage — errors are logged but do not fail the webhook.
-  if (firstItem.designId) {
+  // Export each design's SVG to Supabase Storage — errors are logged but do not fail
+  // the webhook.
+  for (const item of cartItems) {
+    if (!item.designId) continue;
     try {
-      await exportDesignSvg(firstItem.designId);
+      await exportDesignSvg(item.designId);
     } catch (err) {
       console.error("[webhook] exportDesignSvg failed:", err);
     }
@@ -150,9 +155,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         orderId: fullOrder.id,
         customerName: fullOrder.customerName,
         customerEmail: fullOrder.customerEmail,
-        productName: fullOrder.productName,
-        variantColor: fullOrder.colorName,
-        variantSize: fullOrder.sizeName,
+        items: fullOrder.items,
         totalAmount: fullOrder.totalAmount,
         shippingAddress,
         shippingCost: fullOrder.shippingCost,
@@ -168,43 +171,4 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json({ received: true });
-}
-
-// Shape embedded in Stripe session metadata by the checkout route.
-interface CartItemMeta {
-  source: "local" | "malfini";
-  // Local only:
-  variantId?: string;
-  // Malfini only:
-  productSizeCode?: string;
-  productCode?: string;
-  // Always set:
-  productName: string;
-  colorName: string;
-  sizeName: string;
-  quantity: number;
-  designId?: string;
-}
-
-function parseCartItems(raw: string | undefined): CartItemMeta[] {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is CartItemMeta => {
-      if (typeof item !== "object" || item === null) return false;
-      const i = item as Record<string, unknown>;
-      if (i.source !== "local" && i.source !== "malfini") return false;
-      if (typeof i.productName !== "string") return false;
-      if (typeof i.colorName !== "string") return false;
-      if (typeof i.sizeName !== "string") return false;
-      if (typeof i.quantity !== "number") return false;
-      if (i.source === "local" && typeof i.variantId !== "string") return false;
-      if (i.source === "malfini" && typeof i.productSizeCode !== "string")
-        return false;
-      return true;
-    });
-  } catch {
-    return [];
-  }
 }

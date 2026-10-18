@@ -42,7 +42,8 @@ model Variant {
   // Gross package weight in grams, used to source the Kvikk parcel weight.
   // Null → falls back to a default (see lib/kvikk/weight.ts + lib/services/shipping.ts).
   weightGrams Int?
-  orders      Order[]
+  orders      Order[] // LEGACY single-item orders — new orders link via OrderItem
+  orderItems  OrderItem[]
 }
 
 model Clipart {
@@ -65,7 +66,8 @@ model Design {
   previewUrl String?
   createdAt  DateTime @default(now())
   expiresAt  DateTime // set to createdAt + 45 days at creation time
-  order      Order?
+  order      Order? // LEGACY single-item orders
+  orderItem  OrderItem?
 }
 
 // Admin-editable pricing parameters. Key/value so new knobs need no migration.
@@ -94,18 +96,18 @@ model Order {
   id                    String         @id @default(cuid())
   stripeSessionId       String         @unique
   status                OrderStatus    @default(PENDING)
-  // Local products (mugs, etc.) — null for Malfini orders
+  // The ordered products, one row per cart line. Empty on legacy orders.
+  items                 OrderItem[]
+  // LEGACY single-item fields: orders created before OrderItem stored their one product
+  // here (and lost every further cart line). Read-only now — new orders leave them
+  // empty; lib/orders/lines.ts presents both shapes as line items.
   variantId             String?
   variant               Variant?       @relation(fields: [variantId], references: [id])
-  // Malfini products (clothing) — null for local orders
   productSizeCode       String? // 7-char SKU e.g. "M150XM0"
   productCode           String? // 3-char product code e.g. "150"
-  // Denormalized display fields — always set for both sources
-  // Required for 8-year retention even if product is later removed
   productName           String         @default("")
   colorName             String         @default("")
   sizeName              String         @default("")
-  // Design (optional — not all products require a custom design)
   designId              String?        @unique
   design                Design?        @relation(fields: [designId], references: [id])
   // Customer info — retained 8 years per Hungarian tax law (Számviteli törvény)
@@ -134,6 +136,32 @@ model Order {
   deliveryNoteId        String? // set once the shipment is on a delivery note (courier pickup requested)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
+}
+
+// One ordered product line. The product identity is denormalized (name/colour/size)
+// for 8-year retention even if the product is later removed or renamed.
+model OrderItem {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  position        Int // 0-based cart line order — cuids are not a reliable sort key
+  // Local products (mugs, etc.) — null for Malfini lines
+  variantId       String?
+  variant         Variant? @relation(fields: [variantId], references: [id])
+  // Malfini products (clothing) — null for local lines
+  productSizeCode String? // 7-char SKU e.g. "M150XM0"
+  productCode     String? // 3-char product code e.g. "150"
+  productName     String
+  colorName       String
+  sizeName        String
+  quantity        Int
+  unitPriceHuf    Int // gross product price per piece, as charged
+  printFeeHuf     Int      @default(0) // gross print fee per piece, as charged (0 = no design)
+  // Design (optional — set for lines created in the designer)
+  designId        String?  @unique
+  design          Design?  @relation(fields: [designId], references: [id])
+
+  @@index([orderId])
 }
 
 // ─── Enums ─────────────────────────────────────────────────────────────────

@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { DeliveryType, OrderStatus } from "@/lib/generated/prisma/client";
 
-export interface CreateOrderInput {
-  stripeSessionId: string;
+export interface CreateOrderItemInput {
   // One of these must be set — never both.
   variantId?: string; // local products (mugs, etc.)
   productSizeCode?: string; // Malfini products — 7-char SKU
@@ -12,7 +11,15 @@ export interface CreateOrderInput {
   productName: string;
   colorName: string;
   sizeName: string;
-  designId?: string; // links the pre-created Design record to this order
+  quantity: number;
+  unitPriceHuf: number; // gross, as charged
+  printFeeHuf: number; // gross per piece, as charged (0 = no design)
+  designId?: string; // links the pre-created Design record to this line
+}
+
+export interface CreateOrderInput {
+  stripeSessionId: string;
+  items: CreateOrderItemInput[]; // at least one
   customerName: string;
   customerEmail: string;
   customerPhone?: string; // recipient phone — needed to create the Kvikk shipment
@@ -36,17 +43,13 @@ export interface CreateOrderInput {
 }
 
 /**
- * Fetches an order by its Stripe session ID, including variant + product info.
- * Used by the confirmation page.
+ * Fetches an order by its Stripe session ID, including its line items.
+ * Used by the confirmation page and the confirmation email.
  */
 export async function getOrderBySessionId(stripeSessionId: string) {
   return prisma.order.findUnique({
     where: { stripeSessionId },
-    include: {
-      variant: {
-        include: { product: true },
-      },
-    },
+    include: { items: { orderBy: { position: "asc" } } },
   });
 }
 
@@ -70,17 +73,25 @@ export async function createOrder(input: CreateOrderInput) {
     data: {
       stripeSessionId: input.stripeSessionId,
       status: "PAID",
-      // Source-specific identifiers — one or the other, never both.
-      ...(input.variantId ? { variantId: input.variantId } : {}),
-      ...(input.productSizeCode
-        ? { productSizeCode: input.productSizeCode }
-        : {}),
-      ...(input.productCode ? { productCode: input.productCode } : {}),
-      // Denormalized display fields — always written for both sources.
-      productName: input.productName,
-      colorName: input.colorName,
-      sizeName: input.sizeName,
-      ...(input.designId ? { designId: input.designId } : {}),
+      // Nested create — the order and all its lines are written atomically.
+      items: {
+        create: input.items.map((item, position) => ({
+          position,
+          // Source-specific identifiers — one or the other, never both.
+          ...(item.variantId ? { variantId: item.variantId } : {}),
+          ...(item.productSizeCode
+            ? { productSizeCode: item.productSizeCode }
+            : {}),
+          ...(item.productCode ? { productCode: item.productCode } : {}),
+          productName: item.productName,
+          colorName: item.colorName,
+          sizeName: item.sizeName,
+          quantity: item.quantity,
+          unitPriceHuf: item.unitPriceHuf,
+          printFeeHuf: item.printFeeHuf,
+          ...(item.designId ? { designId: item.designId } : {}),
+        })),
+      },
       customerName: input.customerName,
       customerEmail: input.customerEmail,
       ...(input.customerPhone ? { customerPhone: input.customerPhone } : {}),
@@ -186,22 +197,20 @@ export async function updateOrderStatus(
 export async function getAllOrders() {
   return prisma.order.findMany({
     orderBy: { createdAt: "desc" },
-    include: {
-      variant: { include: { product: true } },
-    },
+    include: { items: { orderBy: { position: "asc" } } },
   });
 }
 
 /**
- * Returns a single order with full relations including design.
+ * Returns a single order with its line items and their designs.
  * Used by the admin order detail page.
  */
 export async function getOrderById(orderId: string) {
   return prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      variant: { include: { product: true } },
-      design: true,
+      items: { orderBy: { position: "asc" }, include: { design: true } },
+      design: true, // LEGACY single-item orders
     },
   });
 }
@@ -214,6 +223,7 @@ export async function getDispatchableOrders() {
   return prisma.order.findMany({
     where: { kvikkTrackingNumber: { not: null }, deliveryNoteId: null },
     orderBy: { createdAt: "asc" },
+    include: { items: { orderBy: { position: "asc" } } },
   });
 }
 

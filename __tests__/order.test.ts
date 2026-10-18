@@ -25,10 +25,28 @@ const mockPrisma = prisma as unknown as {
 
 const baseInput = {
   stripeSessionId: "cs_test_123",
-  variantId: "variant_abc",
-  productName: "Egyedi bögre",
-  colorName: "Fehér",
-  sizeName: "330ml",
+  items: [
+    {
+      variantId: "variant_abc",
+      productName: "Egyedi bögre",
+      colorName: "Fehér",
+      sizeName: "330ml",
+      quantity: 2,
+      unitPriceHuf: 3490,
+      printFeeHuf: 3000,
+      designId: "design_1",
+    },
+    {
+      productSizeCode: "1290012",
+      productCode: "129",
+      productName: "Heavy póló",
+      colorName: "Fekete",
+      sizeName: "M",
+      quantity: 5,
+      unitPriceHuf: 2990,
+      printFeeHuf: 0,
+    },
+  ],
   customerName: "Teszt Elek",
   customerEmail: "teszt@example.com",
   shippingAddress: {
@@ -62,13 +80,49 @@ describe("createOrder", () => {
       data: expect.objectContaining({
         stripeSessionId: baseInput.stripeSessionId,
         status: "PAID",
-        variantId: baseInput.variantId,
         customerEmail: baseInput.customerEmail,
         totalAmount: baseInput.totalAmount,
         gdprConsent: true,
       }),
     });
     expect(result).toMatchObject({ status: "PAID" });
+  });
+
+  it("stores every cart line with its quantity and prices, in cart order", async () => {
+    mockPrisma.order.findUnique.mockResolvedValue(null);
+    mockPrisma.order.create.mockResolvedValue({ id: "order_1" });
+
+    await createOrder(baseInput);
+
+    const { data } = mockPrisma.order.create.mock.calls[0][0];
+    expect(data.items.create).toEqual([
+      {
+        position: 0,
+        variantId: "variant_abc",
+        productName: "Egyedi bögre",
+        colorName: "Fehér",
+        sizeName: "330ml",
+        quantity: 2,
+        unitPriceHuf: 3490,
+        printFeeHuf: 3000,
+        designId: "design_1",
+      },
+      {
+        position: 1,
+        productSizeCode: "1290012",
+        productCode: "129",
+        productName: "Heavy póló",
+        colorName: "Fekete",
+        sizeName: "M",
+        quantity: 5,
+        unitPriceHuf: 2990,
+        printFeeHuf: 0,
+      },
+    ]);
+    // The legacy single-item columns are no longer written.
+    expect(data).not.toHaveProperty("variantId");
+    expect(data).not.toHaveProperty("productName");
+    expect(data).not.toHaveProperty("designId");
   });
 
   it("is idempotent — returns existing order without creating a duplicate", async () => {

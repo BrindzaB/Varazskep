@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import { getAllOrders } from "@/lib/services/order";
+import { getOrderLines, summarizeOrderLines } from "@/lib/orders/lines";
 import type { OrderStatus } from "@/lib/generated/prisma/client";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -62,7 +63,7 @@ export default async function AdminOrdersPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-900">{order.customerName}</td>
                     <td className="px-4 py-3 text-gray-700">
-                      {order.productName} — {order.colorName} / {order.sizeName}
+                      {summarizeOrderLines(getOrderLines(order))}
                     </td>
                     <td className="px-4 py-3 text-gray-900">
                       {order.totalAmount.toLocaleString("hu-HU")} Ft

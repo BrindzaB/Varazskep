@@ -231,19 +231,26 @@ export function getDesignSvgSize(canvasJson: CanvasJson): {
 // ── Database operations ───────────────────────────────────────────────────────
 
 /**
- * Returns an order's design canvas JSON, or null if the order has no design (or the canvas
- * was already erased at the 45-day lifecycle). Used by the admin design-preview route to
+ * Returns the canvas JSON of one of an order's designs, or null if the design does not
+ * belong to the order (or its canvas was already erased at the 45-day lifecycle). An order
+ * holds one design per designed line. Used by the admin design-preview route to
  * rebuild the SVG on the fly and serve it inline (see the route for why we don't link the
  * Supabase public URL directly).
  */
 export async function getDesignCanvasByOrderId(
-  orderId: string
+  orderId: string,
+  designId: string
 ): Promise<CanvasJson | null> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { design: { select: { canvasJson: true } } },
+  // The design must belong to the order — either to one of its lines or, on a legacy
+  // single-item order, to the order itself.
+  const design = await prisma.design.findFirst({
+    where: {
+      id: designId,
+      OR: [{ orderItem: { orderId } }, { order: { id: orderId } }],
+    },
+    select: { canvasJson: true },
   });
-  const json = order?.design?.canvasJson;
+  const json = design?.canvasJson;
   return json ? (json as unknown as CanvasJson) : null;
 }
 
