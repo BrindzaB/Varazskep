@@ -72,7 +72,7 @@ export default async function AdminProductsPage() {
 
         <ProductListEditor
           title="Népszerű termékek"
-          description={`A Termékek oldal tetején, magenta keretben kiemelt termékek (legfeljebb ${MAX_POPULAR_PRODUCTS}), ebben a sorrendben. Üres lista esetén a doboz nem jelenik meg.`}
+          description={`A Termékek oldal tetején, kék keretben kiemelt termékek (legfeljebb ${MAX_POPULAR_PRODUCTS}), ebben a sorrendben. Üres lista esetén a doboz nem jelenik meg.`}
           endpoint="/api/admin/popular-products"
           payloadKey="keys"
           initialValues={popularKeys}

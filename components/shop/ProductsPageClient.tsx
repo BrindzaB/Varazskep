@@ -56,6 +56,10 @@ interface CategoryTab {
 
 const PAGE_SIZE = 30;
 
+// Shared by the search box and the sort select so the two match side by side.
+const FIELD_CLASS =
+  "h-10 w-full rounded border border-border-medium bg-white text-sm text-charcoal focus:border-brand-blue focus:outline-none";
+
 interface Props {
   clothingProducts: ClothingProduct[];
   localProducts: ProductWithVariants[];
@@ -249,7 +253,8 @@ export default function ProductsPageClient({
             </div>
           </div>
 
-          {/* Mobile: tiles that wrap onto new rows, without icons. */}
+          {/* Mobile: pill-shaped tiles that wrap onto new rows — round, so they do
+              not read as more of the square gender filter buttons below. */}
           <div className="mb-6 flex flex-wrap gap-2 md:hidden">
             {tabs.map((tab) => {
               const active = categoryKey === tab.key;
@@ -259,12 +264,13 @@ export default function ProductsPageClient({
                   type="button"
                   onClick={() => setCategoryKey(tab.key)}
                   aria-pressed={active}
-                  className={`whitespace-nowrap rounded border px-4 py-2 text-sm font-bold transition-colors ${
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-bold transition-colors ${
                     active
                       ? "border-brand-violet bg-brand-violet text-white"
                       : "border-border-light bg-white text-brand-violet hover:border-brand-violet"
                   }`}
                 >
+                  <CategoryIcon icon={tab.icon} className="h-4 w-4" />
                   {tab.label}
                 </button>
               );
@@ -314,25 +320,42 @@ export default function ProductsPageClient({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Keresés terméknévre…"
-              className="w-full rounded border border-border-medium bg-white py-2 pl-9 pr-3 text-sm text-charcoal focus:border-brand-blue focus:outline-none"
+              className={`${FIELD_CLASS} pl-9 pr-3`}
             />
           </label>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as ProductSort)}
-            aria-label="Rendezés"
-            className="w-full rounded border border-border-medium bg-white px-3 py-2 text-sm text-charcoal focus:outline-none sm:w-auto"
-          >
-            <option value="name">Név szerint (A–Z)</option>
-            <option value="price-asc">Ár: alacsonyabbtól magasabbig</option>
-            <option value="price-desc">Ár: magasabbtól alacsonyabbig</option>
-          </select>
+          {/* Native select chrome differs per browser — drawn by hand so it matches
+              the search box in height, border and rounding. */}
+          <label className="relative w-full sm:w-56">
+            <span className="sr-only">Rendezés</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as ProductSort)}
+              className={`${FIELD_CLASS} cursor-pointer appearance-none pl-3 pr-9`}
+            >
+              <option value="name">Név szerint (A–Z)</option>
+              <option value="price-asc">Ár szerint növekvő</option>
+              <option value="price-desc">Ár szerint csökkenő</option>
+            </select>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </label>
         </div>
       </div>
 
       {showPopular && (
-        <section className="mb-8 rounded border-2 border-brand-violet p-3 sm:p-5">
-          <h2 className="mb-4 text-lg font-bold uppercase text-brand-violet">
+        <section className="mb-8 rounded border-2 border-brand-blue p-3 sm:p-5">
+          <h2 className="mb-4 text-lg font-bold uppercase text-brand-blue">
             Népszerű termékek
           </h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">

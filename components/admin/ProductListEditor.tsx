@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { compareNamesHu, matchesSearch } from "@/lib/shop/productList";
 
 export interface ProductListOption {
   value: string; // what gets saved, e.g. a Malfini code or a popular key
@@ -36,15 +37,32 @@ export default function ProductListEditor({
 }: Props) {
   const router = useRouter();
   const [values, setValues] = useState<string[]>(initialValues);
-  const [toAdd, setToAdd] = useState("");
+  const [query, setQuery] = useState("");
+  // The alphabetical list opens on focus, so it can be browsed as well as searched.
+  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
     null
   );
 
   const optionOf = (value: string) => options.find((o) => o.value === value);
-  const addable = options.filter((o) => !values.includes(o.value));
   const full = maxItems !== undefined && values.length >= maxItems;
+
+  // Not yet listed options, alphabetical, narrowed by the search box (name or tag).
+  const addable = useMemo(
+    () =>
+      options
+        .filter((o) => !values.includes(o.value))
+        .filter((o) => matchesSearch([o.label, o.tag], query))
+        .sort((a, b) => compareNamesHu(a.label, b.label)),
+    [options, values, query]
+  );
+
+  function add(value: string) {
+    setValues([...values, value]);
+    setQuery("");
+    setMessage(null);
+  }
   const dirty = values.join(",") !== initialValues.join(",");
 
   function move(index: number, delta: number) {
@@ -128,33 +146,52 @@ export default function ProductListEditor({
         )}
       </ol>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={toAdd}
-          onChange={(e) => setToAdd(e.target.value)}
-          disabled={full}
-          className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50"
-        >
-          <option value="">
-            {full ? `Legfeljebb ${maxItems} termék lehet` : "Termék hozzáadása…"}
-          </option>
-          {addable.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.tag} — {o.label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          disabled={!toAdd || full}
-          onClick={() => {
-            setValues([...values, toAdd]);
-            setToAdd("");
-          }}
-          className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-        >
-          Hozzáadás
-        </button>
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            disabled={full}
+            placeholder={
+              full
+                ? `Legfeljebb ${maxItems} termék lehet`
+                : "Termék hozzáadása — keresés név vagy kód szerint…"
+            }
+            aria-label="Termék keresése a hozzáadáshoz"
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50"
+          />
+          {!full && (open || query.trim() !== "") && (
+            <ul className="mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+              {addable.map((o) => (
+                <li key={o.value}>
+                  <button
+                    type="button"
+                    // mousedown, not click: the input's blur would close the list first.
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      add(o.value);
+                    }}
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  >
+                    <span className="w-12 shrink-0 font-mono text-xs text-gray-500">
+                      {o.tag}
+                    </span>
+                    <span className="min-w-0 flex-1 text-gray-900">{o.label}</span>
+                    <span className="shrink-0 text-xs font-medium text-gray-500">
+                      + Hozzáadás
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {addable.length === 0 && (
+                <li className="px-3 py-2 text-sm text-gray-500">Nincs találat.</li>
+              )}
+            </ul>
+          )}
+        </div>
         <button
           type="button"
           disabled={!dirty || saving || (!allowEmpty && values.length === 0)}
