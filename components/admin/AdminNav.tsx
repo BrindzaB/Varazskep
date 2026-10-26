@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { href: "/admin/products", label: "Termékek" },
   { href: "/admin/pricing", label: "Árazás" },
   { href: "/admin/clipart", label: "Minták" },
+  { href: "/admin/settings", label: "Beállítások" },
 ];
 
 export default function AdminNav() {
