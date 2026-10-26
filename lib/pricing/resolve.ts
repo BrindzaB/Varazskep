@@ -20,14 +20,22 @@ import {
   type PrintSizeCm,
 } from "@/lib/designer/mockupConfig";
 import type { CanvasJson } from "@/lib/services/design";
-import { computePrintFeeHuf, PRINT_FEE_UNRESOLVABLE } from "./printFee";
+import {
+  computePrintFeeHuf,
+  PRINT_FEE_OVERSIZE,
+  PRINT_FEE_UNRESOLVABLE,
+} from "./printFee";
 import { makeEurToHufConverter } from "@/lib/malfini/pricing";
 import {
   computeGrossPrice,
   profitPerPieceHuf,
   realisedMarkupPct,
 } from "./compute";
-import { getPricingSettings, type PricingSettings } from "./settings";
+import {
+  getPricingSettings,
+  printFeesFromSettings,
+  type PricingSettings,
+} from "./settings";
 import { getPriceOverrideMap } from "./overrides";
 
 // Loads everything the resolution chain needs. The settings come first because the
@@ -173,7 +181,8 @@ export type PrintFeeRef =
  * (much smaller) print area and land every object in the cheap tier.
  *
  * Returns null when the item cannot be priced — no design row, no designer template,
- * or unreadable geometry. Callers must reject the checkout rather than charge 0.
+ * unreadable geometry, or an object larger than A3. Callers must reject the checkout
+ * rather than charge 0.
  */
 export async function resolvePrintFeeHuf(
   ref: PrintFeeRef
@@ -202,16 +211,19 @@ export async function resolvePrintFeeHuf(
       design.canvasJson as unknown as CanvasJson,
       area.printArea,
       area.printAreaCm,
-      {
-        smallHuf: settings.printFeeSmallHuf,
-        largeHuf: settings.printFeeLargeHuf,
-      }
+      printFeesFromSettings(settings)
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === PRINT_FEE_UNRESOLVABLE) {
       console.error(
         `[pricing] print fee: unreadable object geometry in design ${ref.designId}`
+      );
+      return null;
+    }
+    if (message === PRINT_FEE_OVERSIZE) {
+      console.error(
+        `[pricing] print fee: object larger than A3 in design ${ref.designId}`
       );
       return null;
     }

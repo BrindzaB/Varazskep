@@ -2,7 +2,6 @@
 
 import {
   forwardRef,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -12,8 +11,9 @@ import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
 import { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
 import type { PrintArea, PrintSizeCm } from "@/lib/designer/mockupConfig";
 import {
-  A4_WIDTH_CM,
-  A4_HEIGHT_CM,
+  feeForTier,
+  printTierOf,
+  scaleToFitA3,
   type PrintFees,
 } from "@/lib/pricing/printFee";
 
@@ -21,10 +21,10 @@ import {
 export const CANVAS_WIDTH = 500;
 export const CANVAS_HEIGHT = 600;
 
-// The A4 tier thresholds and the per-object fees now live in lib/pricing/printFee.ts,
-// shared with the server. The fee computed here is display-only — the checkout recomputes
-// it from the stored design geometry, so both sides must use the same rule and the same
-// admin-configured fees.
+// The print tiers (10×10 cm / A4 / A3), the A3 cap and the per-object fees live in
+// lib/pricing/printFee.ts, shared with the server. The fee computed here is display-only —
+// the checkout recomputes it from the stored design geometry, so both sides must use the
+// same rule and the same admin-configured fees.
 
 // Mockup occupies 95% of the canvas in the tighter dimension
 const MOCKUP_SCALE_FACTOR = 0.95;
@@ -90,8 +90,8 @@ interface DesignerCanvasProps {
   // Print area config — drives object constraints and the dashed boundary rect.
   // Comes from mockupConfig (local) or categoryConfig (Malfini).
   printArea: PrintArea;
-  // Real print area size (cm) — converts the on-canvas pixel design to cm for the
-  // coordinate overlay, saved production coordinates, and the print-fee tier.
+  // Real print area size (cm) — converts the on-canvas pixel design to cm for the saved
+  // production coordinates, the print-fee tier and the A3 size cap.
   printAreaCm: PrintSizeCm;
   // Per-object print fees from the admin pricing settings (lib/pricing/settings.ts).
   // Display only — the authoritative charge is recomputed server-side at checkout.
@@ -144,14 +144,6 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
     // Red center guide line — shown while an object is snapped to horizontal center
     const [showCenterGuide, setShowCenterGuide] = useState(false);
 
-    // Floating coordinate overlay state — shown above the selected object
-    const [coordOverlay, setCoordOverlay] = useState<{
-      xCm: number;
-      yCm: number;
-      left: number;
-      top: number;
-    } | null>(null);
-
     const onActiveTextChangeRef = useRef(onActiveTextChange);
     useEffect(() => {
       onActiveTextChangeRef.current = onActiveTextChange;
@@ -178,28 +170,74 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       recalcPrintFeeRef.current?.();
     }, [printFees]);
 
-    // Computes X/Y position (in cm from print area top-left) and DOM position for the overlay.
-    const computeCoordOverlay = useCallback(
-      (obj: FabricObject) => {
+    // The customer's design objects: everything except the mockup and the dashed print
+    // area guide. Not `selectable !== false` — Fabric clears `selectable` on a text object
+    // while it is being edited, which would drop that text from the fee and the design.
+    const isDesignObject = (o: FabricObject) =>
+      o !== shirtImageRef.current && o !== printAreaRectRef.current;
+
+    // Real-world size of an object in cm — the basis of the print tier and the A3 cap.
+    const sizeCmOf = (obj: FabricObject) => ({
+      wCm: obj.getScaledWidth() * (printAreaCm.width / printArea.width),
+      hCm: obj.getScaledHeight() * (printAreaCm.height / printArea.height),
+    });
+
+    // Shrinks an object (uniformly, about its centre) so it fits on A3. No-op if it fits.
+    const capToA3 = (obj: FabricObject) => {
+      const factor = scaleToFitA3(sizeCmOf(obj));
+      if (factor >= 1) return;
+      const center = obj.getCenterPoint();
+      obj.set({
+        scaleX: (obj.scaleX ?? 1) * factor,
+        scaleY: (obj.scaleY ?? 1) * factor,
+      });
+      obj.setPositionByOrigin(center, "center", "center");
+      obj.setCoords();
+    };
+
+    // Brings an object that grew without a drag — a new upload, or text being typed —
+    // back within the limits a drag enforces: at most A3, and inside the print area.
+    const fitIntoPrintArea = (obj: FabricObject) => {
+      capToA3(obj);
+
+      obj.setCoords();
+      const br = obj.getBoundingRect();
+      const factor = Math.min(
+        1,
+        printArea.width / br.width,
+        printArea.height / br.height
+      );
+      const center = obj.getCenterPoint();
+      if (factor < 1) {
+        obj.set({
+          scaleX: (obj.scaleX ?? 1) * factor,
+          scaleY: (obj.scaleY ?? 1) * factor,
+        });
+      }
+
+      // Re-centre within the print area if the object now overhangs an edge.
+      obj.setPositionByOrigin(center, "center", "center");
+      obj.setCoords();
+      const fitted = obj.getBoundingRect();
+      const halfW = fitted.width / 2;
+      const halfH = fitted.height / 2;
+      const left = printArea.centerX - printArea.width / 2;
+      const top = printArea.centerY - printArea.height / 2;
+      const clampedX = Math.min(
+        Math.max(center.x, left + halfW),
+        left + printArea.width - halfW
+      );
+      const clampedY = Math.min(
+        Math.max(center.y, top + halfH),
+        top + printArea.height - halfH
+      );
+      const dx = clampedX - center.x;
+      const dy = clampedY - center.y;
+      if (dx !== 0 || dy !== 0) {
+        obj.set({ left: obj.left + dx, top: obj.top + dy });
         obj.setCoords();
-        const br = obj.getBoundingRect();
-        const printLeft = printArea.centerX - printArea.width / 2;
-        const printTop = printArea.centerY - printArea.height / 2;
-        return {
-          xCm: Math.max(
-            0,
-            (br.left - printLeft) * (printAreaCm.width / printArea.width)
-          ),
-          yCm: Math.max(
-            0,
-            (br.top - printTop) * (printAreaCm.height / printArea.height)
-          ),
-          left: br.left + br.width / 2,
-          top: br.top,
-        };
-      },
-      [printArea, printAreaCm]
-    );
+      }
+    };
 
     // ── Expose canvas API to DesignerLayout ───────────────────────────────────
     useImperativeHandle(ref, () => ({
@@ -228,10 +266,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         (img as ClipartFabricImage)._clipartLight = lightUrl;
         (img as ClipartFabricImage)._clipartDark = darkUrl;
 
-        img.controls = {
-          ...img.controls,
-          deleteControl: buildDeleteControl(Control),
-        };
+        img.controls = buildObjectControls(img.controls, Control);
 
         canvas.add(img);
         canvas.setActiveObject(img);
@@ -264,10 +299,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           });
           (newImg as ClipartFabricImage)._clipartLight = light;
           (newImg as ClipartFabricImage)._clipartDark = dark;
-          newImg.controls = {
-            ...obj.controls,
-            deleteControl: buildDeleteControl(Control),
-          };
+          newImg.controls = buildObjectControls(obj.controls, Control);
           if (onCanvas) {
             canvas.remove(obj);
             canvas.add(newImg);
@@ -323,10 +355,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           originY: "center",
         });
 
-        img.controls = {
-          ...img.controls,
-          deleteControl: buildDeleteControl(Control),
-        };
+        img.controls = buildObjectControls(img.controls, Control);
 
         canvas.add(img);
         canvas.setActiveObject(img);
@@ -350,10 +379,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           textAlign: "center",
         });
 
-        text.controls = {
-          ...text.controls,
-          deleteControl: buildDeleteControl(Control),
-        };
+        text.controls = buildObjectControls(text.controls, Control);
 
         canvas.add(text);
         canvas.setActiveObject(text);
@@ -412,7 +438,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 
         const currentObjects = canvas
           .getObjects()
-          .filter((o) => o.selectable !== false)
+          .filter(isDesignObject)
           .map(withCoords);
 
         const otherObjects = sideObjectsRef.current[otherSide].map(withCoords);
@@ -468,6 +494,10 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           height: actualCanvasHeight,
           backgroundColor: "#ffffff",
           preserveObjectStacking: true,
+          // Corner handles always keep the aspect ratio; null disables the Shift key
+          // that would otherwise switch to free (distorting) scaling.
+          uniformScaling: true,
+          uniScaleKey: null,
         });
         fabricRef.current = canvas;
 
@@ -540,18 +570,15 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           if (!c) return;
           const currentObjs = c
             .getObjects()
-            .filter((o) => o.selectable !== false);
+            .filter(isDesignObject);
           const otherSide =
             currentSideRef.current === "front" ? "back" : "front";
           const otherObjs = sideObjectsRef.current[otherSide];
           const total = [...currentObjs, ...otherObjs].reduce((sum, obj) => {
-            const wCm =
-              obj.getScaledWidth() * (printAreaCm.width / printArea.width);
-            const hCm =
-              obj.getScaledHeight() * (printAreaCm.height / printArea.height);
-            const isLarge = wCm > A4_WIDTH_CM || hCm > A4_HEIGHT_CM;
-            const fees = printFeesRef.current;
-            return sum + (isLarge ? fees.largeHuf : fees.smallHuf);
+            // Objects are capped at A3, so null (over A3) cannot occur; price it as A3
+            // rather than drop it if it ever does.
+            const tier = printTierOf(sizeCmOf(obj)) ?? "a3";
+            return sum + feeForTier(tier, printFeesRef.current);
           }, 0);
           onPrintFeeChangeRef.current?.(total);
         };
@@ -587,6 +614,8 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         canvas.on("object:added", (e) => {
           const obj = e.target;
           if (!obj || obj.selectable === false) return;
+          // A large uploaded image can start out bigger than A3 or the print area.
+          fitIntoPrintArea(obj);
           lastGoodState.set(obj, {
             scaleX: obj.scaleX ?? 1,
             scaleY: obj.scaleY ?? 1,
@@ -612,6 +641,8 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           const obj = e.target;
           if (!obj) return;
 
+          // Nothing may be printed larger than A3: stop growing at that size.
+          capToA3(obj);
           obj.setCoords();
           const br = obj.getBoundingRect();
 
@@ -659,29 +690,23 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 
         canvas.on("selection:created", (e) => {
           notifyTextSelection(e.selected?.[0]);
-          const obj = e.selected?.[0];
-          if (obj && obj.selectable !== false)
-            setCoordOverlay(computeCoordOverlay(obj));
         });
         canvas.on("selection:updated", (e) => {
           notifyTextSelection(e.selected?.[0]);
-          const obj = e.selected?.[0];
-          if (obj && obj.selectable !== false)
-            setCoordOverlay(computeCoordOverlay(obj));
-          else setCoordOverlay(null);
         });
         canvas.on("selection:cleared", () => {
           onActiveTextChangeRef.current?.(false, "", "");
-          setCoordOverlay(null);
           setShowCenterGuide(false);
         });
-        canvas.on("object:moving", (e) => {
-          if (e.target && e.target.selectable !== false)
-            setCoordOverlay(computeCoordOverlay(e.target));
-        });
-        canvas.on("object:scaling", (e) => {
-          if (e.target && e.target.selectable !== false)
-            setCoordOverlay(computeCoordOverlay(e.target));
+
+        // Typing makes a text object wider without any scaling — keep it within A3 and
+        // the print area too, shrinking the text as the line grows.
+        canvas.on("text:changed", (e) => {
+          const obj = e.target;
+          if (!obj) return;
+          fitIntoPrintArea(obj);
+          recalcPrintFee();
+          canvas.requestRenderAll();
         });
 
         // Dashed print area boundary — visual guide, not interactive
@@ -745,7 +770,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
           // Stash current side's user objects off-canvas
           const userObjects = canvas
             .getObjects()
-            .filter((o) => o.selectable !== false);
+            .filter(isDesignObject);
           sideObjectsRef.current[previousSide] = userObjects;
           userObjects.forEach((o) => canvas.remove(o));
         }
@@ -812,15 +837,6 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
             }}
           />
         )}
-        {coordOverlay && (
-          <div
-            className="pointer-events-none absolute -translate-x-1/2 rounded bg-charcoal/80 px-2 py-0.5 text-xs text-white"
-            style={{ left: coordOverlay.left, top: coordOverlay.top - 28 }}
-          >
-            X:{coordOverlay.xCm.toFixed(2)}&nbsp;cm&nbsp;&nbsp;Y:
-            {coordOverlay.yCm.toFixed(2)}&nbsp;cm
-          </div>
-        )}
       </div>
     );
   }
@@ -829,6 +845,21 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
 export default DesignerCanvas;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Controls for a user-placed object: the default set without the four side handles
+// (ml/mr/mt/mb), which stretch one dimension only and would distort the artwork, plus a
+// delete button. The corner handles scale proportionally (see uniformScaling on the canvas).
+function buildObjectControls(
+  controls: FabricObject["controls"],
+  Control: typeof import("fabric").Control
+): FabricObject["controls"] {
+  const kept = Object.fromEntries(
+    Object.entries(controls).filter(([key]) => !SIDE_HANDLES.has(key))
+  );
+  return { ...kept, deleteControl: buildDeleteControl(Control) };
+}
+
+const SIDE_HANDLES = new Set(["ml", "mr", "mt", "mb"]);
 
 // Builds a delete control (charcoal circle with white ×) for any Fabric object.
 function buildDeleteControl(Control: typeof import("fabric").Control) {

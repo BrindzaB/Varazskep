@@ -68,7 +68,7 @@ varazskep/
 │   │   └── categoryConfig.ts            # categoryCode → { printArea, hasSides }
 │   ├── pricing/                         # THE source of every product price — see § Pricing
 │   │   ├── compute.ts                   # pure: computeGrossPrice(), roundToEndings(), realisedMarkupPct()
-│   │   ├── printFee.ts                  # pure: computePrintFeeHuf(), objectSizeCm(), A4 tier thresholds
+│   │   ├── printFee.ts                  # pure: computePrintFeeHuf(), printTierOf(), 10×10 / A4 / A3 tiers + A3 cap
 │   │   ├── settings.ts                  # PricingSetting table: árrés %, VAT %, price endings, EUR rate, print fees
 │   │   ├── overrides.ts                 # PriceOverride table: manual per-SKU prices
 │   │   └── resolve.ts                   # getMalfiniPriceMap(), getMalfiniPriceDetails(),
@@ -200,7 +200,7 @@ are retained for historical orders.
 ```prisma
 model PricingSetting {
   key       String   @id  // malfini_markup_pct | vat_pct | round_grid_huf | eur_huf_rate
-                          // | print_fee_small_huf | print_fee_large_huf
+                          // | print_fee_10x10_huf | print_fee_a4_huf | print_fee_a3_huf
   value     String        // numeric, stored as text; validated on read
   updatedAt DateTime @updatedAt
 }
@@ -440,7 +440,7 @@ Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L →
 - Auth: JWT in HTTP-only cookie (24h expiry) — all `/admin/*` routes protected by middleware
 - **Orders:** list + detail with status updater, design SVG preview, coordinate table, customer upload download links, GDPR erasure button
 - **Products:** local product CRUD + Malfini catalog browser with an editable per-SKU price (cost / rule price / árrés / Malfini reference shown alongside)
-- **Pricing:** `/admin/pricing` — árrés, VAT, product + shipping price endings, EUR rate and the two print fees, with live previews on real products and real courier prices
+- **Pricing:** `/admin/pricing` — árrés, VAT, product + shipping price endings, EUR rate and the three print fees, with live previews on real products and real courier prices
 - **Clipart:** upload SVG to `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive
 - **GDPR erasure:** nulls `customerName`, `customerEmail`, `shippingAddress` — order row retained 8 years
 
@@ -456,7 +456,7 @@ could not change without a deploy.
 |---|---|
 | `lib/pricing/compute.ts` | Pure arithmetic: gross price, `roundToEndings()`, realised árrés, profit per piece. No DB/network — unit-tested. |
 | `lib/pricing/settings.ts` | `PricingSetting` key/value table: árrés %, VAT %, product + shipping price endings, EUR rate, print fees. Missing rows fall back to `PRICING_DEFAULTS`, so an empty table prices correctly. |
-| `lib/pricing/printFee.ts` | Pure: per-object print fee from the design geometry + the A4 tier. Shared by the designer and the checkout. |
+| `lib/pricing/printFee.ts` | Pure: per-object print fee from the design geometry + the 10×10 / A4 / A3 tiers and the A3 cap. Shared by the designer and the checkout. |
 | `lib/pricing/overrides.ts` | `PriceOverride` table: manual per-SKU prices, top of the resolution chain. Sparse — clearing one is a delete. |
 | `lib/pricing/resolve.ts` | The entry point. `getMalfiniPriceMap(skus)` (storefront), `getMalfiniPriceDetails(skus)` (admin), `resolveLocalVariantPrice(id)` + `resolvePrintFeeHuf(ref)` (checkout). |
 
@@ -511,10 +511,17 @@ the daily `/api/warmup` cron. Not ISR: the raw `/product/prices` response is ~3.
 
 ### Print fee
 
-Charged per design object, in two tiers decided against A4 (21 × 29.7 cm): an object is
-"large" if it exceeds A4 in **either** dimension — comparing areas would leave a wide,
-short line of text in the cheap tier forever. Both fees are admin-editable
-(`printFeeSmallHuf` / `printFeeLargeHuf`, default 3000 / 3500).
+Charged per design object, in three tiers: the smallest sheet the object fits on — 10 × 10
+cm, A4 (21 × 29.7) or A3 (29.7 × 42) — **in either orientation** (a wide logo lying
+across an A4 sheet is A4). Dimensions are compared, not areas: area would leave a long,
+thin line of text in the cheap tier forever. All three fees are admin-editable
+(`printFeeSmallHuf` / `printFeeA4Huf` / `printFeeA3Huf`, default 2000 / 3000 / 3500).
+
+**Nothing is printed larger than A3.** The designer caps every object at A3 (corner drag,
+upload, typing) and also keeps typed text inside the print area; the checkout rejects a
+design with an object over A3 (`PRINT_FEE_OVERSIZE`), allowing 0.5% for the rounding
+Fabric applies when it serializes. Objects scale proportionally only: the side handles
+are removed and `uniScaleKey: null` disables Shift-to-stretch.
 
 `lib/pricing/printFee.ts` is pure and shared by both sides. The designer computes the fee
 for immediate feedback; the checkout recomputes it via `resolvePrintFeeHuf()` from the

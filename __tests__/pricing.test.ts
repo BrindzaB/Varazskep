@@ -261,8 +261,9 @@ describe("validatePricingSettings", () => {
     priceEndings: "90",
     shippingPriceEndings: "50,90",
     eurHufRate: 400,
-    printFeeSmallHuf: 3000,
-    printFeeLargeHuf: 3500,
+    printFeeSmallHuf: 2000,
+    printFeeA4Huf: 3000,
+    printFeeA3Huf: 3500,
   };
 
   it("accepts a well-formed payload and normalises the endings", () => {

@@ -13,7 +13,10 @@ import {
   malfiniProductSkus,
 } from "@/lib/malfini/client";
 import { getMalfiniPriceMap } from "@/lib/pricing/resolve";
-import { getPricingSettings } from "@/lib/pricing/settings";
+import {
+  getPricingSettings,
+  printFeesFromSettings,
+} from "@/lib/pricing/settings";
 
 export const metadata: Metadata = {
   title: "Tervező – Varázskép",
@@ -36,11 +39,7 @@ interface Props {
 export default async function DesignerPage({ searchParams }: Props) {
   // Print fees are admin-editable, so the designer must read them rather than
   // hardcode them — otherwise it quotes a fee the checkout will not charge.
-  const { printFeeSmallHuf, printFeeLargeHuf } = await getPricingSettings();
-  const printFees = {
-    smallHuf: printFeeSmallHuf,
-    largeHuf: printFeeLargeHuf,
-  };
+  const printFees = printFeesFromSettings(await getPricingSettings());
 
   // ── Empty state: no URL params — show product picker ──────────────────────
   if (!searchParams.code && !searchParams.slug) {

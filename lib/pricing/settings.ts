@@ -12,6 +12,7 @@
 
 import { prisma } from "@/lib/db";
 import { formatEndings, parseEndings } from "./compute";
+import type { PrintFees } from "./printFee";
 
 // Re-exported for convenience: the endings helpers are pure and live in ./compute.ts
 // so client components can import them without pulling in prisma.
@@ -32,10 +33,11 @@ export interface PricingSettings {
   // EUR→HUF rate, used only if Malfini ever returns EUR prices for this account
   // (it currently returns HUF). Replaces the former EUR_TO_HUF_RATE env var.
   eurHufRate: number;
-  // Print fee charged per design object, gross HUF. The tier is decided by the
-  // object's real-world size against A4 — see lib/pricing/printFee.ts.
-  printFeeSmallHuf: number; // both dimensions within A4
-  printFeeLargeHuf: number; // either dimension exceeds A4
+  // Print fee charged per design object, gross HUF. The tier is the smallest sheet the
+  // object's real-world size fits on, in either orientation — see lib/pricing/printFee.ts.
+  printFeeSmallHuf: number; // fits on 10×10 cm
+  printFeeA4Huf: number; // fits on A4
+  printFeeA3Huf: number; // fits on A3 (the maximum)
 }
 
 export const PRICING_DEFAULTS: PricingSettings = {
@@ -44,8 +46,9 @@ export const PRICING_DEFAULTS: PricingSettings = {
   priceEndings: [90],
   shippingPriceEndings: [50, 90],
   eurHufRate: 400,
-  printFeeSmallHuf: 3000,
-  printFeeLargeHuf: 3500,
+  printFeeSmallHuf: 2000,
+  printFeeA4Huf: 3000,
+  printFeeA3Huf: 3500,
 };
 
 // Field ↔ database key mapping. Keys are stable; renaming a field is free.
@@ -55,8 +58,9 @@ const KEYS: Record<keyof PricingSettings, string> = {
   priceEndings: "price_endings",
   shippingPriceEndings: "shipping_price_endings",
   eurHufRate: "eur_huf_rate",
-  printFeeSmallHuf: "print_fee_small_huf",
-  printFeeLargeHuf: "print_fee_large_huf",
+  printFeeSmallHuf: "print_fee_10x10_huf",
+  printFeeA4Huf: "print_fee_a4_huf",
+  printFeeA3Huf: "print_fee_a3_huf",
 };
 
 export const PRICING_SETTING_KEYS = Object.values(KEYS);
@@ -97,14 +101,21 @@ const NUMBER_BOUNDS: Record<
     max: 1000000,
     integer: true,
     error:
-      "Az A4-en belüli nyomtatási díj 0 és 1000000 Ft közötti egész szám legyen.",
+      "A 10×10 cm-en belüli nyomtatási díj 0 és 1000000 Ft közötti egész szám legyen.",
   },
-  printFeeLargeHuf: {
+  printFeeA4Huf: {
     min: 0,
     max: 1000000,
     integer: true,
     error:
-      "Az A4-nél nagyobb nyomtatási díj 0 és 1000000 Ft közötti egész szám legyen.",
+      "Az A4-en belüli nyomtatási díj 0 és 1000000 Ft közötti egész szám legyen.",
+  },
+  printFeeA3Huf: {
+    min: 0,
+    max: 1000000,
+    integer: true,
+    error:
+      "Az A3-on belüli nyomtatási díj 0 és 1000000 Ft közötti egész szám legyen.",
   },
 };
 
@@ -147,6 +158,16 @@ function parseEndingsSetting(
     return [...PRICING_DEFAULTS[field]];
   }
   return parsed;
+}
+
+// The per-tier fees in the shape lib/pricing/printFee.ts takes — shared by the designer
+// (display) and the checkout (charge), so both always price with the same fees.
+export function printFeesFromSettings(settings: PricingSettings): PrintFees {
+  return {
+    smallHuf: settings.printFeeSmallHuf,
+    a4Huf: settings.printFeeA4Huf,
+    a3Huf: settings.printFeeA3Huf,
+  };
 }
 
 export async function getPricingSettings(): Promise<PricingSettings> {

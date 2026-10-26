@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
-  A4_HEIGHT_CM,
-  A4_WIDTH_CM,
   computePrintFeeHuf,
-  isLargeObject,
+  fitsSheet,
   objectSizeCm,
+  PRINT_FEE_OVERSIZE,
   PRINT_FEE_UNRESOLVABLE,
+  PRINT_SHEETS,
+  printTierOf,
+  scaleToFitA3,
   type PrintFees,
 } from "@/lib/pricing/printFee";
 import type { CanvasJson } from "@/lib/services/design";
@@ -13,10 +15,10 @@ import type { CanvasJson } from "@/lib/services/design";
 // The Malfini t-shirt designer config (lib/malfini/categoryConfig.ts).
 const PRINT_AREA = { width: 220, height: 300, centerX: 250, centerY: 300 };
 const PRINT_AREA_CM = { width: 38, height: 48 };
-const FEES: PrintFees = { smallHuf: 3000, largeHuf: 3500 };
+const FEES: PrintFees = { smallHuf: 2000, a4Huf: 3000, a3Huf: 3500 };
 
 // A real object from design cmt7c19ve000004ju0vdmosm5, which the designer itself
-// measured at 23.47 × 26.74 cm — wide enough to exceed A4's 21 cm width.
+// measured at 23.47 × 26.74 cm — too wide for A4 either way round, so the A3 tier.
 const REAL_LARGE_OBJECT = {
   type: "Image",
   width: 705,
@@ -27,7 +29,7 @@ const REAL_LARGE_OBJECT = {
   _hCm: 26.74030534351145,
 };
 
-// From design cmt7bm214000404jxkzm0g9xy — 12.16 × 12.8 cm, inside A4.
+// From design cmt7bm214000404jxkzm0g9xy — 12.16 × 12.8 cm: over 10×10, inside A4.
 const REAL_SMALL_OBJECT = {
   type: "Image",
   width: 543,
@@ -87,15 +89,61 @@ describe("objectSizeCm", () => {
   });
 });
 
-describe("isLargeObject", () => {
-  it("uses either dimension, not area", () => {
-    // A wide, short banner never reaches A4's area but must still be the large tier.
-    expect(isLargeObject({ wCm: A4_WIDTH_CM + 0.1, hCm: 2 })).toBe(true);
-    expect(isLargeObject({ wCm: 2, hCm: A4_HEIGHT_CM + 0.1 })).toBe(true);
+describe("printTierOf", () => {
+  it("puts an object on the smallest sheet it fits", () => {
+    expect(printTierOf({ wCm: 10, hCm: 10 })).toBe("small");
+    expect(printTierOf({ wCm: 10.1, hCm: 5 })).toBe("a4");
+    expect(printTierOf({ wCm: 21, hCm: 29.7 })).toBe("a4");
+    expect(printTierOf({ wCm: 21.1, hCm: 5 })).toBe("a4"); // fits A4 lying down
+    expect(printTierOf({ wCm: 22, hCm: 22 })).toBe("a3");
+    expect(printTierOf({ wCm: 29.7, hCm: 42 })).toBe("a3");
   });
 
-  it("treats exactly A4 as small", () => {
-    expect(isLargeObject({ wCm: A4_WIDTH_CM, hCm: A4_HEIGHT_CM })).toBe(false);
+  it("accepts either orientation", () => {
+    // A wide logo lying across the sheet is the same size class as a tall one.
+    expect(printTierOf({ wCm: 29.7, hCm: 21 })).toBe("a4");
+    expect(printTierOf({ wCm: 42, hCm: 29.7 })).toBe("a3");
+  });
+
+  it("uses dimensions, not area", () => {
+    // A long, thin banner has a tiny area but cannot be printed on a 10×10 sheet.
+    expect(printTierOf({ wCm: 20, hCm: 1 })).toBe("a4");
+    expect(printTierOf({ wCm: 40, hCm: 1 })).toBe("a3");
+  });
+
+  it("returns null above A3", () => {
+    expect(printTierOf({ wCm: 30, hCm: 30 })).toBeNull();
+    expect(printTierOf({ wCm: 1, hCm: 42.1 })).toBeNull();
+  });
+
+  it("allows a small overshoot only when given a tolerance", () => {
+    expect(printTierOf({ wCm: 29.8, hCm: 42 })).toBeNull();
+    expect(printTierOf({ wCm: 29.8, hCm: 42 }, 1.005)).toBe("a3");
+  });
+});
+
+describe("fitsSheet", () => {
+  it("checks the short and the long side separately", () => {
+    expect(fitsSheet({ wCm: 29.7, hCm: 21 }, PRINT_SHEETS.a4)).toBe(true);
+    expect(fitsSheet({ wCm: 29.8, hCm: 21 }, PRINT_SHEETS.a4)).toBe(false);
+  });
+});
+
+describe("scaleToFitA3", () => {
+  it("leaves an object that fits alone", () => {
+    expect(scaleToFitA3({ wCm: 20, hCm: 20 })).toBe(1);
+  });
+
+  it("shrinks by the tighter of the two sides", () => {
+    // 35 × 35 cm: the short side (29.7) is the binding one.
+    expect(scaleToFitA3({ wCm: 35, hCm: 35 })).toBeCloseTo(29.7 / 35, 10);
+    // 10 × 50 cm: the long side (42) is the binding one.
+    expect(scaleToFitA3({ wCm: 10, hCm: 50 })).toBeCloseTo(42 / 50, 10);
+  });
+
+  it("lands exactly on A3", () => {
+    const f = scaleToFitA3({ wCm: 38, hCm: 48 });
+    expect(printTierOf({ wCm: 38 * f, hCm: 48 * f })).toBe("a3");
   });
 });
 
@@ -103,7 +151,7 @@ describe("computePrintFeeHuf", () => {
   const canvas = (front: unknown[], back: unknown[] = []): CanvasJson =>
     ({ front, back }) as CanvasJson;
 
-  it("charges the large tier for a real oversized design", () => {
+  it("charges the A3 tier for a real design wider than A4", () => {
     const fee = computePrintFeeHuf(
       canvas([REAL_LARGE_OBJECT]),
       PRINT_AREA,
@@ -113,7 +161,7 @@ describe("computePrintFeeHuf", () => {
     expect(fee).toBe(3500);
   });
 
-  it("charges the small tier for a real A4-sized design", () => {
+  it("charges the A4 tier for a real A4-sized design", () => {
     const fee = computePrintFeeHuf(
       canvas([REAL_SMALL_OBJECT]),
       PRINT_AREA,
@@ -144,7 +192,7 @@ describe("computePrintFeeHuf", () => {
       canvas([REAL_SMALL_OBJECT], [REAL_LARGE_OBJECT]),
       PRINT_AREA,
       PRINT_AREA_CM,
-      { smallHuf: 1500, largeHuf: 9000 }
+      { smallHuf: 500, a4Huf: 1500, a3Huf: 9000 }
     );
     expect(fee).toBe(10500);
   });
@@ -198,7 +246,7 @@ describe("computePrintFeeHuf", () => {
     const shrunk = { ...REAL_LARGE_OBJECT, scaleX: 0.05, scaleY: 0.05 };
     expect(
       computePrintFeeHuf(canvas([shrunk]), PRINT_AREA, PRINT_AREA_CM, FEES)
-    ).toBe(3000);
+    ).toBe(2000);
   });
 
   it("prices the same design higher on a larger print area", () => {
@@ -219,6 +267,29 @@ describe("computePrintFeeHuf", () => {
       FEES
     );
     expect(onShirt).toBe(3500);
-    expect(onMug).toBe(3000);
+    expect(onMug).toBe(2000);
+  });
+
+  it("rejects an object larger than A3", () => {
+    // 220 × 300 px at scale 1 is the whole 38 × 48 cm t-shirt print area.
+    const fullArea = { type: "Image", width: 220, height: 300, scaleX: 1, scaleY: 1 };
+    expect(() =>
+      computePrintFeeHuf(canvas([fullArea]), PRINT_AREA, PRINT_AREA_CM, FEES)
+    ).toThrow(PRINT_FEE_OVERSIZE);
+  });
+
+  it("tolerates the rounding of an object the designer capped at exactly A3", () => {
+    // Designer-capped at 42 cm tall, then stored with a scale rounded up by Fabric.
+    const exactA3Scale = 42 / 48;
+    const stored = {
+      type: "Image",
+      width: 100,
+      height: 300,
+      scaleX: Number((exactA3Scale + 0.0004).toFixed(4)),
+      scaleY: Number((exactA3Scale + 0.0004).toFixed(4)),
+    };
+    expect(
+      computePrintFeeHuf(canvas([stored]), PRINT_AREA, PRINT_AREA_CM, FEES)
+    ).toBe(3500);
   });
 });
