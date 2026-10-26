@@ -58,7 +58,7 @@ const PAGE_SIZE = 30;
 
 // Shared by the search box and the sort select so the two match side by side.
 const FIELD_CLASS =
-  "h-10 w-full rounded border border-border-medium bg-white text-sm text-charcoal focus:border-brand-blue focus:outline-none";
+  "h-10 w-full rounded border border-border-light bg-white text-sm text-charcoal focus:border-brand-blue focus:outline-none";
 
 interface Props {
   clothingProducts: ClothingProduct[];
@@ -229,7 +229,7 @@ export default function ProductsPageClient({
         <>
           {/* Desktop: underlined tabs with the icon above the label. Horizontally
               scrollable so they never widen the page. */}
-          <div className="mb-6 hidden overflow-x-auto border-b border-border-light md:block">
+          <div className="mb-6 hidden overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_theme(colors.border.light)] md:block">
             <div className="flex w-max">
               {tabs.map((tab) => {
                 const active = categoryKey === tab.key;
@@ -239,7 +239,7 @@ export default function ProductsPageClient({
                     type="button"
                     onClick={() => setCategoryKey(tab.key)}
                     aria-pressed={active}
-                    className={`-mb-px flex shrink-0 flex-col items-center gap-1 whitespace-nowrap border-b-2 px-5 py-2.5 text-sm font-bold text-brand-violet transition-colors ${
+                    className={`flex shrink-0 flex-col items-center gap-1 whitespace-nowrap border-b-2 px-5 py-2.5 text-sm font-bold text-brand-violet transition-colors ${
                       active
                         ? "border-brand-violet"
                         : "border-transparent hover:border-brand-violet/40"
@@ -287,10 +287,10 @@ export default function ProductsPageClient({
               <button
                 key={g}
                 onClick={() => setGender(g)}
-                className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
+                className={`h-10 rounded border px-4 text-sm font-medium transition-colors ${
                   gender === g
-                    ? "bg-brand-blue text-white"
-                    : "border border-border-medium bg-white text-charcoal hover:border-brand-blue hover:text-brand-blue"
+                    ? "border-brand-blue bg-brand-blue text-white"
+                    : "border-border-light bg-white text-charcoal hover:border-brand-blue hover:text-brand-blue"
                 }`}
               >
                 {g}
@@ -388,10 +388,10 @@ export default function ProductsPageClient({
                 <button
                   key={i}
                   onClick={() => setPage(i)}
-                  className={`h-9 w-9 rounded-sm text-sm font-medium transition-colors ${
+                  className={`h-9 w-9 rounded border text-sm font-medium transition-colors ${
                     page === i
-                      ? "bg-brand-blue text-white"
-                      : "border border-border-light text-charcoal hover:border-brand-blue hover:text-brand-blue"
+                      ? "border-brand-blue bg-brand-blue text-white"
+                      : "border-border-light text-charcoal hover:border-brand-blue hover:text-brand-blue"
                   }`}
                 >
                   {i + 1}
