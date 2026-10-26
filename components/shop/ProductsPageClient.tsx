@@ -3,13 +3,24 @@
 import { useState, useMemo, useEffect } from "react";
 import MalfiniProductCard from "@/components/shop/MalfiniProductCard";
 import ProductCard from "@/components/shop/ProductCard";
+import CategoryIcon from "@/components/shop/CategoryIcon";
 import type { MalfiniProduct } from "@/lib/malfini/types";
 import type { ProductWithVariants } from "@/lib/services/product";
+import { getMinPrice } from "@/lib/utils/format";
+import {
+  DEFAULT_CATEGORY_ICON,
+  MALFINI_CATEGORY_ICONS,
+  type CategoryIconKey,
+} from "@/lib/shop/categoryIcons";
+import {
+  matchesSearch,
+  sortProducts,
+  type ProductSort,
+} from "@/lib/shop/productList";
 
 export type ClothingProduct = MalfiniProduct & { minPrice: number };
 
 type GenderFilter = "Összes" | "Férfi" | "Női" | "Gyerek";
-type SortOrder = "default" | "asc" | "desc";
 
 const GENDER_FILTERS: GenderFilter[] = ["Összes", "Férfi", "Női", "Gyerek"];
 
@@ -40,32 +51,70 @@ interface CategoryTab {
   label: string;
   kind: "all" | "malfini" | "local";
   code?: string;
+  icon: CategoryIconKey;
 }
 
 const PAGE_SIZE = 30;
 
+// Shared by the search box and the sort select so the two match side by side.
+const FIELD_CLASS =
+  "h-10 w-full rounded border border-border-light bg-white text-sm text-charcoal focus:border-brand-blue focus:outline-none";
+
 interface Props {
   clothingProducts: ClothingProduct[];
   localProducts: ProductWithVariants[];
+  // "malfini:<code>" | "local:<productId>", in display order (lib/services/popular.ts).
+  popularKeys: string[];
+  // Admin-assigned pictograms of the local categories, by category name.
+  categoryIcons: Record<string, CategoryIconKey>;
 }
 
 type ListItem =
   | { type: "malfini"; product: ClothingProduct }
   | { type: "local"; product: ProductWithVariants };
 
+function itemKey(item: ListItem): string {
+  return item.type === "malfini"
+    ? `malfini:${item.product.code}`
+    : `local:${item.product.id}`;
+}
+
+function itemPrice(item: ListItem): number {
+  return item.type === "malfini"
+    ? item.product.minPrice
+    : getMinPrice(item.product.variants);
+}
+
+// What the search box matches against: the name, plus the category so that "póló" also
+// finds Malfini products named only by their model ("Basic", "Heavy").
+function searchFields(item: ListItem): string[] {
+  return item.type === "malfini"
+    ? [
+        item.product.name,
+        MALFINI_CATEGORY_LABEL[item.product.categoryCode] ??
+          item.product.categoryName,
+      ]
+    : [item.product.name, item.product.category ?? ""];
+}
+
 export default function ProductsPageClient({
   clothingProducts,
   localProducts,
+  popularKeys,
+  categoryIcons,
 }: Props) {
   const [gender, setGender] = useState<GenderFilter>("Összes");
   const [categoryKey, setCategoryKey] = useState<string>(ALL_KEY);
-  const [sort, setSort] = useState<SortOrder>("default");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<ProductSort>("name");
   const [page, setPage] = useState(0);
 
   // Build the tab list: "Összes" + Malfini categories (fixed order) + local
   // categories derived from Product.category (in DB order).
   const tabs = useMemo<CategoryTab[]>(() => {
-    const list: CategoryTab[] = [{ key: ALL_KEY, label: "Összes", kind: "all" }];
+    const list: CategoryTab[] = [
+      { key: ALL_KEY, label: "Összes", kind: "all", icon: "all" },
+    ];
 
     const clothingCats = new Set(clothingProducts.map((p) => p.categoryCode));
     for (const code of MALFINI_CATEGORY_ORDER) {
@@ -75,6 +124,7 @@ export default function ProductsPageClient({
           label: MALFINI_CATEGORY_LABEL[code] ?? code,
           kind: "malfini",
           code,
+          icon: MALFINI_CATEGORY_ICONS[code] ?? DEFAULT_CATEGORY_ICON,
         });
       }
     }
@@ -87,95 +137,149 @@ export default function ProductsPageClient({
       ),
     );
     for (const cat of localCats) {
-      list.push({ key: `l:${cat}`, label: cat, kind: "local", code: cat });
-    }
-
-    return list;
-  }, [clothingProducts, localProducts]);
-
-  const selectedTab = tabs.find((t) => t.key === categoryKey) ?? tabs[0];
-
-  const filtered = useMemo<ListItem[]>(() => {
-    const items: ListItem[] = [];
-
-    // Clothing (Malfini) — shown under "Összes" and Malfini category tabs.
-    const showClothing =
-      selectedTab.kind === "all" || selectedTab.kind === "malfini";
-    if (showClothing) {
-      for (const p of clothingProducts) {
-        if (selectedTab.kind === "malfini" && p.categoryCode !== selectedTab.code)
-          continue;
-        if (gender !== "Összes") {
-          const matches = GENDER_MATCH[p.genderCode ?? ""] ?? [];
-          if (!matches.includes(gender)) continue;
-        }
-        items.push({ type: "malfini", product: p });
-      }
-    }
-
-    // Local — shown under "Összes" and local category tabs.
-    const showLocal = selectedTab.kind === "all" || selectedTab.kind === "local";
-    if (showLocal) {
-      for (const p of localProducts) {
-        if (selectedTab.kind === "local" && p.category !== selectedTab.code)
-          continue;
-        items.push({ type: "local", product: p });
-      }
-    }
-
-    // Price sort — local products have no comparable price; put them last.
-    if (sort !== "default") {
-      items.sort((a, b) => {
-        const priceA = a.type === "malfini" ? a.product.minPrice : Infinity;
-        const priceB = b.type === "malfini" ? b.product.minPrice : Infinity;
-        return sort === "asc" ? priceA - priceB : priceB - priceA;
+      list.push({
+        key: `l:${cat}`,
+        label: cat,
+        kind: "local",
+        code: cat,
+        icon: categoryIcons[cat] ?? DEFAULT_CATEGORY_ICON,
       });
     }
 
-    return items;
-  }, [clothingProducts, localProducts, gender, selectedTab, sort]);
+    return list;
+  }, [clothingProducts, localProducts, categoryIcons]);
+
+  const selectedTab = tabs.find((t) => t.key === categoryKey) ?? tabs[0];
+
+  const allItems = useMemo<ListItem[]>(
+    () => [
+      ...clothingProducts.map((p) => ({ type: "malfini" as const, product: p })),
+      ...localProducts.map((p) => ({ type: "local" as const, product: p })),
+    ],
+    [clothingProducts, localProducts],
+  );
+
+  const filtered = useMemo<ListItem[]>(() => {
+    const items = allItems.filter((item) => {
+      if (item.type === "malfini") {
+        // Clothing — shown under "Összes" and Malfini category tabs.
+        if (selectedTab.kind === "local") return false;
+        if (
+          selectedTab.kind === "malfini" &&
+          item.product.categoryCode !== selectedTab.code
+        )
+          return false;
+        if (gender !== "Összes") {
+          const matches = GENDER_MATCH[item.product.genderCode ?? ""] ?? [];
+          if (!matches.includes(gender)) return false;
+        }
+      } else {
+        // Local — shown under "Összes" and local category tabs.
+        if (selectedTab.kind === "malfini") return false;
+        if (
+          selectedTab.kind === "local" &&
+          item.product.category !== selectedTab.code
+        )
+          return false;
+      }
+      return matchesSearch(searchFields(item), query);
+    });
+
+    return sortProducts(items, sort, (i) => i.product.name, itemPrice);
+  }, [allItems, gender, selectedTab, query, sort]);
+
+  // Popular products in the admin's order; a key whose product is no longer listed
+  // (inactive, removed, out of the designer catalogue) is skipped.
+  const popularItems = useMemo<ListItem[]>(() => {
+    const byKey = new Map(allItems.map((item) => [itemKey(item), item]));
+    return popularKeys.flatMap((key) => {
+      const item = byKey.get(key);
+      return item ? [item] : [];
+    });
+  }, [allItems, popularKeys]);
 
   // Reset gender when a local category is selected (gender only applies to clothing).
   useEffect(() => {
     if (selectedTab.kind === "local") setGender("Összes");
   }, [selectedTab]);
 
-  // Reset to page 0 whenever filters or sort change.
+  // Reset to page 0 whenever filters, search or sort change.
   useEffect(() => {
     setPage(0);
-  }, [gender, categoryKey, sort]);
+  }, [gender, categoryKey, query, sort]);
 
   const showGenderFilter =
     selectedTab.kind !== "local" && clothingProducts.length > 0;
+
+  // The popular box belongs to the unfiltered first page only — once the customer
+  // narrows the list down, it would just repeat products they did not ask for.
+  const showPopular =
+    popularItems.length > 0 &&
+    selectedTab.kind === "all" &&
+    gender === "Összes" &&
+    query.trim() === "" &&
+    page === 0;
 
   const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
   const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <>
-      {/* Category tabs — horizontally scrollable on narrow screens so they never
-          widen the page (which would let the whole page scroll sideways). */}
       {tabs.length > 2 && (
-        <div className="mb-6 overflow-x-auto border-b border-border-light">
-          <div className="flex w-max">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setCategoryKey(tab.key)}
-                className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
-                  categoryKey === tab.key
-                    ? "border-brand-blue text-brand-blue"
-                    : "border-transparent text-charcoal hover:text-brand-blue"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <>
+          {/* Desktop: underlined tabs with the icon above the label. Horizontally
+              scrollable so they never widen the page. */}
+          <div className="mb-6 hidden overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_theme(colors.border.light)] md:block">
+            <div className="flex w-max">
+              {tabs.map((tab) => {
+                const active = categoryKey === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setCategoryKey(tab.key)}
+                    aria-pressed={active}
+                    className={`flex shrink-0 flex-col items-center gap-1 whitespace-nowrap border-b-2 px-5 py-2.5 text-sm font-bold text-brand-violet transition-colors ${
+                      active
+                        ? "border-brand-violet"
+                        : "border-transparent hover:border-brand-violet/40"
+                    }`}
+                  >
+                    <CategoryIcon icon={tab.icon} className="h-6 w-6" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+
+          {/* Mobile: pill-shaped tiles that wrap onto new rows — round, so they do
+              not read as more of the square gender filter buttons below. */}
+          <div className="mb-6 flex flex-wrap gap-2 md:hidden">
+            {tabs.map((tab) => {
+              const active = categoryKey === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setCategoryKey(tab.key)}
+                  aria-pressed={active}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-bold transition-colors ${
+                    active
+                      ? "border-brand-violet bg-brand-violet text-white"
+                      : "border-border-light bg-white text-brand-violet hover:border-brand-violet"
+                  }`}
+                >
+                  <CategoryIcon icon={tab.icon} className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
-      {/* Gender filter + sort row */}
+      {/* Gender filter + search + sort row */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         {showGenderFilter && (
           <div className="flex flex-wrap gap-2 rounded">
@@ -183,10 +287,10 @@ export default function ProductsPageClient({
               <button
                 key={g}
                 onClick={() => setGender(g)}
-                className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
+                className={`h-10 rounded border px-4 text-sm font-medium transition-colors ${
                   gender === g
-                    ? "bg-brand-blue text-white"
-                    : "border border-border-medium bg-white text-charcoal hover:border-brand-blue hover:text-brand-blue"
+                    ? "border-brand-blue bg-brand-blue text-white"
+                    : "border-border-light bg-white text-charcoal hover:border-brand-blue hover:text-brand-blue"
                 }`}
               >
                 {g}
@@ -194,36 +298,87 @@ export default function ProductsPageClient({
             ))}
           </div>
         )}
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortOrder)}
-          className="rounded border border-border-medium bg-white px-3 py-2 text-sm text-charcoal focus:outline-none"
-        >
-          <option value="default">Rendezés</option>
-          <option value="asc">Ár: alacsonyabbtól magasabbig</option>
-          <option value="desc">Ár: magasabbtól alacsonyabbig</option>
-        </select>
+        <div className="flex w-full flex-wrap items-center gap-3 sm:ml-auto sm:w-auto">
+          <label className="relative w-full sm:w-64">
+            <span className="sr-only">Keresés terméknévre</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Keresés terméknévre…"
+              className={`${FIELD_CLASS} pl-9 pr-3`}
+            />
+          </label>
+          {/* Native select chrome differs per browser — drawn by hand so it matches
+              the search box in height, border and rounding. */}
+          <label className="relative w-full sm:w-56">
+            <span className="sr-only">Rendezés</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as ProductSort)}
+              className={`${FIELD_CLASS} cursor-pointer appearance-none pl-3 pr-9`}
+            >
+              <option value="name">Név szerint (A–Z)</option>
+              <option value="price-asc">Ár szerint növekvő</option>
+              <option value="price-desc">Ár szerint csökkenő</option>
+            </select>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </label>
+        </div>
       </div>
+
+      {showPopular && (
+        <section className="mb-8 rounded border-2 border-brand-blue p-3 sm:p-5">
+          <h2 className="mb-4 text-lg font-bold uppercase text-brand-blue">
+            Népszerű termékek
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {popularItems.map((item) => (
+              <ProductListCard key={itemKey(item)} item={item} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Product grid */}
       {filtered.length === 0 ? (
         <p className="py-16 text-center text-muted">
-          Nincs termék a kiválasztott szűrőknek megfelelően.
+          {query.trim()
+            ? `Nincs a(z) „${query.trim()}” keresésnek megfelelő termék.`
+            : "Nincs termék a kiválasztott szűrőknek megfelelően."}
         </p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {pageItems.map((item) =>
-              item.type === "malfini" ? (
-                <MalfiniProductCard
-                  key={item.product.code}
-                  product={item.product}
-                  minPrice={item.product.minPrice}
-                />
-              ) : (
-                <ProductCard key={item.product.id} product={item.product} />
-              ),
-            )}
+            {pageItems.map((item) => (
+              <ProductListCard key={itemKey(item)} item={item} />
+            ))}
           </div>
 
           {/* Pagination */}
@@ -233,10 +388,10 @@ export default function ProductsPageClient({
                 <button
                   key={i}
                   onClick={() => setPage(i)}
-                  className={`h-9 w-9 rounded-sm text-sm font-medium transition-colors ${
+                  className={`h-9 w-9 rounded border text-sm font-medium transition-colors ${
                     page === i
-                      ? "bg-brand-blue text-white"
-                      : "border border-border-light text-charcoal hover:border-brand-blue hover:text-brand-blue"
+                      ? "border-brand-blue bg-brand-blue text-white"
+                      : "border-border-light text-charcoal hover:border-brand-blue hover:text-brand-blue"
                   }`}
                 >
                   {i + 1}
@@ -247,5 +402,13 @@ export default function ProductsPageClient({
         </>
       )}
     </>
+  );
+}
+
+function ProductListCard({ item }: { item: ListItem }) {
+  return item.type === "malfini" ? (
+    <MalfiniProductCard product={item.product} minPrice={item.product.minPrice} />
+  ) : (
+    <ProductCard product={item.product} />
   );
 }

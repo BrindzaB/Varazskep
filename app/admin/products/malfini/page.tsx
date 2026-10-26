@@ -4,8 +4,8 @@ import { getProducts } from "@/lib/malfini/client";
 import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
 import type { MalfiniProduct } from "@/lib/malfini/types";
 import { getFeaturedMalfiniCodes } from "@/lib/services/featured";
-import { GENDER_LABELS } from "@/lib/malfini/genderLabels";
-import FeaturedProductsEditor from "@/components/admin/FeaturedProductsEditor";
+import { GENDER_LABELS, malfiniProductLabel } from "@/lib/malfini/genderLabels";
+import ProductListEditor from "@/components/admin/ProductListEditor";
 
 // force-dynamic because content varies by searchParams;
 // getProducts() is module-level cached (1h) so no extra API calls per request.
@@ -83,17 +83,17 @@ export default async function AdminMalfiniCatalogPage({
           </p>
         </div>
 
-        <FeaturedProductsEditor
-          initialCodes={featuredCodes}
+        <ProductListEditor
+          title="Kiemelt termékek"
+          description="Ezek jelennek meg a Tervező termékválasztójában és a megrendelő lapon, ebben a sorrendben."
+          endpoint="/api/admin/featured-products"
+          payloadKey="codes"
+          initialValues={featuredCodes}
+          emptyText="Nincs kiemelt termék."
           options={configuredProducts.map((p) => ({
-            code: p.code,
-            label: [
-              p.name,
-              p.categoryName,
-              GENDER_LABELS[p.genderCode ?? ""] ?? p.genderCode,
-            ]
-              .filter(Boolean)
-              .join(" · "),
+            value: p.code,
+            tag: p.code,
+            label: malfiniProductLabel(p),
           }))}
         />
 

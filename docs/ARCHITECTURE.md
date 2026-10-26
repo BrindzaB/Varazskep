@@ -230,6 +230,20 @@ model FeaturedMalfiniProduct {
   position    Int
 }
 
+// "Népszerű termékek" box on the Termékek page (≤ 10). key = "malfini:<code>" | "local:<id>"
+// (lib/shop/popular.ts); a key whose product is no longer listed is skipped.
+model PopularProduct {
+  key      String @id
+  position Int
+}
+
+// Pictogram above a local category tile on the Termékek page (lib/shop/categoryIcons.ts).
+// Malfini categories have fixed icons in code; no row → default "tag" icon.
+model CategoryIcon {
+  category String @id  // = Product.category
+  icon     String
+}
+
 // File uploaded with an ORDER_FORM order — private `order-files` bucket.
 model OrderAttachment {
   id          String   @id @default(cuid())
@@ -439,7 +453,8 @@ Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L →
 - Single admin user — credentials in env vars; no self-registration
 - Auth: JWT in HTTP-only cookie (24h expiry) — all `/admin/*` routes protected by middleware
 - **Orders:** list + detail with status updater, design SVG preview, coordinate table, customer upload download links, GDPR erasure button
-- **Products:** local product CRUD + Malfini catalog browser with an editable per-SKU price (cost / rule price / árrés / Malfini reference shown alongside)
+- **Products:** local product CRUD + Malfini catalog browser with an editable per-SKU price (cost / rule price / árrés / Malfini reference shown alongside). `/admin/products` also edits the Termékek page's popular products and the local categories' icons; `/admin/products/malfini` edits the featured list (designer picker + order form). Both lists use `components/admin/ProductListEditor.tsx`.
+- **Termékek page** (`components/shop/ProductsPageClient.tsx`): categories as magenta underlined tabs with icons on desktop, pill-shaped wrapping tiles (small icon) on mobile, name search (accent- and case-insensitive, also matches the category), default A–Z order (Hungarian collation) or by price, and the blue-framed popular box — shown only on the unfiltered first page. List logic is pure in `lib/shop/productList.ts`. Admin saves call `revalidatePath("/products")`, so the ISR page updates at once.
 - **Pricing:** `/admin/pricing` — árrés, VAT, product + shipping price endings, EUR rate and the three print fees, with live previews on real products and real courier prices
 - **Clipart:** upload SVG to `clipart` bucket, save metadata to `Clipart` table, toggle active/inactive
 - **GDPR erasure:** nulls `customerName`, `customerEmail`, `shippingAddress` — order row retained 8 years

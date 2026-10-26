@@ -7,3 +7,14 @@ export const GENDER_LABELS: Record<string, string> = {
   "GENTS/KIDS": "Férfi/Gyerek",
   "UNISEX/KIDS": "Uniszex/Gyerek",
 };
+
+// "Basic · Pólók · Férfi" — how admin pickers name a Malfini product.
+export function malfiniProductLabel(p: {
+  name: string;
+  categoryName: string;
+  genderCode?: string | null;
+}): string {
+  return [p.name, p.categoryName, GENDER_LABELS[p.genderCode ?? ""] ?? p.genderCode]
+    .filter(Boolean)
+    .join(" · ");
+}

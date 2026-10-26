@@ -3,7 +3,9 @@ import Link from "next/link";
 import { getActiveProducts } from "@/lib/services/product";
 import { getProducts } from "@/lib/malfini/client";
 import { getMalfiniPriceMap } from "@/lib/pricing/resolve";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import { isStorefrontClothing } from "@/lib/malfini/storefront";
+import { getPopularProductKeys } from "@/lib/services/popular";
+import { getCategoryIcons } from "@/lib/services/categoryIcons";
 import ProductsPageClient from "@/components/shop/ProductsPageClient";
 
 export const revalidate = 300; // Re-validate every 5 minutes (matches Malfini price cache)
@@ -14,17 +16,16 @@ export const metadata: Metadata = {
 };
 
 export default async function ProductsPage() {
-  const [allMalfiniProducts, localProducts] = await Promise.all([
-    getProducts("hu"),
-    getActiveProducts(),
-  ]);
+  const [allMalfiniProducts, localProducts, popularKeys, categoryIcons] =
+    await Promise.all([
+      getProducts("hu"),
+      getActiveProducts(),
+      getPopularProductKeys(),
+      getCategoryIcons(),
+    ]);
 
-  // Keep only categories that have a designer config (t-shirts + sweatshirts for Phase 6).
-  const clothingProducts = allMalfiniProducts.filter(
-    (p) =>
-      getCategoryConfig(p.categoryCode) !== null &&
-      p.variants.some((v) => v.images.some((i) => i.viewCode === "a"))
-  );
+  // Keep only categories that have a designer config, with a photo for the card.
+  const clothingProducts = allMalfiniProducts.filter(isStorefrontClothing);
 
   // The card shows a single "X Ft-tól" label, so only the representative SKU of
   // each product needs a price — the first variant's first size.
@@ -57,6 +58,8 @@ export default async function ProductsPage() {
         <ProductsPageClient
           clothingProducts={clothingWithPrices}
           localProducts={localProducts}
+          popularKeys={popularKeys}
+          categoryIcons={categoryIcons}
         />
       </div>
     </section>
