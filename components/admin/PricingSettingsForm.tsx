@@ -12,7 +12,13 @@ import {
   roundToEndings,
 } from "@/lib/pricing/compute";
 import type { PricingSettings } from "@/lib/pricing/settings";
-import { A4_WIDTH_CM, A4_HEIGHT_CM } from "@/lib/pricing/printFee";
+import { PRINT_SHEETS, type PrintSheetCm } from "@/lib/pricing/printFee";
+
+// "10×10", "21×29,7" — sheet sizes as the admin reads them.
+function formatSheet(sheet: PrintSheetCm): string {
+  const n = (v: number) => String(v).replace(".", ",");
+  return `${n(sheet.shortCm)}×${n(sheet.longCm)}`;
+}
 
 interface Sample {
   name: string;
@@ -44,7 +50,8 @@ function toFormState(s: PricingSettings): FormState {
     shippingPriceEndings: formatEndings(s.shippingPriceEndings),
     eurHufRate: String(s.eurHufRate),
     printFeeSmallHuf: String(s.printFeeSmallHuf),
-    printFeeLargeHuf: String(s.printFeeLargeHuf),
+    printFeeA4Huf: String(s.printFeeA4Huf),
+    printFeeA3Huf: String(s.printFeeA3Huf),
   };
 }
 
@@ -57,7 +64,8 @@ interface ParsedForm {
   shippingPriceEndings: number[] | null;
   eurHufRate: number;
   printFeeSmallHuf: number;
-  printFeeLargeHuf: number;
+  printFeeA4Huf: number;
+  printFeeA3Huf: number;
 }
 
 function parseForm(f: FormState): ParsedForm {
@@ -68,7 +76,8 @@ function parseForm(f: FormState): ParsedForm {
     shippingPriceEndings: parseEndings(f.shippingPriceEndings),
     eurHufRate: Number(f.eurHufRate),
     printFeeSmallHuf: Number(f.printFeeSmallHuf),
-    printFeeLargeHuf: Number(f.printFeeLargeHuf),
+    printFeeA4Huf: Number(f.printFeeA4Huf),
+    printFeeA3Huf: Number(f.printFeeA3Huf),
   };
 }
 
@@ -134,7 +143,8 @@ export default function PricingSettingsForm({
     values.vatPct,
     values.eurHufRate,
     values.printFeeSmallHuf,
-    values.printFeeLargeHuf,
+    values.printFeeA4Huf,
+    values.printFeeA3Huf,
   ].every((v) => Number.isFinite(v));
   const productEndings = values.priceEndings;
   const shippingEndings = values.shippingPriceEndings;
@@ -241,25 +251,32 @@ export default function PricingSettingsForm({
       <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
         <h2 className="text-sm font-semibold text-gray-900">Nyomtatási díj</h2>
         <p className="mt-1 text-xs text-gray-500">
-          A tervezőbe helyezett minták díja darabonként. A besorolás A4-hez
-          képest történik: ha a minta szélessége vagy magassága meghaladja az
-          A4-et ({A4_WIDTH_CM}×{A4_HEIGHT_CM} cm), a nagyobb díj érvényes.
+          A tervezőbe helyezett minták díja darabonként. Minden minta a
+          legkisebb olyan sávba kerül, amelynek a lapjára ráfér — állva vagy
+          fekve. A3-nál nagyobb mintát a tervező nem enged.
         </p>
 
-        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+        <div className="mt-4 grid gap-5 sm:grid-cols-3">
           <Field
-            label="A4-en belüli minta"
-            hint="Mindkét mérete A4-en belül van."
+            label="10×10 cm-en belül"
+            hint={`Ráfér egy ${formatSheet(PRINT_SHEETS.small)} cm-es lapra.`}
             suffix="Ft / minta"
             value={form.printFeeSmallHuf}
             onChange={(v) => set("printFeeSmallHuf", v)}
           />
           <Field
-            label="A4-nél nagyobb minta"
-            hint="Legalább az egyik mérete meghaladja az A4-et."
+            label="A4-en belül"
+            hint={`Ráfér egy A4-es (${formatSheet(PRINT_SHEETS.a4)} cm) lapra.`}
             suffix="Ft / minta"
-            value={form.printFeeLargeHuf}
-            onChange={(v) => set("printFeeLargeHuf", v)}
+            value={form.printFeeA4Huf}
+            onChange={(v) => set("printFeeA4Huf", v)}
+          />
+          <Field
+            label="A3-on belül"
+            hint={`Ráfér egy A3-as (${formatSheet(PRINT_SHEETS.a3)} cm) lapra.`}
+            suffix="Ft / minta"
+            value={form.printFeeA3Huf}
+            onChange={(v) => set("printFeeA3Huf", v)}
           />
         </div>
 
