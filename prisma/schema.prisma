@@ -108,6 +108,21 @@ model FeaturedMalfiniProduct {
   position    Int
 }
 
+// Products highlighted in the "Népszerű termékek" box on the Termékek page. Admin-editable,
+// at most 5; position = display order. key = "malfini:<code>" | "local:<productId>", so one
+// ordered list mixes both sources. A key whose product is gone or inactive is skipped.
+model PopularProduct {
+  key      String @id
+  position Int
+}
+
+// Pictogram shown above a local product category on the Termékek page. category matches
+// Product.category; icon is a key from lib/shop/categoryIcons.ts. No row → default icon.
+model CategoryIcon {
+  category String @id
+  icon     String
+}
+
 model Order {
   id                    String         @id @default(cuid())
   // Where the order came from. WEBSHOP orders are paid by Stripe; ORDER_FORM orders are

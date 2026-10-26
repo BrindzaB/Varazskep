@@ -2,13 +2,51 @@ import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import ProductDeleteButton from "@/components/admin/ProductDeleteButton";
 import { PencilIcon } from "@/components/admin/icons";
+import ProductListEditor from "@/components/admin/ProductListEditor";
+import CategoryIconsEditor from "@/components/admin/CategoryIconsEditor";
 import { getAllProductsAdmin } from "@/lib/services/product";
 import { getMockupLabel } from "@/lib/designer/mockupConfig";
+import { getProducts } from "@/lib/malfini/client";
+import { isStorefrontClothing } from "@/lib/malfini/storefront";
+import { malfiniProductLabel } from "@/lib/malfini/genderLabels";
+import { getPopularProductKeys } from "@/lib/services/popular";
+import { MAX_POPULAR_PRODUCTS, popularKey } from "@/lib/shop/popular";
+import { getCategoryIcons } from "@/lib/services/categoryIcons";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminProductsPage() {
-  const products = await getAllProductsAdmin();
+  const [products, malfiniProducts, popularKeys, categoryIcons] =
+    await Promise.all([
+      getAllProductsAdmin(),
+      // Only feeds the popular picker — the local product list must load without Malfini.
+      getProducts("hu").catch((err) => {
+        console.error("[admin/products] Malfini catalog unavailable:", err);
+        return [];
+      }),
+      getPopularProductKeys(),
+      getCategoryIcons(),
+    ]);
+
+  // Everything the Termékek page lists can be made popular.
+  const popularOptions = [
+    ...malfiniProducts.filter(isStorefrontClothing).map((p) => ({
+      value: popularKey({ source: "malfini", code: p.code }),
+      tag: p.code,
+      label: malfiniProductLabel(p),
+    })),
+    ...products
+      .filter((p) => p.active)
+      .map((p) => ({
+        value: popularKey({ source: "local", productId: p.id }),
+        tag: "saját",
+        label: p.category ? `${p.name} · ${p.category}` : p.name,
+      })),
+  ];
+
+  const categories = Array.from(
+    new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c)))
+  ).sort((a, b) => a.localeCompare(b, "hu"));
 
   return (
     <div>
@@ -31,6 +69,23 @@ export default async function AdminProductsPage() {
             </Link>
           </div>
         </div>
+
+        <ProductListEditor
+          title="Népszerű termékek"
+          description={`A Termékek oldal tetején, magenta keretben kiemelt termékek (legfeljebb ${MAX_POPULAR_PRODUCTS}), ebben a sorrendben. Üres lista esetén a doboz nem jelenik meg.`}
+          endpoint="/api/admin/popular-products"
+          payloadKey="keys"
+          initialValues={popularKeys}
+          options={popularOptions}
+          maxItems={MAX_POPULAR_PRODUCTS}
+          allowEmpty
+          emptyText="Nincs népszerű termék — a doboz nem jelenik meg."
+        />
+
+        <CategoryIconsEditor
+          categories={categories}
+          initialIcons={categoryIcons}
+        />
 
         {products.length === 0 ? (
           <p className="text-gray-500">Még nincs termék.</p>
