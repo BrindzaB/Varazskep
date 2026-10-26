@@ -230,7 +230,7 @@ model FeaturedMalfiniProduct {
   position    Int
 }
 
-// "Népszerű termékek" box on the Termékek page (≤ 5). key = "malfini:<code>" | "local:<id>"
+// "Népszerű termékek" box on the Termékek page (≤ 10). key = "malfini:<code>" | "local:<id>"
 // (lib/shop/popular.ts); a key whose product is no longer listed is skipped.
 model PopularProduct {
   key      String @id

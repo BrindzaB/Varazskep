@@ -1,7 +1,7 @@
 // The "Népszerű termékek" list mixes Malfini and local products in one ordered list, so
 // each entry is a typed key: "malfini:<code>" | "local:<productId>". Pure — no DB access.
 
-export const MAX_POPULAR_PRODUCTS = 5;
+export const MAX_POPULAR_PRODUCTS = 10;
 
 export type PopularKey =
   | { source: "malfini"; code: string }

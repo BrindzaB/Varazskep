@@ -109,7 +109,7 @@ model FeaturedMalfiniProduct {
 }
 
 // Products highlighted in the "Népszerű termékek" box on the Termékek page. Admin-editable,
-// at most 5; position = display order. key = "malfini:<code>" | "local:<productId>", so one
+// at most 10; position = display order. key = "malfini:<code>" | "local:<productId>", so one
 // ordered list mixes both sources. A key whose product is gone or inactive is skipped.
 model PopularProduct {
   key      String @id
