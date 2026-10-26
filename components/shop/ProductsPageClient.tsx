@@ -221,29 +221,56 @@ export default function ProductsPageClient({
 
   return (
     <>
-      {/* Category tiles — wrap onto new rows, so they never widen the page. */}
       {tabs.length > 2 && (
-        <div className="mb-6 flex flex-wrap gap-2 sm:gap-3">
-          {tabs.map((tab) => {
-            const active = categoryKey === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setCategoryKey(tab.key)}
-                aria-pressed={active}
-                className={`flex min-w-[5.5rem] flex-col items-center gap-1.5 rounded border px-3 py-2.5 text-sm font-bold transition-colors sm:min-w-[7rem] sm:px-4 sm:py-3 ${
-                  active
-                    ? "border-brand-violet bg-brand-violet text-white"
-                    : "border-border-light bg-white text-brand-violet hover:border-brand-violet"
-                }`}
-              >
-                <CategoryIcon icon={tab.icon} className="h-7 w-7" />
-                <span className="whitespace-nowrap">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {/* Desktop: underlined tabs with the icon above the label. Horizontally
+              scrollable so they never widen the page. */}
+          <div className="mb-6 hidden overflow-x-auto border-b border-border-light md:block">
+            <div className="flex w-max">
+              {tabs.map((tab) => {
+                const active = categoryKey === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setCategoryKey(tab.key)}
+                    aria-pressed={active}
+                    className={`-mb-px flex shrink-0 flex-col items-center gap-1 whitespace-nowrap border-b-2 px-5 py-2.5 text-sm font-bold text-brand-violet transition-colors ${
+                      active
+                        ? "border-brand-violet"
+                        : "border-transparent hover:border-brand-violet/40"
+                    }`}
+                  >
+                    <CategoryIcon icon={tab.icon} className="h-6 w-6" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Mobile: tiles that wrap onto new rows, without icons. */}
+          <div className="mb-6 flex flex-wrap gap-2 md:hidden">
+            {tabs.map((tab) => {
+              const active = categoryKey === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setCategoryKey(tab.key)}
+                  aria-pressed={active}
+                  className={`whitespace-nowrap rounded border px-4 py-2 text-sm font-bold transition-colors ${
+                    active
+                      ? "border-brand-violet bg-brand-violet text-white"
+                      : "border-border-light bg-white text-brand-violet hover:border-brand-violet"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* Gender filter + search + sort row */}
