@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createOrder, getOrderBySessionId } from "@/lib/services/order";
 import { exportDesignSvg } from "@/lib/services/design";
-import { sendOrderConfirmationEmail } from "@/lib/services/email";
+import {
+  sendOrderConfirmationEmail,
+  sendOrderNotificationEmail,
+} from "@/lib/services/email";
 import type { DeliveryType } from "@/lib/generated/prisma/client";
 import { decodeCartItems } from "@/lib/checkout/cartMetadata";
 
@@ -146,15 +149,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Send confirmation email — errors are logged but do not fail the webhook.
-  // A failed email must not cause Stripe to retry (which would risk duplicate orders).
+  // Send the customer confirmation and the shop notification — errors are logged but do
+  // not fail the webhook. A failed email must not cause Stripe to retry (which would risk
+  // duplicate orders), and one failed email must not stop the other.
   try {
     const fullOrder = await getOrderBySessionId(session.id);
     if (fullOrder) {
-      await sendOrderConfirmationEmail({
+      const emailInput = {
         orderId: fullOrder.id,
         customerName: fullOrder.customerName,
         customerEmail: fullOrder.customerEmail,
+        customerPhone: fullOrder.customerPhone,
         items: fullOrder.items,
         totalAmount,
         shippingAddress,
@@ -164,10 +169,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         shippingMethod: fullOrder.shippingMethod,
         pickupPointName: fullOrder.pickupPointName,
         pickupPointAddress: fullOrder.pickupPointAddress,
-      });
+      };
+      const [confirmation, notification] = await Promise.allSettled([
+        sendOrderConfirmationEmail(emailInput),
+        sendOrderNotificationEmail(emailInput),
+      ]);
+      if (confirmation.status === "rejected") {
+        console.error(
+          "[webhook] sendOrderConfirmationEmail failed:",
+          confirmation.reason
+        );
+      }
+      if (notification.status === "rejected") {
+        console.error(
+          "[webhook] sendOrderNotificationEmail failed:",
+          notification.reason
+        );
+      }
     }
   } catch (err) {
-    console.error("[webhook] sendOrderConfirmationEmail failed:", err);
+    console.error("[webhook] order lookup for emails failed:", err);
   }
 
   return NextResponse.json({ received: true });

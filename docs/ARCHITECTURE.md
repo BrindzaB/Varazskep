@@ -82,6 +82,7 @@ varazskep/
 │   │   ├── product.ts                   # Local product queries
 │   │   ├── design.ts                    # Design serialization + SVG export
 │   │   ├── clipart.ts                   # getActiveClipart(), getClipartCategories(), createClipartRecord()
+│   │   ├── shopSettings.ts              # ShopSetting table: order notification address
 │   │   └── email.ts                     # Resend integration
 │   ├── designer/
 │   │   ├── mockupConfig.ts              # SVG mockup config for local products
@@ -204,6 +205,15 @@ model PricingSetting {
   updatedAt DateTime @updatedAt
 }
 
+// Non-pricing shop settings, same key/value pattern. notification_email = where the shop
+// is notified about every new order (webshop + order form); edited at /admin/settings.
+// Missing row → info.varazskep@gmail.com.
+model ShopSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 // Manual selling price for one Malfini SKU — top of the pricing chain. Sparse:
 // no row means the árrés rule applies, so clearing an override is a delete.
 model PriceOverride {
@@ -287,7 +297,7 @@ customer afterwards.
 - **Submission** (`POST /api/order-form`): validated by `lib/orderForm/validate.ts` against
   that catalogue — names/colours/sizes are taken from it, never from the request. Creates an
   `ORDER_FORM` order in `REQUESTED` status (→ `IN_PRODUCTION` once agreed), emails the
-  customer a confirmation and `info.varazskep@gmail.com` a notification (Reply-To: customer).
+  customer a confirmation and the shop a notification (Reply-To: customer).
   Honeypot field + Redis rate limit (5 / 10 min / IP) against bots.
 - **Uploads:** PNG/JPG/WebP/PDF/SVG/AI/EPS, ≤ 20 MB, ≤ 10 files. The browser uploads
   straight to the private `order-files` bucket with a signed upload URL — a Vercel function
@@ -576,7 +586,9 @@ Packeta, DPD). API reference: `docs/kvikk-api.md`; migration history: `docs/kvik
    (server-side parcel weight × qty → `getShippingQuote`; net cost + 27% VAT). The cost is
    re-validated in `stripe/checkout` against live Kvikk pricing (anti-tamper). Shipping is a
    separate Stripe line item.
-2. **Payment → order** (`stripe/webhook`): stores the order + shipping choice + parcel weight.
+2. **Payment → order** (`stripe/webhook`): stores the order + shipping choice + parcel weight,
+   then emails the customer a confirmation and the shop a notification (independently —
+   one failing never blocks the other or fails the webhook).
    **No Kvikk call here** — the shipment is created manually when the product is ready.
 3. **Admin** (`/admin/orders/[id]` + `/admin/shipping`): "Csomagfeladás" creates the Kvikk
    shipment + label (`POST /shipment`); the batch "Futárrendelés" screen creates a delivery

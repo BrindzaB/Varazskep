@@ -79,6 +79,15 @@ model PricingSetting {
   updatedAt DateTime @updatedAt
 }
 
+// Admin-editable shop settings that are not pricing (e.g. the order notification address).
+// Key/value like PricingSetting; read through lib/services/shopSettings.ts, which supplies
+// defaults for missing rows.
+model ShopSetting {
+  key       String   @id // see SHOP_SETTING_KEYS in lib/services/shopSettings.ts
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 // Manual selling price for one Malfini SKU, overriding the computed cost×árrés×VAT price.
 // Needed because Malfini's implied retail markup is not uniform: most products sit near
 // 1.55× cost, but some reach 3.08×, where a flat árrés prices well under the market.

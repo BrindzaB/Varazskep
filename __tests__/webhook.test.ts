@@ -25,6 +25,7 @@ vi.mock("@/lib/services/order", () => ({
 // imported and keeps tests focused on the webhook handler logic.
 vi.mock("@/lib/services/email", () => ({
   sendOrderConfirmationEmail: vi.fn(),
+  sendOrderNotificationEmail: vi.fn(),
 }));
 
 // Mock the design service — exportDesignSvg requires DB + Supabase env vars.
@@ -41,8 +42,12 @@ vi.mock("@/lib/supabase", () => ({
 import { POST } from "@/app/api/stripe/webhook/route";
 import * as orderService from "@/lib/services/order";
 import * as designService from "@/lib/services/design";
+import * as emailService from "@/lib/services/email";
 
 const mockCreateOrder = vi.mocked(orderService.createOrder);
+const mockGetOrderBySessionId = vi.mocked(orderService.getOrderBySessionId);
+const mockConfirmationEmail = vi.mocked(emailService.sendOrderConfirmationEmail);
+const mockNotificationEmail = vi.mocked(emailService.sendOrderNotificationEmail);
 
 function makeRequest(body: string, sig = "valid-sig"): NextRequest {
   return new NextRequest("http://localhost/api/stripe/webhook", {
@@ -276,5 +281,38 @@ describe("POST /api/stripe/webhook", () => {
 
     const res = await POST(makeRequest("{}"));
     expect(res.status).toBe(500);
+  });
+
+  it("emails both the customer and the shop, even if one email fails", async () => {
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: { object: makeSession() },
+    });
+    mockCreateOrder.mockResolvedValue({ id: "order_1" } as never);
+    mockGetOrderBySessionId.mockResolvedValue({
+      id: "order_1",
+      customerName: "Teszt Elek",
+      customerEmail: "teszt@example.com",
+      customerPhone: "+36301234567",
+      items: [],
+      shippingCost: 1490,
+      shippingCourier: "mpl",
+      deliveryType: "HOME_DELIVERY",
+      shippingMethod: "MPL_HOME_DELIVERY",
+      pickupPointName: null,
+      pickupPointAddress: null,
+    } as never);
+    mockConfirmationEmail.mockRejectedValue(new Error("Resend down"));
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+    expect(mockConfirmationEmail).toHaveBeenCalledTimes(1);
+    expect(mockNotificationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: "order_1",
+        customerPhone: "+36301234567",
+        totalAmount: 4990,
+      })
+    );
   });
 });
