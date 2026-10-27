@@ -9,7 +9,8 @@ export const CATEGORY_ICONS = {
   polo: "Galléros póló",
   mug: "Bögre",
   pillow: "Párna",
-  bag: "Táska",
+  bag: "Szatyor",
+  tote: "Vászontáska",
   gymbag: "Tornazsák",
   gift: "Ajándék",
   image: "Kép / vászon",
@@ -31,7 +32,7 @@ export const MALFINI_CATEGORY_ICONS: Record<string, CategoryIconKey> = {
   sweatshirts: "sweatshirt",
   "polo-shirts": "polo",
   "gym-bags": "gymbag",
-  "tote-bags": "bag",
+  "tote-bags": "tote",
 };
 
 export function isCategoryIconKey(value: unknown): value is CategoryIconKey {

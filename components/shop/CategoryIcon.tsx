@@ -1,8 +1,9 @@
 import type { CategoryIconKey } from "@/lib/shop/categoryIcons";
 
 // 24×24 stroke pictograms for the category tiles. The generic shapes (grid, mug, bag, gift,
-// image, phone, key, tag) follow Lucide (ISC licence); the garments, the pillow and the gym
-// bag are drawn here because Lucide has no sweatshirt, polo, pillow or drawstring bag.
+// image, phone, key, tag) follow Lucide (ISC licence); the garments, the pillow and the
+// tote and gym bags are drawn here because Lucide has no sweatshirt, polo, pillow, canvas
+// tote or drawstring bag.
 const PATHS: Record<CategoryIconKey, string[]> = {
   all: [
     "M4 3h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
@@ -41,6 +42,11 @@ const PATHS: Record<CategoryIconKey, string[]> = {
     "M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z",
     "M3 6h18",
     "M16 10a4 4 0 0 1-8 0",
+  ],
+  tote: [
+    // Canvas tote: wide, slightly tapered body and a long strap.
+    "M3.5 10h17l-.7 11H4.2z",
+    "M8 10 9.2 3.8c.2-.6.5-.8 1-.8h3.6c.5 0 .8.2 1 .8L16 10",
   ],
   gymbag: [
     // Drawstring bag: ruffled top, cords looping up and down to the bottom corners.
