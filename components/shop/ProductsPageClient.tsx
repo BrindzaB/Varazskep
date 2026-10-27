@@ -281,7 +281,7 @@ export default function ProductsPageClient({
               <button
                 key={g}
                 onClick={() => setGender(g)}
-                className={`h-10 rounded border px-4 text-sm font-medium transition-colors ${
+                className={`h-8 rounded border px-3 text-sm font-medium transition-colors ${
                   gender === g
                     ? "border-brand-blue bg-brand-blue text-white"
                     : "border-border-light bg-white text-charcoal hover:border-brand-blue hover:text-brand-blue"

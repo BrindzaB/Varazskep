@@ -93,22 +93,17 @@ export default function MalfiniProductCard({
           </div>
         )}
 
-        <div className="mt-auto flex items-center justify-between pt-4">
-          <p className="text-sm font-medium text-charcoal">
-            {minPrice > 0 ? (
-              <>
-                {formatHuf(minPrice)}
-                <span className="ml-1 font-normal text-muted">-tól</span>
-              </>
-            ) : (
-              "—"
-            )}
-          </p>
-
-          <span className="rounded-sm bg-brand-blue px-3 py-1.5 text-xs font-medium text-white transition-colors group-hover:bg-brand-violet">
-            Megnézem
-          </span>
-        </div>
+        {/* The whole card is the link, so no separate button. */}
+        <p className="mt-auto whitespace-nowrap pt-4 text-sm font-medium text-charcoal">
+          {minPrice > 0 ? (
+            <>
+              {formatHuf(minPrice)}
+              <span className="font-normal text-muted">-tól</span>
+            </>
+          ) : (
+            "—"
+          )}
+        </p>
       </div>
     </Link>
   );
