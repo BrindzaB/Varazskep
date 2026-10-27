@@ -5,8 +5,9 @@
 import { prisma } from "@/lib/db";
 import { createSupabaseAdmin, BUCKET_ORDER_FILES } from "@/lib/supabase";
 import { getProducts } from "@/lib/malfini/client";
-import { sortNomenclatures } from "@/lib/malfini/sizeOrder";
+import { malfiniSizeLabel, sortNomenclatures } from "@/lib/malfini/sizeOrder";
 import { GENDER_LABELS } from "@/lib/malfini/genderLabels";
+import { malfiniCategoryLabel } from "@/lib/malfini/categoryConfig";
 import { getActiveProducts } from "@/lib/services/product";
 import { getFeaturedMalfiniCodes } from "@/lib/services/featured";
 import {
@@ -41,7 +42,7 @@ export async function getOrderFormCatalog(): Promise<OrderFormProduct[]> {
       .map((v) => ({
         name: v.name,
         sizes: sortNomenclatures(v.nomenclatures).map((n) => ({
-          label: n.sizeName,
+          label: malfiniSizeLabel(n.sizeName),
           ref: n.productSizeCode,
         })),
       }))
@@ -51,8 +52,8 @@ export async function getOrderFormCatalog(): Promise<OrderFormProduct[]> {
     return [
       {
         key: `malfini:${product.code}`,
-        name: `${product.name} – ${product.categoryName}${gender ? `, ${gender}` : ""}`,
-        group: "Ruházat",
+        name: `${product.name} – ${malfiniCategoryLabel(product)}${gender ? `, ${gender}` : ""}`,
+        group: product.categoryCode === "bags" ? "Táskák" : "Ruházat",
         colors,
       },
     ];

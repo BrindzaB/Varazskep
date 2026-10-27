@@ -3,7 +3,11 @@ import PricingSettingsForm from "@/components/admin/PricingSettingsForm";
 import { getPricingSettings } from "@/lib/pricing/settings";
 import { getProducts, getMalfiniCostMap } from "@/lib/malfini/client";
 import { makeEurToHufConverter } from "@/lib/malfini/pricing";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import {
+  getProductDesignConfig,
+  malfiniCategoryKey,
+  malfiniCategoryLabel,
+} from "@/lib/malfini/categoryConfig";
 import { getCachedAccountDetails } from "@/lib/kvikk/account";
 import { toDeliveryPointType } from "@/lib/kvikk/deliveryPointMap";
 import {
@@ -31,14 +35,15 @@ async function getSamples(
   const samples: { name: string; sku: string; costNetHuf: number }[] = [];
 
   for (const p of products) {
-    if (getCategoryConfig(p.categoryCode) === null) continue;
-    if (seen.has(p.categoryCode)) continue;
+    if (getProductDesignConfig(p) === null) continue;
+    const category = malfiniCategoryKey(p);
+    if (seen.has(category)) continue;
     const sku = p.variants[0]?.nomenclatures[0]?.productSizeCode;
     const cost = sku ? costMap[sku] : undefined;
     if (!sku || !cost) continue;
-    seen.add(p.categoryCode);
+    seen.add(category);
     samples.push({
-      name: `${p.name} (${p.categoryName})`,
+      name: `${p.name} (${malfiniCategoryLabel(p)})`,
       sku,
       costNetHuf: cost,
     });

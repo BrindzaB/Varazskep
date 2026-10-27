@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminToken, COOKIE_NAME } from "@/lib/auth/jwt";
 import { getMalfiniToken } from "@/lib/malfini/auth";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
 
 const BASE = () => process.env.MALFINI_API_URL ?? "https://api.malfini.com";
 
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Pick a handful of 3-char product codes from configured categories.
   // The prices and availabilities endpoints filter by product code, not nomenclature code.
   const configuredProducts = products.filter(
-    (p) => getCategoryConfig(p.categoryCode) !== null,
+    (p) => getProductDesignConfig(p) !== null,
   );
   const sampleProductCodes = configuredProducts
     .slice(0, 3)

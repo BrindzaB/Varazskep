@@ -13,7 +13,7 @@ import {
   findMalfiniProductBySku,
   getMalfiniCostMap,
 } from "@/lib/malfini/client";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
 import {
   getMockupConfig,
   type PrintArea,
@@ -247,7 +247,7 @@ async function resolvePrintArea(
 
   const product = await findMalfiniProductBySku(ref.productSizeCode);
   if (!product) return null;
-  const config = getCategoryConfig(product.categoryCode);
+  const config = getProductDesignConfig(product);
   return config
     ? { printArea: config.printArea, printAreaCm: config.printAreaCm }
     : null;

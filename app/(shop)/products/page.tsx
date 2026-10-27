@@ -43,7 +43,7 @@ export default async function ProductsPage() {
     <section className="px-4 py-10">
       <div className="mx-auto max-w-layout">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold uppercase text-brand-blue">
+          <h1 className="text-2xl font-bold uppercase text-charcoal">
             Termékek
           </h1>
           {/* Alternative for larger (typically corporate) orders — kept secondary

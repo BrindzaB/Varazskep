@@ -1,13 +1,15 @@
 // Pure formatting utilities — no DB imports.
 // Safe to import in both Server and Client components.
 
-// Formats a HUF integer for display: 4990 → "4 990 Ft"
+// Formats a HUF integer for display: 4990 → "4 990 Ft", 12990 → "12 990 Ft".
+// Grouped by hand because Intl's hu-HU format leaves four-digit numbers ungrouped
+// ("4990" next to "12 990"). The separators are non-breaking spaces so a price never wraps.
 export function formatHuf(amount: number): string {
-  return (
-    new Intl.NumberFormat("hu-HU", {
-      maximumFractionDigits: 0,
-    }).format(amount) + " Ft"
+  const digits = String(Math.abs(Math.round(amount))).replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    " "
   );
+  return `${amount < 0 ? "-" : ""}${digits} Ft`;
 }
 
 // Returns the lowest price from a list of variants.

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { verifyAdminToken, COOKIE_NAME } from "@/lib/auth/jwt";
 import { getProducts } from "@/lib/malfini/client";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
 import {
   findExistingLocalProductIds,
   setPopularProductKeys,
@@ -54,7 +54,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     if (!ref) return true;
     if (ref.source === "local") return !knownLocal.has(ref.productId);
     const product = catalog.find((p) => p.code === ref.code);
-    return !product || getCategoryConfig(product.categoryCode) === null;
+    return !product || getProductDesignConfig(product) === null;
   });
   if (unknown.length > 0) {
     return NextResponse.json(

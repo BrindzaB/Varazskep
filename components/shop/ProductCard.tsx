@@ -101,18 +101,13 @@ export default function ProductCard({ product }: ProductCardProps) {
           </p>
         )}
 
-        <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm font-medium text-charcoal">
-            {formatHuf(minPrice)}
-            {product.variants.length > 1 && (
-              <span className="ml-1 font-normal text-muted">-tól</span>
-            )}
-          </p>
-
-          <span className="rounded-sm bg-brand-blue px-3 py-1.5 text-xs font-medium text-white transition-colors group-hover:bg-brand-violet">
-            Megnézem
-          </span>
-        </div>
+        {/* The whole card is the link, so no separate button. */}
+        <p className="mt-auto whitespace-nowrap pt-4 text-sm font-medium text-charcoal">
+          {formatHuf(minPrice)}
+          {product.variants.length > 1 && (
+            <span className="font-normal text-muted">-tól</span>
+          )}
+        </p>
       </div>
     </Link>
   );

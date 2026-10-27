@@ -4,10 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatHuf } from "@/lib/utils/format";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
 import { useCartStore } from "@/lib/cart/cartStore";
 import type { MalfiniProduct, MalfiniVariant, MalfiniNomenclature } from "@/lib/malfini/types";
-import { sortNomenclatures } from "@/lib/malfini/sizeOrder";
+import { malfiniSizeLabel, sortNomenclatures } from "@/lib/malfini/sizeOrder";
 
 interface MalfiniProductDetailsProps {
   product: MalfiniProduct;
@@ -69,7 +69,7 @@ export default function MalfiniProductDetails({
     }
   }
 
-  const hasDesigner = getCategoryConfig(product.categoryCode) !== null;
+  const hasDesigner = getProductDesignConfig(product) !== null;
   const designerUrl = `/designer?code=${product.code}&colorCode=${encodeURIComponent(selectedVariant.code)}&sizeCode=${encodeURIComponent(selectedNomenclature?.sizeCode ?? "")}`;
 
   return (
@@ -119,7 +119,8 @@ export default function MalfiniProductDetails({
 
         {product.description && (
           <ul className="mt-4 space-y-1">
-            {product.description.split(",").map((item) => item.trim()).filter(Boolean).map((item, i) => (
+            {/* Malfini lists features comma-separated; a comma before a digit is a decimal ("2,5 cm"). */}
+            {product.description.split(/,(?!\d)/).map((item) => item.trim()).filter(Boolean).map((item, i) => (
               <li key={i} className="flex items-center gap-2 text-md text-muted">
                 <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-muted" />
                 {item}
@@ -226,7 +227,7 @@ export default function MalfiniProductDetails({
                         : "border-border-medium text-charcoal hover:border-brand-blue hover:text-brand-blue disabled:cursor-not-allowed"
                     }`}
                   >
-                    {nom.sizeName}
+                    {malfiniSizeLabel(nom.sizeName)}
                   </button>
                 );
               })}
@@ -253,7 +254,7 @@ export default function MalfiniProductDetails({
                 productSizeCode: selectedNomenclature.productSizeCode,
                 productName: product.name,
                 colorName: selectedVariant.name,
-                sizeName: selectedNomenclature.sizeName,
+                sizeName: malfiniSizeLabel(selectedNomenclature.sizeName),
                 price,
                 imageUrl:
                   selectedVariant.images.find((i) => i.viewCode === "a")
