@@ -14,11 +14,12 @@ import {
   getMalfiniCostMap,
 } from "@/lib/malfini/client";
 import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
+import { getMockupConfig } from "@/lib/designer/mockupConfig";
 import {
-  getMockupConfig,
+  templateGeometry,
   type PrintArea,
   type PrintSizeCm,
-} from "@/lib/designer/mockupConfig";
+} from "@/lib/designer/templates";
 import type { CanvasJson } from "@/lib/services/design";
 import {
   computePrintFeeHuf,
@@ -240,15 +241,11 @@ async function resolvePrintArea(
       select: { product: { select: { mockupType: true } } },
     });
     const config = getMockupConfig(variant?.product.mockupType ?? null);
-    return config
-      ? { printArea: config.printArea, printAreaCm: config.printAreaCm }
-      : null;
+    return config ? templateGeometry(config) : null;
   }
 
   const product = await findMalfiniProductBySku(ref.productSizeCode);
   if (!product) return null;
   const config = getProductDesignConfig(product);
-  return config
-    ? { printArea: config.printArea, printAreaCm: config.printAreaCm }
-    : null;
+  return config ? templateGeometry(config) : null;
 }

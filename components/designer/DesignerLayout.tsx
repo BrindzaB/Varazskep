@@ -1,6 +1,13 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import DesignerCanvas, {
@@ -17,9 +24,10 @@ import TextOptionsBar, {
 } from "./TextOptionsBar";
 import { COLOR_MAP } from "@/lib/utils/colors";
 import { getMockupConfig } from "@/lib/designer/mockupConfig";
+import { templateGeometry } from "@/lib/designer/templates";
 import { buildColoredDataUrl } from "@/lib/designer/colorUtils";
 import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
-import { malfiniSizeLabel } from "@/lib/malfini/sizeOrder";
+import { malfiniSizeLabel, sortNomenclatures } from "@/lib/malfini/sizeOrder";
 import { useCartStore } from "@/lib/cart/cartStore";
 import { formatHuf } from "@/lib/utils/format";
 import type { ProductWithVariants } from "@/lib/services/product";
@@ -28,45 +36,6 @@ import type {
   MalfiniVariant,
   MalfiniNomenclature,
 } from "@/lib/malfini/types";
-
-// Malfini size ordering: adult sizes then kids numeric sizes
-const SIZE_ORDER = [
-  "3XS",
-  "XXS",
-  "XS",
-  "S",
-  "M",
-  "L",
-  "XL",
-  "XXL",
-  "3XL",
-  "4XL",
-  "5XL",
-  "6XL",
-  "86",
-  "92",
-  "98",
-  "104",
-  "110",
-  "116",
-  "122",
-  "128",
-  "134",
-  "140",
-  "146",
-  "152",
-  "158",
-  "164",
-  "170",
-];
-
-function sortNomenclatures(
-  nomenclatures: MalfiniNomenclature[]
-): MalfiniNomenclature[] {
-  return [...nomenclatures].sort(
-    (a, b) => SIZE_ORDER.indexOf(a.sizeCode) - SIZE_ORDER.indexOf(b.sizeCode)
-  );
-}
 
 // ── Canvas scaling wrapper ────────────────────────────────────────────────────
 // Shrinks the canvas to fit the available container width on narrow screens.
@@ -244,6 +213,217 @@ function DesignerToolbar({
   );
 }
 
+// ── Shared designer behaviour ─────────────────────────────────────────────────
+// Everything both product sources do the same way: image upload, design saving,
+// clipart insertion and the controls around the canvas.
+
+// Uploads a customer image and places it on the canvas.
+function useImageUpload(canvasRef: RefObject<DesignerCanvasRef | null>) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = "";
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/designs/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? "Upload failed");
+      }
+      const { url } = (await res.json()) as { url: string };
+      await canvasRef.current?.addImage(url);
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "A feltöltés sikertelen."
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  return { fileInputRef, isUploading, uploadError, handleFileChange };
+}
+
+// Saves the canvas (both sides + preview image) and returns the new design id.
+async function saveDesign(
+  canvasRef: RefObject<DesignerCanvasRef | null>
+): Promise<string> {
+  const canvasData = canvasRef.current?.getCanvasJson() ?? {
+    front: [],
+    back: [],
+  };
+  const previewDataUrl = canvasRef.current?.getPreviewDataUrl() ?? null;
+  const res = await fetch("/api/designs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ canvasJson: canvasData, previewDataUrl }),
+  });
+  if (!res.ok) throw new Error("Design save failed");
+  const { id } = (await res.json()) as { id: string };
+  return id;
+}
+
+// Inserts a clipart in whichever variant the light/dark toggle currently shows, so a newly
+// added motif matches the active mode. Falls back to the light variant when the clipart has
+// no dark version.
+function insertClipart(
+  canvasRef: RefObject<DesignerCanvasRef | null>,
+  showDark: boolean,
+  svgUrl: string,
+  darkSvgUrl: string | null
+) {
+  const displayUrl = showDark && darkSvgUrl ? darkSvgUrl : svgUrl;
+  canvasRef.current?.addClipart(displayUrl, svgUrl, darkSvgUrl);
+}
+
+function DarkModeToggle({
+  showDark,
+  onChange,
+}: {
+  showDark: boolean;
+  onChange: (dark: boolean) => void;
+}) {
+  return (
+    <div className="mb-2 flex rounded-lg border border-border-light bg-white p-1">
+      {[false, true].map((dark) => (
+        <button
+          key={String(dark)}
+          onClick={() => onChange(dark)}
+          aria-pressed={showDark === dark}
+          className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
+            showDark === dark
+              ? "bg-charcoal text-white"
+              : "text-muted hover:text-charcoal"
+          }`}
+        >
+          {dark ? "Sötét alap" : "Világos alap"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SideToggle({
+  side,
+  onChange,
+}: {
+  side: "front" | "back";
+  onChange: (side: "front" | "back") => void;
+}) {
+  return (
+    <div className="mt-3 flex gap-2 rounded-lg bg-white p-1">
+      {(["front", "back"] as const).map((s) => (
+        <button
+          key={s}
+          onClick={() => onChange(s)}
+          aria-pressed={side === s}
+          className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
+            side === s
+              ? "border border-brand-violet bg-brand-violet text-white"
+              : "border border-border-medium text-muted hover:border-brand-violet hover:text-brand-violet"
+          }`}
+        >
+          {s === "front" ? "Elől" : "Hátul"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Font and colour controls for the selected text object.
+function ActiveTextOptions({
+  canvasRef,
+  font,
+  color,
+  onFontChange,
+  onColorChange,
+}: {
+  canvasRef: RefObject<DesignerCanvasRef | null>;
+  font: string;
+  color: string;
+  onFontChange: (font: string) => void;
+  onColorChange: (color: string) => void;
+}) {
+  return (
+    <div className="mt-3">
+      <TextOptionsBar
+        currentFont={font}
+        currentColor={color}
+        onFontChange={(f) => {
+          onFontChange(f);
+          canvasRef.current?.setTextFont(f);
+        }}
+        onColorChange={(c) => {
+          onColorChange(c);
+          canvasRef.current?.setTextColor(c);
+        }}
+      />
+    </div>
+  );
+}
+
+function PriceSummary({
+  price,
+  printFee,
+}: {
+  price: number;
+  printFee: number;
+}) {
+  return (
+    <div className="mt-5 space-y-1">
+      <div className="flex justify-between text-sm text-muted">
+        <span>Termék</span>
+        <span>{formatHuf(price)}</span>
+      </div>
+      {printFee > 0 && (
+        <div className="flex justify-between text-sm text-muted">
+          <span>Nyomtatás</span>
+          <span>{formatHuf(printFee)}</span>
+        </div>
+      )}
+      <div className="flex justify-between border-t border-border-light pt-1 text-base font-semibold text-charcoal">
+        <span>Összesen</span>
+        <span>{formatHuf(price + printFee)}</span>
+      </div>
+    </div>
+  );
+}
+
+function AddToCartButton({
+  onClick,
+  disabled,
+  isSaving,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  isSaving: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="mt-6 w-full rounded-sm bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-violet disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {isSaving ? "Mentés..." : "Kosárba"}
+    </button>
+  );
+}
+
+const SAVE_ERROR = "Hiba történt a mentés során. Kérem, próbálja újra.";
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 type LocalProps = {
@@ -273,6 +453,34 @@ export default function DesignerLayout(props: DesignerLayoutProps) {
   return <LocalDesignerLayout {...props} />;
 }
 
+// Font/colour of the selected text object, mirrored from the canvas for the options bar.
+function useActiveText() {
+  const [isTextSelected, setIsTextSelected] = useState(false);
+  const [activeFont, setActiveFont] = useState<string>(DEFAULT_TEXT_FONT);
+  const [activeColor, setActiveColor] = useState<string>(DEFAULT_TEXT_COLOR);
+
+  function handleActiveTextChange(
+    isText: boolean,
+    font: string,
+    color: string
+  ) {
+    setIsTextSelected(isText);
+    if (isText) {
+      setActiveFont(font);
+      setActiveColor(color);
+    }
+  }
+
+  return {
+    isTextSelected,
+    activeFont,
+    setActiveFont,
+    activeColor,
+    setActiveColor,
+    handleActiveTextChange,
+  };
+}
+
 // ── Local mode ────────────────────────────────────────────────────────────────
 
 const LOCAL_SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
@@ -289,14 +497,14 @@ function LocalDesignerLayout({
   // The designer page redirects unless the product has a valid template, so
   // getMockupConfig is non-null here.
   const mockupConfig = getMockupConfig(product.mockupType ?? null)!;
+  const geometry = templateGeometry(mockupConfig);
 
   const availableColors: ColorEntry[] = Array.from(
     new Set(product.variants.map((v) => v.color))
   ).map((name) => ({ name, hex: COLOR_MAP[name] ?? "#9ca3af" }));
 
   // Per-colour product photo shown beside the canvas — sourced from the DB
-  // (variant.imageUrl), same as the storefront. Replaces the old hardcoded
-  // colorImages map in mockupConfig.
+  // (variant.imageUrl), same as the storefront.
   const colorImages: Record<string, string> = {};
   for (const v of product.variants) {
     if (v.imageUrl && !colorImages[v.color]) colorImages[v.color] = v.imageUrl;
@@ -307,9 +515,7 @@ function LocalDesignerLayout({
 
   const [side, setSide] = useState<"front" | "back">("front");
   const [isClipartOpen, setIsClipartOpen] = useState(false);
-  const [isTextSelected, setIsTextSelected] = useState(false);
-  const [activeFont, setActiveFont] = useState<string>(DEFAULT_TEXT_FONT);
-  const [activeColor, setActiveColor] = useState<string>(DEFAULT_TEXT_COLOR);
+  const text = useActiveText();
   const [hasClipartsWithDark, setHasClipartsWithDark] = useState(false);
   const [showDark, setShowDark] = useState(false);
 
@@ -329,11 +535,9 @@ function LocalDesignerLayout({
   const [printFee, setPrintFee] = useState(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const canvasRef = useRef<DesignerCanvasRef>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const upload = useImageUpload(canvasRef);
 
   // Static PNG mockups (colorReplaceable === false) are used directly as imageUrl.
   // SVG mockups are fetched and color-replaced via buildColoredDataUrl.
@@ -371,62 +575,11 @@ function LocalDesignerLayout({
     };
   }, [side, shirtColorHex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleClipartSelect(svgUrl: string, darkSvgUrl: string | null) {
-    // Insert the clipart in whichever variant the light/dark toggle currently
-    // shows, so a newly added motif matches the active mode. Falls back to the
-    // light variant when the clipart has no dark version.
-    const displayUrl = showDark && darkSvgUrl ? darkSvgUrl : svgUrl;
-    canvasRef.current?.addClipart(displayUrl, svgUrl, darkSvgUrl);
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    // Reset input so the same file can be re-selected if needed
-    e.target.value = "";
-
-    setIsUploading(true);
-    setUploadError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/designs/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        throw new Error(data.error ?? "Upload failed");
-      }
-      const { url } = (await res.json()) as { url: string };
-      await canvasRef.current?.addImage(url);
-    } catch (err) {
-      setUploadError(
-        err instanceof Error ? err.message : "A feltöltés sikertelen."
-      );
-    } finally {
-      setIsUploading(false);
-    }
-  }
-
   function handleColorChange(name: string) {
     setShirtColorName(name);
     const firstSize =
       product.variants.find((v) => v.color === name)?.size ?? "";
     setSelectedSize(firstSize);
-  }
-
-  function handleActiveTextChange(
-    isText: boolean,
-    font: string,
-    color: string
-  ) {
-    setIsTextSelected(isText);
-    if (isText) {
-      setActiveFont(font);
-      setActiveColor(color);
-    }
   }
 
   async function handleAddToCart() {
@@ -435,19 +588,7 @@ function LocalDesignerLayout({
     setAddToCartError(null);
 
     try {
-      const canvasData = canvasRef.current?.getCanvasJson() ?? {
-        front: [],
-        back: [],
-      };
-      const previewDataUrl = canvasRef.current?.getPreviewDataUrl() ?? null;
-      const res = await fetch("/api/designs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasJson: canvasData, previewDataUrl }),
-      });
-      if (!res.ok) throw new Error("Design save failed");
-      const { id: designId } = (await res.json()) as { id: string };
-
+      const designId = await saveDesign(canvasRef);
       addItem({
         source: "local",
         variantId: selectedVariant.id,
@@ -463,7 +604,7 @@ function LocalDesignerLayout({
 
       router.push("/cart");
     } catch {
-      setAddToCartError("Hiba történt a mentés során. Kérem, próbálja újra.");
+      setAddToCartError(SAVE_ERROR);
     } finally {
       setIsAddingToCart(false);
     }
@@ -474,64 +615,42 @@ function LocalDesignerLayout({
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
-        onImageUploadClick={() => fileInputRef.current?.click()}
-        isUploading={isUploading}
+        onImageUploadClick={() => upload.fileInputRef.current?.click()}
+        isUploading={upload.isUploading}
       />
       <input
-        ref={fileInputRef}
+        ref={upload.fileInputRef}
         type="file"
         accept="image/png,image/jpeg,image/webp"
         className="hidden"
-        onChange={handleFileChange}
+        onChange={upload.handleFileChange}
       />
 
       <div className="flex flex-1 flex-col items-center overflow-y-auto overflow-x-hidden px-2 py-4">
         {hasClipartsWithDark && (
-          <div className="mb-2 flex rounded-lg border border-border-light bg-white p-1">
-            <button
-              onClick={() => {
-                setShowDark(false);
-                canvasRef.current?.swapClipartVariants(false);
-              }}
-              aria-pressed={!showDark}
-              className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
-                !showDark
-                  ? "bg-charcoal text-white"
-                  : "text-muted hover:text-charcoal"
-              }`}
-            >
-              Világos alap
-            </button>
-            <button
-              onClick={() => {
-                setShowDark(true);
-                canvasRef.current?.swapClipartVariants(true);
-              }}
-              aria-pressed={showDark}
-              className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
-                showDark
-                  ? "bg-charcoal text-white"
-                  : "text-muted hover:text-charcoal"
-              }`}
-            >
-              Sötét alap
-            </button>
-          </div>
+          <DarkModeToggle
+            showDark={showDark}
+            onChange={(dark) => {
+              setShowDark(dark);
+              canvasRef.current?.swapClipartVariants(dark);
+            }}
+          />
         )}
 
         <div className="flex w-full flex-col items-center">
-          <ScaledCanvasWrapper canvasHeight={mockupConfig.canvasHeight}>
+          <ScaledCanvasWrapper canvasHeight={geometry.canvasHeight}>
             <DesignerCanvas
               ref={canvasRef}
               imageUrl={imageUrl}
               side={side}
-              printArea={mockupConfig.printArea}
-              printAreaCm={mockupConfig.printAreaCm}
+              printArea={geometry.printArea}
+              printAreaCm={geometry.printAreaCm}
               printFees={printFees}
-              onActiveTextChange={handleActiveTextChange}
+              onActiveTextChange={text.handleActiveTextChange}
               onPrintFeeChange={setPrintFee}
               onDarkClipartChange={setHasClipartsWithDark}
-              canvasHeight={mockupConfig.canvasHeight}
+              canvasHeight={geometry.canvasHeight}
+              mockupSize={mockupConfig.mockupSize}
             />
           </ScaledCanvasWrapper>
 
@@ -540,58 +659,26 @@ function LocalDesignerLayout({
               src={colorImages[shirtColorName]}
               alt={shirtColorName}
               className="mt-4 max-w-full rounded object-contain"
-              style={{ height: mockupConfig.canvasHeight ?? CANVAS_HEIGHT }}
+              style={{ height: geometry.canvasHeight }}
             />
           )}
         </div>
 
-        {isTextSelected && (
-          <div className="mt-3">
-            <TextOptionsBar
-              currentFont={activeFont}
-              currentColor={activeColor}
-              onFontChange={(font) => {
-                setActiveFont(font);
-                canvasRef.current?.setTextFont(font);
-              }}
-              onColorChange={(color) => {
-                setActiveColor(color);
-                canvasRef.current?.setTextColor(color);
-              }}
-            />
-          </div>
+        {text.isTextSelected && (
+          <ActiveTextOptions
+            canvasRef={canvasRef}
+            font={text.activeFont}
+            color={text.activeColor}
+            onFontChange={text.setActiveFont}
+            onColorChange={text.setActiveColor}
+          />
         )}
 
-        {uploadError && (
-          <p className="mt-2 text-sm text-error">{uploadError}</p>
+        {upload.uploadError && (
+          <p className="mt-2 text-sm text-error">{upload.uploadError}</p>
         )}
 
-        {mockupConfig.hasSides && (
-          <div className="mt-3 flex rounded-lg border border-border-light bg-white p-1">
-            <button
-              onClick={() => setSide("front")}
-              aria-pressed={side === "front"}
-              className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "front"
-                  ? "bg-charcoal text-white"
-                  : "text-muted hover:text-charcoal"
-              }`}
-            >
-              Elől
-            </button>
-            <button
-              onClick={() => setSide("back")}
-              aria-pressed={side === "back"}
-              className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "back"
-                  ? "bg-charcoal text-white"
-                  : "text-muted hover:text-charcoal"
-              }`}
-            >
-              Hátul
-            </button>
-          </div>
-        )}
+        {mockupConfig.hasSides && <SideToggle side={side} onChange={setSide} />}
       </div>
 
       <aside className="flex flex-col border-t border-border-light bg-white p-4 lg:w-72 lg:flex-shrink-0 lg:border-l lg:border-t-0 lg:p-6">
@@ -642,22 +729,7 @@ function LocalDesignerLayout({
         </div>
 
         {selectedVariant && (
-          <div className="mt-5 space-y-1">
-            <div className="flex justify-between text-sm text-muted">
-              <span>Termék</span>
-              <span>{formatHuf(selectedVariant.price)}</span>
-            </div>
-            {printFee > 0 && (
-              <div className="flex justify-between text-sm text-muted">
-                <span>Nyomtatás</span>
-                <span>{formatHuf(printFee)}</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t border-border-light pt-1 text-base font-semibold text-charcoal">
-              <span>Összesen</span>
-              <span>{formatHuf(selectedVariant.price + printFee)}</span>
-            </div>
-          </div>
+          <PriceSummary price={selectedVariant.price} printFee={printFee} />
         )}
 
         {selectedVariant && !isInStock && (
@@ -671,18 +743,18 @@ function LocalDesignerLayout({
 
         <div className="hidden flex-1 lg:block" />
 
-        <button
+        <AddToCartButton
           onClick={handleAddToCart}
           disabled={!isInStock || !selectedVariant || isAddingToCart}
-          className="mt-6 w-full rounded-sm bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-violet disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isAddingToCart ? "Mentés..." : "Kosárba"}
-        </button>
+          isSaving={isAddingToCart}
+        />
       </aside>
 
       {isClipartOpen && (
         <ClipartPanel
-          onSelect={handleClipartSelect}
+          onSelect={(svgUrl, darkSvgUrl) =>
+            insertClipart(canvasRef, showDark, svgUrl, darkSvgUrl)
+          }
           onClose={() => setIsClipartOpen(false)}
         />
       )}
@@ -703,12 +775,10 @@ function MalfiniDesignerLayout({
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
 
-  const categoryConfig = getProductDesignConfig(malfiniProduct);
-  // categoryConfig is guaranteed non-null — the designer page only routes here
-  // for products that have a designer config (getProductDesignConfig).
-  const printArea = categoryConfig!.printArea;
-  const printAreaCm = categoryConfig!.printAreaCm;
-  const hasSides = categoryConfig!.hasSides;
+  // Non-null: the designer page only routes here for products that have a designer
+  // config (getProductDesignConfig).
+  const template = getProductDesignConfig(malfiniProduct)!;
+  const geometry = templateGeometry(template);
 
   const [selectedVariant, setSelectedVariant] =
     useState<MalfiniVariant>(initialVariant);
@@ -716,19 +786,15 @@ function MalfiniDesignerLayout({
     useState<MalfiniNomenclature | null>(initialNomenclature);
   const [side, setSide] = useState<"front" | "back">("front");
   const [isClipartOpen, setIsClipartOpen] = useState(false);
-  const [isTextSelected, setIsTextSelected] = useState(false);
-  const [activeFont, setActiveFont] = useState<string>(DEFAULT_TEXT_FONT);
-  const [activeColor, setActiveColor] = useState<string>(DEFAULT_TEXT_COLOR);
+  const text = useActiveText();
   const [hasClipartsWithDark, setHasClipartsWithDark] = useState(false);
   const [showDark, setShowDark] = useState(false);
   const [printFee, setPrintFee] = useState(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [addToCartError, setAddToCartError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const canvasRef = useRef<DesignerCanvasRef>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const upload = useImageUpload(canvasRef);
 
   // Compute imageUrl directly from variant image data — no async work needed.
   // Fall back to front image if back is requested but unavailable.
@@ -750,7 +816,7 @@ function MalfiniDesignerLayout({
   const stock = availabilityMap[selectedSku] ?? 0;
   const isInStock = stock > 0;
 
-  function handleColorChange(_name: string, variantCode: string) {
+  function handleColorChange(variantCode: string) {
     const newVariant = malfiniProduct.variants.find(
       (v) => v.code === variantCode
     );
@@ -761,67 +827,13 @@ function MalfiniDesignerLayout({
     );
   }
 
-  function handleActiveTextChange(
-    isText: boolean,
-    font: string,
-    color: string
-  ) {
-    setIsTextSelected(isText);
-    if (isText) {
-      setActiveFont(font);
-      setActiveColor(color);
-    }
-  }
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-
-    setIsUploading(true);
-    setUploadError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/designs/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        throw new Error(data.error ?? "Upload failed");
-      }
-      const { url } = (await res.json()) as { url: string };
-      await canvasRef.current?.addImage(url);
-    } catch (err) {
-      setUploadError(
-        err instanceof Error ? err.message : "A feltöltés sikertelen."
-      );
-    } finally {
-      setIsUploading(false);
-    }
-  }
-
   async function handleAddToCart() {
     if (!selectedNomenclature || !isInStock || isAddingToCart) return;
     setIsAddingToCart(true);
     setAddToCartError(null);
 
     try {
-      const canvasData = canvasRef.current?.getCanvasJson() ?? {
-        front: [],
-        back: [],
-      };
-      const previewDataUrl = canvasRef.current?.getPreviewDataUrl() ?? null;
-      const res = await fetch("/api/designs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ canvasJson: canvasData, previewDataUrl }),
-      });
-      if (!res.ok) throw new Error("Design save failed");
-      const { id: designId } = (await res.json()) as { id: string };
-
+      const designId = await saveDesign(canvasRef);
       addItem({
         source: "malfini",
         productSizeCode: selectedNomenclature.productSizeCode,
@@ -837,7 +849,7 @@ function MalfiniDesignerLayout({
 
       router.push("/cart");
     } catch {
-      setAddToCartError("Hiba történt a mentés során. Kérem, próbálja újra.");
+      setAddToCartError(SAVE_ERROR);
     } finally {
       setIsAddingToCart(false);
     }
@@ -848,112 +860,59 @@ function MalfiniDesignerLayout({
       <DesignerToolbar
         onClipartOpen={() => setIsClipartOpen(true)}
         onAddText={() => canvasRef.current?.addText()}
-        onImageUploadClick={() => fileInputRef.current?.click()}
-        isUploading={isUploading}
+        onImageUploadClick={() => upload.fileInputRef.current?.click()}
+        isUploading={upload.isUploading}
       />
       <input
-        ref={fileInputRef}
+        ref={upload.fileInputRef}
         type="file"
         accept="image/png,image/jpeg,image/webp"
         className="hidden"
-        onChange={handleFileChange}
+        onChange={upload.handleFileChange}
       />
 
       <div className="flex flex-1 flex-col items-center overflow-auto px-2 py-4">
         {hasClipartsWithDark && (
-          <div className="mb-2 flex rounded-lg border border-border-light bg-white p-1">
-            <button
-              onClick={() => {
-                setShowDark(false);
-                canvasRef.current?.swapClipartVariants(false);
-              }}
-              aria-pressed={!showDark}
-              className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
-                !showDark
-                  ? "bg-charcoal text-white"
-                  : "text-muted hover:text-charcoal"
-              }`}
-            >
-              Világos alap
-            </button>
-            <button
-              onClick={() => {
-                setShowDark(true);
-                canvasRef.current?.swapClipartVariants(true);
-              }}
-              aria-pressed={showDark}
-              className={`rounded px-4 py-2 text-sm font-medium transition-colors ${
-                showDark
-                  ? "bg-charcoal text-white"
-                  : "text-muted hover:text-charcoal"
-              }`}
-            >
-              Sötét alap
-            </button>
-          </div>
+          <DarkModeToggle
+            showDark={showDark}
+            onChange={(dark) => {
+              setShowDark(dark);
+              canvasRef.current?.swapClipartVariants(dark);
+            }}
+          />
         )}
 
-        <ScaledCanvasWrapper>
+        <ScaledCanvasWrapper canvasHeight={geometry.canvasHeight}>
           <DesignerCanvas
             ref={canvasRef}
             imageUrl={imageUrl}
             side={side}
-            printArea={printArea}
-            printAreaCm={printAreaCm}
+            printArea={geometry.printArea}
+            printAreaCm={geometry.printAreaCm}
             printFees={printFees}
-            onActiveTextChange={handleActiveTextChange}
+            onActiveTextChange={text.handleActiveTextChange}
             onPrintFeeChange={setPrintFee}
             onDarkClipartChange={setHasClipartsWithDark}
+            canvasHeight={geometry.canvasHeight}
+            mockupSize={template.mockupSize}
           />
         </ScaledCanvasWrapper>
 
-        {isTextSelected && (
-          <div className="mt-3">
-            <TextOptionsBar
-              currentFont={activeFont}
-              currentColor={activeColor}
-              onFontChange={(font) => {
-                setActiveFont(font);
-                canvasRef.current?.setTextFont(font);
-              }}
-              onColorChange={(color) => {
-                setActiveColor(color);
-                canvasRef.current?.setTextColor(color);
-              }}
-            />
-          </div>
+        {text.isTextSelected && (
+          <ActiveTextOptions
+            canvasRef={canvasRef}
+            font={text.activeFont}
+            color={text.activeColor}
+            onFontChange={text.setActiveFont}
+            onColorChange={text.setActiveColor}
+          />
         )}
 
-        {uploadError && (
-          <p className="mt-2 text-sm text-error">{uploadError}</p>
+        {upload.uploadError && (
+          <p className="mt-2 text-sm text-error">{upload.uploadError}</p>
         )}
 
-        {hasSides && (
-          <div className="mt-3 flex gap-2 rounded-lg bg-white p-1">
-            <button
-              onClick={() => setSide("front")}
-              aria-pressed={side === "front"}
-              className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "front"
-                  ? "border border-brand-violet bg-brand-violet text-white"
-                  : "border border-border-medium text-muted hover:border-brand-violet hover:text-brand-violet"
-              }`}
-            >
-              Elől
-            </button>
-            <button
-              onClick={() => setSide("back")}
-              aria-pressed={side === "back"}
-              className={`rounded px-6 py-2 text-sm font-medium transition-colors ${
-                side === "back"
-                  ? "border border-brand-violet bg-brand-violet text-white"
-                  : "border border-border-medium text-muted hover:border-brand-violet hover:text-brand-violet"
-              }`}
-            >
-              Hátul
-            </button>
-          </div>
-        )}
+        {template.hasSides && <SideToggle side={side} onChange={setSide} />}
       </div>
 
       <aside className="flex flex-col border-t border-border-light bg-white p-4 lg:w-72 lg:flex-shrink-0 lg:border-l lg:border-t-0 lg:p-6">
@@ -1001,7 +960,7 @@ function MalfiniDesignerLayout({
             {colorEntries.map(({ name, hex, iconUrl }) => (
               <button
                 key={hex}
-                onClick={() => handleColorChange(name, hex)}
+                onClick={() => handleColorChange(hex)}
                 aria-label={name}
                 aria-pressed={selectedVariant.code === hex}
                 title={name}
@@ -1023,24 +982,7 @@ function MalfiniDesignerLayout({
           </div>
         </div>
 
-        {price > 0 && (
-          <div className="mt-5 space-y-1">
-            <div className="flex justify-between text-sm text-muted">
-              <span>Termék</span>
-              <span>{formatHuf(price)}</span>
-            </div>
-            {printFee > 0 && (
-              <div className="flex justify-between text-sm text-muted">
-                <span>Nyomtatás</span>
-                <span>{formatHuf(printFee)}</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t border-border-light pt-1 text-base font-semibold text-charcoal">
-              <span>Összesen</span>
-              <span>{formatHuf(price + printFee)}</span>
-            </div>
-          </div>
-        )}
+        {price > 0 && <PriceSummary price={price} printFee={printFee} />}
 
         {selectedNomenclature && !isInStock && (
           <p className="mt-2 text-sm text-error">
@@ -1053,23 +995,18 @@ function MalfiniDesignerLayout({
 
         <div className="hidden flex-1 lg:block" />
 
-        <button
+        <AddToCartButton
           onClick={handleAddToCart}
           disabled={!isInStock || !selectedNomenclature || isAddingToCart}
-          className="mt-6 w-full rounded-sm bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-violet disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isAddingToCart ? "Mentés..." : "Kosárba"}
-        </button>
+          isSaving={isAddingToCart}
+        />
       </aside>
 
       {isClipartOpen && (
         <ClipartPanel
-          onSelect={(svgUrl, darkSvgUrl) => {
-            // Insert in the currently-selected variant so the new motif matches
-            // the active light/dark mode (falls back to light if no dark exists).
-            const displayUrl = showDark && darkSvgUrl ? darkSvgUrl : svgUrl;
-            canvasRef.current?.addClipart(displayUrl, svgUrl, darkSvgUrl);
-          }}
+          onSelect={(svgUrl, darkSvgUrl) =>
+            insertClipart(canvasRef, showDark, svgUrl, darkSvgUrl)
+          }
           onClose={() => setIsClipartOpen(false)}
         />
       )}

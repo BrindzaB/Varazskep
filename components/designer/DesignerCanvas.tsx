@@ -9,7 +9,14 @@ import {
 } from "react";
 import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
 import { DEFAULT_TEXT_FONT, DEFAULT_TEXT_COLOR } from "./TextOptionsBar";
-import type { PrintArea, PrintSizeCm } from "@/lib/designer/mockupConfig";
+import {
+  CANVAS_HEIGHT,
+  CANVAS_WIDTH,
+  mockupPlacement,
+  type ImageSize,
+  type PrintArea,
+  type PrintSizeCm,
+} from "@/lib/designer/templates";
 import {
   feeForTier,
   printTierOf,
@@ -17,17 +24,14 @@ import {
   type PrintFees,
 } from "@/lib/pricing/printFee";
 
-// Canvas dimensions — exported so DesignerLayout can compute the CSS scale factor.
-export const CANVAS_WIDTH = 500;
-export const CANVAS_HEIGHT = 600;
+// Canvas dimensions live in lib/designer/templates.ts (the server derives print areas from
+// them too); re-exported for DesignerLayout's CSS scale factor.
+export { CANVAS_HEIGHT, CANVAS_WIDTH };
 
 // The print tiers (10×10 cm / A4 / A3), the A3 cap and the per-object fees live in
 // lib/pricing/printFee.ts, shared with the server. The fee computed here is display-only —
 // the checkout recomputes it from the stored design geometry, so both sides must use the
 // same rule and the same admin-configured fees.
-
-// Mockup occupies 95% of the canvas in the tighter dimension
-const MOCKUP_SCALE_FACTOR = 0.95;
 
 // Fallback natural dimensions used if Fabric can't read the image dimensions
 const MOCKUP_NATURAL_WIDTH = 300;
@@ -38,18 +42,30 @@ interface ClipartFabricImage extends FabricImage {
   _clipartDark: string | null;
 }
 
-// Scales and centers a FabricImage on the canvas.
+// Scales and centers a FabricImage on the canvas (see mockupPlacement). The template's
+// print area assumes the mockup has its declared size; a different image would shift the
+// print area off the product, so say so loudly during development.
 function applyMockupLayout(
   img: FabricImage,
   canvas: Canvas,
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  expectedSize?: ImageSize
 ): void {
   const naturalWidth = img.width || MOCKUP_NATURAL_WIDTH;
   const naturalHeight = img.height || MOCKUP_NATURAL_HEIGHT;
-  const scale = Math.min(
-    (canvasWidth * MOCKUP_SCALE_FACTOR) / naturalWidth,
-    (canvasHeight * MOCKUP_SCALE_FACTOR) / naturalHeight
+  if (
+    expectedSize &&
+    (naturalWidth !== expectedSize.width || naturalHeight !== expectedSize.height)
+  ) {
+    console.warn(
+      `[designer] mockup is ${naturalWidth}×${naturalHeight}, template expects ` +
+        `${expectedSize.width}×${expectedSize.height} — the print area will be misplaced`
+    );
+  }
+  const { scale } = mockupPlacement(
+    { width: naturalWidth, height: naturalHeight },
+    { width: canvasWidth, height: canvasHeight }
   );
   img.set({
     selectable: false,
@@ -87,8 +103,8 @@ interface DesignerCanvasProps {
   // Computed by the parent (DesignerLayout). When this changes, the background is swapped in place.
   imageUrl: string;
   side?: "front" | "back";
-  // Print area config — drives object constraints and the dashed boundary rect.
-  // Comes from mockupConfig (local) or categoryConfig (Malfini).
+  // Print area in canvas pixels — drives object constraints and the dashed boundary rect.
+  // Derived from the product's print template by templateGeometry().
   printArea: PrintArea;
   // Real print area size (cm) — converts the on-canvas pixel design to cm for the saved
   // production coordinates, the print-fee tier and the A3 size cap.
@@ -104,6 +120,8 @@ interface DesignerCanvasProps {
   onDarkClipartChange?: (hasDark: boolean) => void;
   // Override canvas height for landscape products (e.g. mugs). Defaults to CANVAS_HEIGHT.
   canvasHeight?: number;
+  // The mockup's natural size the print template was measured on (development warning only).
+  mockupSize?: ImageSize;
 }
 
 const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
@@ -118,6 +136,7 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
       onPrintFeeChange,
       onDarkClipartChange,
       canvasHeight,
+      mockupSize,
     },
     ref
   ) {
@@ -800,7 +819,13 @@ const DesignerCanvas = forwardRef<DesignerCanvasRef, DesignerCanvasProps>(
         if (cancelled) return;
 
         if (shirtImageRef.current) canvas.remove(shirtImageRef.current);
-        applyMockupLayout(newImg, canvas, CANVAS_WIDTH, actualCanvasHeight);
+        applyMockupLayout(
+          newImg,
+          canvas,
+          CANVAS_WIDTH,
+          actualCanvasHeight,
+          mockupSize
+        );
         shirtImageRef.current = newImg;
 
         if (sideChanged) {

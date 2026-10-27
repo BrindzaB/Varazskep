@@ -7,18 +7,17 @@
 // products are sold, each under its own storefront category. A bag Malfini adds later
 // stays hidden until it is listed here — its photo needs its own print area anyway.
 //
-// Print area dimensions are in canvas pixels (canvas is 500×600; the product photo is
-// scaled to 95% of the tighter dimension and centred — see DesignerCanvas.tsx). For the
-// 400×453 Malfini photos that is a 1.1875× scale with the photo's top-left at (12.5, 31).
+// Templates are described on the Malfini product photo (lib/designer/templates.ts). One
+// template serves a whole category, measured on a reference product in size M — the
+// photos show a single size, so the on-screen proportion is exact for that size only.
+// Garment photos are 3D (ghost mannequin): the cloth wraps the body, so the visible width
+// is less than the size chart's flat width. The scale is therefore taken from the length
+// (shoulder to hem, size chart "A"), which the front view shows undistorted.
 
-import type { PrintArea, PrintSizeCm } from "@/lib/designer/mockupConfig";
+import type { PrintTemplate } from "@/lib/designer/templates";
 
-export interface CategoryConfig {
-  printArea: PrintArea;
-  // Real print area size in cm — garments use the full t-shirt area (38×48).
-  printAreaCm: PrintSizeCm;
-  hasSides: boolean; // true = front/back toggle shown in the designer
-}
+// Every Malfini product photo (`~w400` image links) is 400×453.
+const MALFINI_PHOTO_SIZE = { width: 400, height: 453 };
 
 // Storefront category for each bag we sell, keyed by 3-char Malfini product code.
 const BAG_CATEGORY_BY_CODE: Record<string, string> = {
@@ -26,35 +25,48 @@ const BAG_CATEGORY_BY_CODE: Record<string, string> = {
   "921": "tote-bags", // Shopper — cotton tote, 40×45 cm
 };
 
-export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
+export const CATEGORY_CONFIG: Record<string, PrintTemplate> = {
   "t-shirts": {
-    printArea: { width: 220, height: 300, centerX: 250, centerY: 300 },
-    printAreaCm: { width: 38, height: 48 },
+    // Reference 129 Basic, size M: 72 cm long = 380 px on the photo.
+    mockupSize: MALFINI_PHOTO_SIZE,
+    mockupPxPerCm: 5.28,
+    printAreaCm: { width: 35, height: 48 },
+    printCenterPx: { x: 200, y: 226.5 },
     hasSides: true,
   },
   "sweatshirts": {
-    printArea: { width: 220, height: 300, centerX: 252, centerY: 300 },
-    printAreaCm: { width: 38, height: 48 },
+    // Reference P41 Zero, size M: 72 cm long = 391 px on the photo. Hoodies (e.g. 840
+    // Break) photograph smaller because of the hood, so this is approximate for them.
+    mockupSize: MALFINI_PHOTO_SIZE,
+    mockupPxPerCm: 5.43,
+    printAreaCm: { width: 34, height: 46.5 },
+    printCenterPx: { x: 201.7, y: 226.5 },
     hasSides: true,
   },
   "polo-shirts": {
-    // Slightly narrower and shorter than t-shirts due to the collar and button placket
-    printArea: { width: 200, height: 300, centerX: 250, centerY: 310 },
-    printAreaCm: { width: 38, height: 48 },
+    // Reference P21 Joy, size M: 73 cm long = 387 px on the photo. Narrower and lower
+    // than the t-shirt area because of the collar and the button placket.
+    mockupSize: MALFINI_PHOTO_SIZE,
+    mockupPxPerCm: 5.3,
+    printAreaCm: { width: 32, height: 47.5 },
+    printCenterPx: { x: 200, y: 234.9 },
     hasSides: true,
   },
   "gym-bags": {
-    // The drawstring gathers the top third, so the area sits on the flat lower body:
-    // photo x 122–263, y 218–405 (~5.7 px/cm on the 45 cm tall bag). The bag narrows
-    // upwards, so the top edge sits where the body is still as wide as the area.
-    printArea: { width: 168, height: 222, centerX: 241, centerY: 401 },
+    // 912 Energy, 34×45 cm. The drawstring gathers the top third, so the area sits on the
+    // flat lower body; its top edge is where the narrowing bag is still as wide as the area.
+    mockupSize: MALFINI_PHOTO_SIZE,
+    mockupPxPerCm: 5.666,
     printAreaCm: { width: 25, height: 33 },
+    printCenterPx: { x: 192.4, y: 311.6 },
     hasSides: false, // Malfini has no back photo; printed on the front only
   },
   "tote-bags": {
-    // Body spans photo x 104–294, y 195–425 (~5 px/cm); ~5 cm margin on every side.
-    printArea: { width: 178, height: 208, centerX: 249, centerY: 399 },
+    // 921 Shopper, 40×45 cm; ~5 cm margin on every side.
+    mockupSize: MALFINI_PHOTO_SIZE,
+    mockupPxPerCm: 5.005,
     printAreaCm: { width: 30, height: 35 },
+    printCenterPx: { x: 199.2, y: 309.9 },
     // Both faces are identical, so the back side reuses the front photo
     // (DesignerLayout falls back to the front image when there is no back one).
     hasSides: true,
@@ -94,6 +106,6 @@ export function malfiniCategoryLabel(
 // Returns the designer config for a Malfini product, or null if it is not sold.
 export function getProductDesignConfig(
   p: CategorizedProduct
-): CategoryConfig | null {
+): PrintTemplate | null {
   return CATEGORY_CONFIG[malfiniCategoryKey(p)] ?? null;
 }

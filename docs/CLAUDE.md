@@ -77,7 +77,8 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 | `prisma/schema.prisma` | Database schema |
 | `public/Fekvo-logo.svg` | Brand logo — used in Header and Footer |
 | `public/images/hero-bg.jpg` | Homepage hero background photo (add file here) |
-| `lib/designer/mockupConfig.ts` | Local product mockup SVG paths + print area config |
+| `lib/designer/templates.ts` | Print template model + `templateGeometry()` — shared by designer and checkout |
+| `lib/designer/mockupConfig.ts` | Print templates for local products (by `mockupType`) |
 | `lib/designer/colorUtils.ts` | SVG color replacement for local mockups |
 
 ---

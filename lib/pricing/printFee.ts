@@ -11,7 +11,7 @@
 // the delivered artwork. The per-object `_wCm`/`_hCm` fields the designer stores alongside
 // are deliberately NOT used: those could be understated while leaving the print large.
 
-import type { PrintArea, PrintSizeCm } from "@/lib/designer/mockupConfig";
+import type { PrintArea, PrintSizeCm } from "@/lib/designer/templates";
 import type { CanvasJson } from "@/lib/services/design";
 
 // Print tiers, as sheet sizes in centimetres (short side × long side). An object belongs
