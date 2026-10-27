@@ -65,7 +65,7 @@ varazskep/
 │   │   │                                # getMalfiniCostMap(), buildCostMap(), buildPriceMap(),
 │   │   │                                # buildAvailabilityMap(), malfiniProductSkus(), warmup*()
 │   │   ├── pricing.ts                   # eurToHuf(), makeEurToHufConverter()
-│   │   └── categoryConfig.ts            # product → storefront category + { printArea, hasSides }
+│   │   └── categoryConfig.ts            # product → storefront category + print template
 │   ├── pricing/                         # THE source of every product price — see § Pricing
 │   │   ├── compute.ts                   # pure: computeGrossPrice(), roundToEndings(), realisedMarkupPct()
 │   │   ├── printFee.ts                  # pure: computePrintFeeHuf(), printTierOf(), 10×10 / A4 / A3 tiers + A3 cap
@@ -85,7 +85,8 @@ varazskep/
 │   │   ├── shopSettings.ts              # ShopSetting table: order notification address
 │   │   └── email.ts                     # Resend integration
 │   ├── designer/
-│   │   ├── mockupConfig.ts              # SVG mockup config for local products
+│   │   ├── templates.ts                 # PrintTemplate type, templateGeometry(), canvas size
+│   │   ├── mockupConfig.ts              # print templates for local products (by mockupType)
 │   │   └── colorUtils.ts               # buildColoredDataUrl(), darkenHex(), isNearWhite()
 │   ├── auth/jwt.ts                      # JWT admin auth helpers
 │   ├── cart/cartStore.ts               # Zustand cart state
@@ -96,7 +97,7 @@ varazskep/
 ├── emails/                              # React Email templates (Hungarian)
 ├── __tests__/                           # webhook.test.ts, order.test.ts
 └── public/
-    ├── tshirt_front.svg · tshirt_back.svg · mug-mockup.svg
+    ├── mug-flat-template.svg · pillow-mockup.png   # local product mockups
     └── swagger.json                     # Malfini REST API v4 OpenAPI spec
 ```
 
@@ -332,11 +333,23 @@ customer afterwards.
 
 ## Designer System
 
-### Two mockup modes
+### Print templates
 
-**Local products** (mugs): SVG mockup system. `Product.mockupType` → config in `lib/designer/mockupConfig.ts` → SVG path + print area. Color is applied via `buildColoredDataUrl()` (SVG fill replacement).
+Every designable product resolves to one `PrintTemplate` (`lib/designer/templates.ts`):
+- the mockup's natural pixel size;
+- its real-world scale (`mockupPxPerCm`, mockup px per real cm);
+- the print area's real size in cm (`printAreaCm`) and centre on the mockup (`printCenterPx`);
+- `hasSides`.
 
-**Malfini products** (clothing): Photo mockup system. Per-color product photo from Malfini API used directly as canvas background. `viewCode "a"` = front, `"b"` = back. No SVG color replacement. Print area config in `lib/malfini/categoryConfig.ts`.
+Templates never hold canvas pixels. `templateGeometry()` derives the canvas print area from the template, the canvas size (500×600, mugs 310 high) and `mockupPlacement()`, which is the same 95%-fit-and-centre the canvas uses to lay out the mockup. The designer (`DesignerLayout` → `DesignerCanvas`) and the checkout (`lib/pricing/resolve.ts` → `computePrintFeeHuf`) both call `templateGeometry()`, so the cm sizes, fee tiers and the A3 cap agree.
+
+**One scale per template.** With a single `mockupPxPerCm`, a design keeps its proportions in cm, and the A3 cap matches what the customer sees on the mockup. Garment scales come from the Malfini size chart (size M, length "A") against the reference photo. Width is not used because the photos are 3D: the cloth wraps the body, so it looks narrower than its flat width. The mug wrap is the one template not measured yet, so it still has separate x/y scales. `__tests__/designerTemplates.test.ts` enforces this and checks that every print area lies on its mockup.
+
+**Changing a template.** The server re-prices saved designs (in carts) with the *current* geometry. Never make a template map the same canvas pixels to more centimetres, or a saved design may jump a fee tier or fail the A3 check at checkout. The test pins the geometry each template had before the move to mockup coordinates and fails on any such growth.
+
+**Local products** (mugs, pillow): `Product.mockupType` → `lib/designer/mockupConfig.ts`, which adds the label (admin dropdown) and the mockup file (`svgPaths`). `colorReplaceable` SVG mockups are recoloured via `buildColoredDataUrl()`; the current templates are static.
+
+**Malfini products** (clothing, bags): `lib/malfini/categoryConfig.ts`, one template per storefront category, on the per-colour Malfini photo (400×453). `viewCode "a"` = front, `"b"` = back (falls back to the front photo). A category template is exact for its reference product. Other products in the category photograph slightly differently; hoodies, for example, look smaller because of the hood.
 
 `DesignerCanvas` receives a single `imageUrl: string` prop — the parent (`DesignerLayout`) computes the correct URL regardless of source.
 

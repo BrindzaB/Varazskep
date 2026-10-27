@@ -1,95 +1,47 @@
-// Canvas dimensions (must match DesignerCanvas.tsx constants)
-const CANVAS_WIDTH = 500;
-const CANVAS_HEIGHT = 600;
-const CX = CANVAS_WIDTH / 2; // 250
-const CY = CANVAS_HEIGHT / 2; // 300
+// Designer templates for local products (mugs, pillows, …), picked by Product.mockupType.
+// The admin assigns a template in the product form; a product without one is sellable but
+// not designable. Malfini products use lib/malfini/categoryConfig.ts instead.
+// The template shape and the canvas geometry live in lib/designer/templates.ts.
 
-export interface PrintArea {
-  width: number;
-  height: number;
-  centerX: number;
-  centerY: number;
-}
+import type { PrintTemplate } from "./templates";
 
-// Real-world size of the printable area in centimetres. Used to convert the
-// on-canvas pixel design into cm for the coordinate overlay, the saved
-// production coordinates, and the A4-based print-fee tier. Per template, because
-// a mug's print area is physically much smaller than a t-shirt's.
-export interface PrintSizeCm {
-  width: number;
-  height: number;
-}
-
-export interface MockupConfig {
+export interface MockupConfig extends PrintTemplate {
   // Human-readable label shown in the admin designer-template dropdown.
   label: string;
   svgPaths: { front: string; back?: string };
-  printArea: PrintArea;
-  // Real print area size in cm (see PrintSizeCm). Adjust per product after
-  // measuring the actual printable surface.
-  printAreaCm: PrintSizeCm;
-  // Whether the product has a "front" and "back" side that the user can toggle
-  hasSides: boolean;
-  // false for static PNG mockups — skips SVG fetch + CSS color replacement in LocalDesignerLayout
+  // false for static mockups — skips the SVG fetch + CSS colour replacement in the designer
   colorReplaceable?: boolean;
-  // Override canvas height (px) — use for landscape products like mugs (default: 600)
-  canvasHeight?: number;
 }
 
+// The flat mug-wrap template, shared by every mug: /mug-flat-template.svg is 500×310 with
+// the printable band centred in its surface rectangle.
+const MUG_WRAP: Omit<MockupConfig, "label"> = {
+  svgPaths: { front: "/mug-flat-template.svg" },
+  mockupSize: { width: 500, height: 310 },
+  // NOT MEASURED YET: the band is drawn wider than a real 20×8 cm wrap is long, so the two
+  // axes scale differently. Kept as it was until the mug is measured — the template test
+  // lists it as the one allowed exception.
+  mockupPxPerCm: { x: 20.106, y: 22.369 },
+  printAreaCm: { width: 20, height: 8 },
+  printCenterPx: { x: 238.4, y: 155 },
+  hasSides: false,
+  colorReplaceable: false,
+  canvasHeight: 310,
+};
+
 export const MOCKUP_CONFIG: Record<string, MockupConfig> = {
-  tshirt: {
-    label: "Póló",
-    svgPaths: {
-      front: "/tshirt_front.svg",
-      back: "/tshirt_back.svg",
-    },
-    // Print area spans from just below the collar to near the hem
-    printArea: { width: 185, height: 300, centerX: CX, centerY: CY },
-    printAreaCm: { width: 38, height: 48 }, // full adult t-shirt print area
-    hasSides: true,
-  },
-  mug: {
-    label: "Bögre (általános)",
-    svgPaths: {
-      front: "/mug-mockup.svg",
-    },
-    // Mug body is centered at ~(228, 285) on the canvas after scaling.
-    // The body rect in the SVG (x=50, w=170, y=30, h=220) maps to a 250×323px
-    // area. Print area uses comfortable margins inside that body.
-    printArea: { width: 150, height: 190, centerX: 228, centerY: 285 },
-    printAreaCm: { width: 20, height: 8 }, // realistic mug wrap — adjust after measuring
-    hasSides: false,
-  },
   pillow: {
     label: "Párna",
-    svgPaths: {
-      front: "/pillow-mockup.png",
-    },
-    // Print area centered on the pillow face — tune after visual check in designer.
-    printArea: { width: 260, height: 260, centerX: CX, centerY: 320 },
+    svgPaths: { front: "/pillow-mockup.png" },
+    mockupSize: { width: 377, height: 336 },
+    mockupPxPerCm: 5.896,
     printAreaCm: { width: 35, height: 35 }, // 40×40 cm pillow, print area a bit smaller
+    printCenterPx: { x: 188.5, y: 183.9 },
     hasSides: false,
     colorReplaceable: false,
   },
-  basic_mug: {
-    label: "Bögre (sima)",
-    svgPaths: { front: "/mug-flat-template.svg" },
-    // Flat wrap template: printable band centered in the SVG surface rectangle (y=50, h=210 → centerY=155).
-    printArea: { width: 382, height: 170, centerX: 239, centerY: 155 },
-    printAreaCm: { width: 20, height: 8 }, // realistic mug wrap — adjust after measuring
-    hasSides: false,
-    colorReplaceable: false,
-    canvasHeight: 310,
-  },
-  mug_with_spoon: {
-    label: "Bögre (kanalas)",
-    svgPaths: { front: "/mug-flat-template.svg" },
-    printArea: { width: 382, height: 170, centerX: 239, centerY: 155 },
-    printAreaCm: { width: 20, height: 8 }, // realistic mug wrap — adjust after measuring
-    hasSides: false,
-    colorReplaceable: false,
-    canvasHeight: 310,
-  },
+  basic_mug: { label: "Bögre (sima)", ...MUG_WRAP },
+  mug_with_spoon: { label: "Bögre (kanalas)", ...MUG_WRAP },
 };
 
 // Returns the designer template for a mockupType, or null if none exists.
