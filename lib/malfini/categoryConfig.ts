@@ -45,9 +45,10 @@ export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   },
   "gym-bags": {
     // The drawstring gathers the top third, so the area sits on the flat lower body:
-    // photo x 137–263, y 255–397 (~5.7 px/cm on the 45 cm tall bag).
-    printArea: { width: 150, height: 169, centerX: 250, centerY: 418 },
-    printAreaCm: { width: 22, height: 25 },
+    // photo x 122–263, y 218–405 (~5.7 px/cm on the 45 cm tall bag). The bag narrows
+    // upwards, so the top edge sits where the body is still as wide as the area.
+    printArea: { width: 168, height: 222, centerX: 241, centerY: 401 },
+    printAreaCm: { width: 25, height: 33 },
     hasSides: false, // Malfini has no back photo; printed on the front only
   },
   "tote-bags": {
