@@ -10,6 +10,7 @@ export const CATEGORY_ICONS = {
   mug: "Bögre",
   pillow: "Párna",
   bag: "Táska",
+  gymbag: "Tornazsák",
   gift: "Ajándék",
   image: "Kép / vászon",
   phone: "Telefontok",
@@ -24,11 +25,13 @@ export const CATEGORY_ICON_KEYS = Object.keys(CATEGORY_ICONS) as CategoryIconKey
 // Shown for a local category the admin has not assigned an icon to.
 export const DEFAULT_CATEGORY_ICON: CategoryIconKey = "tag";
 
-// Fixed icons for the Malfini categories (lib/malfini categoryCode).
+// Fixed icons for the Malfini categories (malfiniCategoryKey in lib/malfini/categoryConfig.ts).
 export const MALFINI_CATEGORY_ICONS: Record<string, CategoryIconKey> = {
   "t-shirts": "tshirt",
   sweatshirts: "sweatshirt",
   "polo-shirts": "polo",
+  "gym-bags": "gymbag",
+  "tote-bags": "bag",
 };
 
 export function isCategoryIconKey(value: unknown): value is CategoryIconKey {

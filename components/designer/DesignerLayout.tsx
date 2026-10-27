@@ -18,7 +18,8 @@ import TextOptionsBar, {
 import { COLOR_MAP } from "@/lib/utils/colors";
 import { getMockupConfig } from "@/lib/designer/mockupConfig";
 import { buildColoredDataUrl } from "@/lib/designer/colorUtils";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
+import { malfiniSizeLabel } from "@/lib/malfini/sizeOrder";
 import { useCartStore } from "@/lib/cart/cartStore";
 import { formatHuf } from "@/lib/utils/format";
 import type { ProductWithVariants } from "@/lib/services/product";
@@ -702,9 +703,9 @@ function MalfiniDesignerLayout({
   const router = useRouter();
   const addItem = useCartStore((state) => state.addItem);
 
-  const categoryConfig = getCategoryConfig(malfiniProduct.categoryCode);
+  const categoryConfig = getProductDesignConfig(malfiniProduct);
   // categoryConfig is guaranteed non-null — the designer page only routes here
-  // for products whose categoryCode is in CATEGORY_CONFIG.
+  // for products that have a designer config (getProductDesignConfig).
   const printArea = categoryConfig!.printArea;
   const printAreaCm = categoryConfig!.printAreaCm;
   const hasSides = categoryConfig!.hasSides;
@@ -827,7 +828,7 @@ function MalfiniDesignerLayout({
         productCode: malfiniProduct.code,
         productName: malfiniProduct.name,
         colorName: selectedVariant.name,
-        sizeName: selectedNomenclature.sizeName,
+        sizeName: malfiniSizeLabel(selectedNomenclature.sizeName),
         price,
         printFee: printFee > 0 ? printFee : undefined,
         imageUrl,
@@ -982,7 +983,7 @@ function MalfiniDesignerLayout({
                         : "cursor-not-allowed border-border-light text-muted line-through"
                   }`}
                 >
-                  {nom.sizeName}
+                  {malfiniSizeLabel(nom.sizeName)}
                 </button>
               );
             })}

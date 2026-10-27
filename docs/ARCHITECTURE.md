@@ -65,7 +65,7 @@ varazskep/
 │   │   │                                # getMalfiniCostMap(), buildCostMap(), buildPriceMap(),
 │   │   │                                # buildAvailabilityMap(), malfiniProductSkus(), warmup*()
 │   │   ├── pricing.ts                   # eurToHuf(), makeEurToHufConverter()
-│   │   └── categoryConfig.ts            # categoryCode → { printArea, hasSides }
+│   │   └── categoryConfig.ts            # product → storefront category + { printArea, hasSides }
 │   ├── pricing/                         # THE source of every product price — see § Pricing
 │   │   ├── compute.ts                   # pure: computeGrossPrice(), roundToEndings(), realisedMarkupPct()
 │   │   ├── printFee.ts                  # pure: computePrintFeeHuf(), printTierOf(), 10×10 / A4 / A3 tiers + A3 cap
@@ -358,7 +358,7 @@ customer afterwards.
 
 ### "Open designer" button visibility
 - Local: shown when `product.mockupType !== null`
-- Malfini: shown when `getCategoryConfig(product.categoryCode) !== null`
+- Malfini: shown when `getProductDesignConfig(product) !== null` — the same check gates the storefront, the designer route, the admin pickers, pricing and the sitemap
 
 ---
 
@@ -441,7 +441,11 @@ MalfiniNomenclature {
 
 **All categoryCode values:** `accessories`, `additional-assortment`, `bags`, `caps`, `fleece`, `jackets-vests`, `outlet`, `polo-shirts`, `promotional-materials`, `safety-footwear`, `shirts`, `sweatshirts`, `t-shirts`, `terry`, `trousers-shorts`
 
-**Designer-enabled categories:** `t-shirts`, `sweatshirts`, `polo-shirts`
+**Designer-enabled (sold) categories:** `t-shirts`, `sweatshirts`, `polo-shirts`, plus two bags. Malfini puts every bag (900 Handy, 901 Carry, 912 Energy, 921 Shopper, 922 Easygo) into the single `bags` category. So bags are picked by product code, and each gets its own storefront category:
+- `912` → `gym-bags` ("Tornazsákok"), front only;
+- `921` → `tote-bags` ("Vászontáskák"), front + back, and the back reuses the front photo because Malfini has no back photo.
+
+Every other bag stays unsold. Bags are one-size (`sizeName` "uni", shown as "Egy méret" via `malfiniSizeLabel`).
 
 ### Size ordering
 Sort nomenclatures using `SIZE_ORDER`: `3XS → XXS → XS → S → M → L → XL → XXL → 3XL → 4XL → 5XL → 6XL → 86–170`. Unknown codes fall to end.

@@ -12,6 +12,10 @@ import {
   buildAvailabilityMap,
   malfiniProductSkus,
 } from "@/lib/malfini/client";
+import {
+  getProductDesignConfig,
+  malfiniCategoryLabel,
+} from "@/lib/malfini/categoryConfig";
 import { getMalfiniPriceMap } from "@/lib/pricing/resolve";
 import {
   getPricingSettings,
@@ -64,7 +68,7 @@ export default async function DesignerPage({ searchParams }: Props) {
           {
             code: p.code,
             name: p.name,
-            categoryName: p.categoryName,
+            categoryName: malfiniCategoryLabel(p),
             imageUrl,
             genderCode: p.genderCode ?? null,
           },
@@ -119,7 +123,8 @@ export default async function DesignerPage({ searchParams }: Props) {
   // ── Malfini mode: ?code=M150&colorCode=01&sizeCode=M ──────────────────────
   if (searchParams.code) {
     const product = await getProduct(searchParams.code, "hu");
-    if (!product) redirect("/products");
+    // Only products with a designer config are designable (and sold).
+    if (!product || !getProductDesignConfig(product)) redirect("/products");
 
     // Resolve variant: match by colorCode, fall back to first with a front image
     const variant =

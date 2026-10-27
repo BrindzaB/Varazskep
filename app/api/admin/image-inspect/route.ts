@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminToken, COOKIE_NAME } from "@/lib/auth/jwt";
 import { getProduct, getProducts } from "@/lib/malfini/client";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
 
 // GET /api/admin/image-inspect?code=150
 // Returns all image URLs for every variant of the given product.
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // If no code given, pick the first configured product
   if (!code) {
     const all = await getProducts("hu");
-    const first = all.find((p) => getCategoryConfig(p.categoryCode) !== null);
+    const first = all.find((p) => getProductDesignConfig(p) !== null);
     if (!first) {
       return NextResponse.json({ error: "No configured products found" }, { status: 404 });
     }

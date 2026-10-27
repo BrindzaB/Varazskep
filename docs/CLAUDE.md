@@ -42,7 +42,7 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 
 ## Product Sources
 
-- **Clothing** (t-shirts, sweatshirts, polo shirts) — Malfini REST API, cached in Redis (L2) + module memory (L1)
+- **Clothing and bags** (t-shirts, sweatshirts, polo shirts; gym bag 912, tote bag 921) — Malfini REST API, cached in Redis (L2) + module memory (L1)
 - **Other** (mugs, etc.) — local Prisma `Product` + `Variant` tables
 
 ---
@@ -56,7 +56,7 @@ Hungarian custom-printed clothing and mugs webshop. Customers design products vi
 | `lib/pricing/settings.ts` | Admin-editable árrés / VAT / price endings / print fees (`PricingSetting` table) |
 | `lib/pricing/printFee.ts` | Per-object print fee, 10×10 / A4 / A3 tiers + A3 cap — shared by the designer and the checkout |
 | `lib/pricing/overrides.ts` | Manual per-SKU Malfini prices (`PriceOverride`) — wins over the árrés rule |
-| `lib/malfini/categoryConfig.ts` | categoryCode → designer print area config |
+| `lib/malfini/categoryConfig.ts` | What Malfini sells: storefront category + designer print area per product (`getProductDesignConfig`) |
 | `lib/malfini/types.ts` | TypeScript interfaces for Malfini API responses |
 | `lib/redis.ts` | Upstash Redis singleton + key/TTL constants |
 | `lib/services/design.ts` | Design serialization + SVG export |

@@ -13,6 +13,12 @@ import {
   type CategoryIconKey,
 } from "@/lib/shop/categoryIcons";
 import {
+  MALFINI_CATEGORY_LABELS,
+  MALFINI_CATEGORY_ORDER,
+  malfiniCategoryKey,
+  malfiniCategoryLabel,
+} from "@/lib/malfini/categoryConfig";
+import {
   matchesSearch,
   sortProducts,
   type ProductSort,
@@ -34,18 +40,10 @@ const GENDER_MATCH: Record<string, GenderFilter[]> = {
   "UNISEX/KIDS": ["Férfi", "Női", "Gyerek"],
 };
 
-// Malfini category code → Hungarian label + fixed tab order.
-const MALFINI_CATEGORY_LABEL: Record<string, string> = {
-  "t-shirts": "Pólók",
-  sweatshirts: "Pulóverek",
-  "polo-shirts": "Galléros pólók",
-};
-const MALFINI_CATEGORY_ORDER = ["t-shirts", "sweatshirts", "polo-shirts"];
-
 const ALL_KEY = "__all__";
 
 // A category tab. Local tabs come from Product.category (admin-editable);
-// Malfini tabs from the API categoryCode. `code` holds the value to filter by.
+// Malfini tabs from malfiniCategoryKey(). `code` holds the value to filter by.
 interface CategoryTab {
   key: string;
   label: string;
@@ -89,11 +87,7 @@ function itemPrice(item: ListItem): number {
 // finds Malfini products named only by their model ("Basic", "Heavy").
 function searchFields(item: ListItem): string[] {
   return item.type === "malfini"
-    ? [
-        item.product.name,
-        MALFINI_CATEGORY_LABEL[item.product.categoryCode] ??
-          item.product.categoryName,
-      ]
+    ? [item.product.name, malfiniCategoryLabel(item.product)]
     : [item.product.name, item.product.category ?? ""];
 }
 
@@ -116,12 +110,12 @@ export default function ProductsPageClient({
       { key: ALL_KEY, label: "Összes", kind: "all", icon: "all" },
     ];
 
-    const clothingCats = new Set(clothingProducts.map((p) => p.categoryCode));
+    const clothingCats = new Set(clothingProducts.map(malfiniCategoryKey));
     for (const code of MALFINI_CATEGORY_ORDER) {
       if (clothingCats.has(code)) {
         list.push({
           key: `m:${code}`,
-          label: MALFINI_CATEGORY_LABEL[code] ?? code,
+          label: MALFINI_CATEGORY_LABELS[code] ?? code,
           kind: "malfini",
           code,
           icon: MALFINI_CATEGORY_ICONS[code] ?? DEFAULT_CATEGORY_ICON,
@@ -166,7 +160,7 @@ export default function ProductsPageClient({
         if (selectedTab.kind === "local") return false;
         if (
           selectedTab.kind === "malfini" &&
-          item.product.categoryCode !== selectedTab.code
+          malfiniCategoryKey(item.product) !== selectedTab.code
         )
           return false;
         if (gender !== "Összes") {

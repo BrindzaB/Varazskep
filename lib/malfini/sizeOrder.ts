@@ -18,3 +18,8 @@ export function sortNomenclatures(noms: MalfiniNomenclature[]): MalfiniNomenclat
     return ai - bi;
   });
 }
+
+// Display name of a Malfini size. One-size products (bags) come as "uni".
+export function malfiniSizeLabel(sizeName: string): string {
+  return sizeName.trim().toLowerCase() === "uni" ? "Egy méret" : sizeName;
+}

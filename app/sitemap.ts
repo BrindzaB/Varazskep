@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getActiveProducts } from "@/lib/services/product";
 import { getProducts } from "@/lib/malfini/client";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import { getProductDesignConfig } from "@/lib/malfini/categoryConfig";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -39,12 +39,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.9,
   }));
 
-  // Only include Malfini products in a configured (designer-enabled) category
+  // Only include Malfini products with a designer config (the ones we sell)
   // that have at least one variant with a front image.
   const malfiniProductRoutes: MetadataRoute.Sitemap = malfiniProducts
     .filter(
       (p) =>
-        getCategoryConfig(p.categoryCode) !== null &&
+        getProductDesignConfig(p) !== null &&
         p.variants.some((v) => v.images.some((i) => i.viewCode === "a"))
     )
     .map((p) => ({

@@ -1,7 +1,13 @@
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import { getProducts } from "@/lib/malfini/client";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import {
+  getProductDesignConfig,
+  MALFINI_CATEGORY_LABELS,
+  MALFINI_CATEGORY_ORDER,
+  malfiniCategoryKey,
+  malfiniCategoryLabel,
+} from "@/lib/malfini/categoryConfig";
 import type { MalfiniProduct } from "@/lib/malfini/types";
 import { getFeaturedMalfiniCodes } from "@/lib/services/featured";
 import { GENDER_LABELS, malfiniProductLabel } from "@/lib/malfini/genderLabels";
@@ -22,24 +28,21 @@ export default async function AdminMalfiniCatalogPage({
     getFeaturedMalfiniCodes(),
   ]);
 
-  // Only show categories that are configured for the designer (t-shirts, polo-shirts, sweatshirts)
+  // Only the products we sell: the ones with a designer config (lib/malfini/categoryConfig.ts)
   const configuredProducts = allProducts.filter(
-    (p) => getCategoryConfig(p.categoryCode) !== null
+    (p) => getProductDesignConfig(p) !== null
   );
 
-  // Build category list (unique, preserving API order of first occurrence)
-  const categoryMap = new Map<string, string>();
-  for (const p of configuredProducts) {
-    if (!categoryMap.has(p.categoryCode)) {
-      categoryMap.set(p.categoryCode, p.categoryName);
-    }
-  }
-  const categories = Array.from(categoryMap.entries()); // [["t-shirts", "Pólók"], ...]
+  // Category list in storefront tab order: [["t-shirts", "Pólók"], ...]
+  const presentCategories = new Set(configuredProducts.map(malfiniCategoryKey));
+  const categories = MALFINI_CATEGORY_ORDER.filter((key) =>
+    presentCategories.has(key)
+  ).map((key) => [key, MALFINI_CATEGORY_LABELS[key] ?? key] as const);
 
   // Apply category filter first
   const categoryFilter = searchParams.category ?? null;
   const afterCategoryFilter = categoryFilter
-    ? configuredProducts.filter((p) => p.categoryCode === categoryFilter)
+    ? configuredProducts.filter((p) => malfiniCategoryKey(p) === categoryFilter)
     : configuredProducts;
 
   // Build gender list from category-filtered products (so options reflect current category)
@@ -177,7 +180,7 @@ export default async function AdminMalfiniCatalogPage({
                   <tr key={product.code} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{product.code}</td>
                     <td className="px-4 py-3 text-gray-900">{product.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{product.categoryName}</td>
+                    <td className="px-4 py-3 text-gray-600">{malfiniCategoryLabel(product)}</td>
                     <td className="px-4 py-3 text-gray-600">{product.variants.length} szín</td>
                     <td className="px-4 py-3 text-gray-600">
                       {GENDER_LABELS[product.genderCode ?? ""] ?? product.genderCode ?? "—"}

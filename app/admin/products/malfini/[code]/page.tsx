@@ -15,7 +15,10 @@ import {
 import { makeEurToHufConverter } from "@/lib/malfini/pricing";
 import { getMalfiniPriceDetails } from "@/lib/pricing/resolve";
 import { getPricingSettings } from "@/lib/pricing/settings";
-import { getCategoryConfig } from "@/lib/malfini/categoryConfig";
+import {
+  getProductDesignConfig,
+  malfiniCategoryLabel,
+} from "@/lib/malfini/categoryConfig";
 import { sortNomenclatures } from "@/lib/malfini/sizeOrder";
 
 // Overrides live in the DB and must be visible the moment they are saved.
@@ -54,7 +57,7 @@ export default async function AdminMalfiniProductPage({
     makeEurToHufConverter(settings.eurHufRate)
   );
   const availabilityMap = buildAvailabilityMap(availabilities);
-  const categoryConfig = getCategoryConfig(product.categoryCode);
+  const categoryConfig = getProductDesignConfig(product);
 
   const variants: EditorVariant[] = product.variants.map((variant) => ({
     code: variant.code,
@@ -113,7 +116,7 @@ export default async function AdminMalfiniProductPage({
           </h1>
           <div className="mt-2 flex items-center gap-2">
             <p className="text-sm text-gray-500">
-              {product.categoryName} ·{" "}
+              {malfiniCategoryLabel(product)} ·{" "}
               {GENDER_LABELS[product.genderCode ?? ""] ??
                 product.genderCode ??
                 "—"}{" "}
