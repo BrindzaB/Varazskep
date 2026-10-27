@@ -1,3 +1,4 @@
+import { formatHuf } from "@/lib/utils/format";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
@@ -253,7 +254,7 @@ function formatFileSize(bytes: number): string {
 }
 
 function formatHufOrDash(value: number | null): string {
-  return value === null ? "—" : `${value.toLocaleString("hu-HU")} Ft`;
+  return value === null ? "—" : formatHuf(value);
 }
 
 // Design preview. Served via our own route (Content-Disposition: inline) rather than
@@ -483,7 +484,7 @@ export default async function AdminOrderDetailPage({
                 <dt className="w-24 shrink-0 text-gray-500">Összeg:</dt>
                 <dd className="font-medium text-gray-900">
                   {order.totalAmount !== null
-                    ? `${order.totalAmount.toLocaleString("hu-HU")} Ft`
+                    ? formatHuf(order.totalAmount)
                     : "Utólag egyeztetendő"}
                 </dd>
               </div>
@@ -553,7 +554,7 @@ export default async function AdminOrderDetailPage({
               <div className="flex gap-2">
                 <dt className="w-36 shrink-0 text-gray-500">Szállítási díj:</dt>
                 <dd className="text-gray-900">
-                  {order.shippingCost.toLocaleString("hu-HU")} Ft
+                  {formatHuf(order.shippingCost)}
                 </dd>
               </div>
               {shipping.isDeliveryPoint && shipping.pointName && (

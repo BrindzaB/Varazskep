@@ -1,3 +1,4 @@
+import { formatHuf } from "@/lib/utils/format";
 import Link from "next/link";
 import AdminNav from "@/components/admin/AdminNav";
 import { getAllOrders } from "@/lib/services/order";
@@ -84,7 +85,7 @@ export default async function AdminOrdersPage({
                     </td>
                     <td className="px-4 py-3 text-gray-900">
                       {order.totalAmount !== null
-                        ? `${order.totalAmount.toLocaleString("hu-HU")} Ft`
+                        ? formatHuf(order.totalAmount)
                         : "Egyeztetendő"}
                     </td>
                     <td className="px-4 py-3">
