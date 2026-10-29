@@ -28,6 +28,8 @@ interface OrderNotificationProps {
   shippingCost: string; // pre-formatted
   // Delivery point name + address, or the home delivery address — already formatted.
   destination: string;
+  billingType: "PRIVATE" | "COMPANY";
+  billingLines: string[]; // name, tax number (company), address
 }
 
 // Sent to the shop when a paid webshop order arrives (Stripe webhook).
@@ -42,6 +44,8 @@ export default function OrderNotification({
   methodLabel,
   shippingCost,
   destination,
+  billingType,
+  billingLines,
 }: OrderNotificationProps) {
   return (
     <Html lang="hu">
@@ -86,6 +90,11 @@ export default function OrderNotification({
               {methodLabel} – {shippingCost}
             </Text>
             <Text style={preformatted}>{destination}</Text>
+
+            <Text style={label}>
+              Számlázási adatok ({billingType === "COMPANY" ? "cég" : "magánszemély"})
+            </Text>
+            <Text style={preformatted}>{billingLines.join("\n")}</Text>
 
             <Text style={label}>Azonosító</Text>
             <Text style={value}>{orderId}</Text>

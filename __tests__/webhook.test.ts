@@ -84,6 +84,18 @@ const shirtLine = {
   designId: "design_1",
 };
 
+const billing = {
+  type: "COMPANY",
+  name: "Teszt Kft.",
+  taxNumber: "12345678-2-41",
+  address: {
+    address: "Váci út 10",
+    city: "Budapest",
+    postalCode: "1132",
+    country: "HU",
+  },
+};
+
 function makeSession(overrides: Record<string, unknown> = {}): object {
   return {
     id: "cs_test_123",
@@ -99,6 +111,7 @@ function makeSession(overrides: Record<string, unknown> = {}): object {
         postalCode: "1011",
         country: "HU",
       }),
+      billing: JSON.stringify(billing),
       gdprConsent: "true",
       itemCount: "1",
       item_0: JSON.stringify(mugLine),
@@ -192,6 +205,7 @@ describe("POST /api/stripe/webhook", () => {
         postalCode: "1011",
         country: "HU",
       },
+      billing,
       totalAmount: 4990,
       gdprConsent: true,
       shippingCost: 1490,
@@ -270,6 +284,18 @@ describe("POST /api/stripe/webhook", () => {
     });
     const res = await POST(makeRequest("{}"));
     expect(res.status).toBe(400);
+  });
+
+  it("returns 400 without creating an order when billing metadata is missing", async () => {
+    const base = makeSession() as { metadata: Record<string, string> };
+    const { billing: _omitted, ...metadata } = base.metadata;
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: { object: makeSession({ metadata }) },
+    });
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(400);
+    expect(mockCreateOrder).not.toHaveBeenCalled();
   });
 
   it("returns 500 when createOrder throws", async () => {

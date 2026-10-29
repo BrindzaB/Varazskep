@@ -5,6 +5,7 @@ import { formatHuf } from "@/lib/utils/format";
 import { describeShipping } from "@/lib/shipping/display";
 import CartClearer from "@/components/shop/CartClearer";
 import { getOrderLines } from "@/lib/orders/lines";
+import { formatBillingLines, type BillingAddress } from "@/lib/checkout/billing";
 
 export const metadata: Metadata = {
   title: "Rendelés visszaigazolás – Varázskép",
@@ -52,6 +53,17 @@ export default async function OrderConfirmationPage({ params }: Props) {
 
   const shipping = describeShipping(order);
   const lines = getOrderLines(order);
+  const billingLines =
+    order.billingType && order.billingName && order.billingAddress
+      ? formatBillingLines({
+          type: order.billingType,
+          name: order.billingName,
+          ...(order.billingTaxNumber
+            ? { taxNumber: order.billingTaxNumber }
+            : {}),
+          address: order.billingAddress as unknown as BillingAddress,
+        })
+      : null;
 
   return (
     <section className="px-4 py-16">
@@ -138,6 +150,20 @@ export default async function OrderConfirmationPage({ params }: Props) {
                 </p>
               )}
             </div>
+
+            {/* Billing data */}
+            {billingLines && (
+              <div>
+                <p className="mb-1 text-sm font-medium text-charcoal">
+                  Számlázási adatok
+                </p>
+                {billingLines.map((line, i) => (
+                  <p key={i} className="text-sm text-muted">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            )}
 
             {/* Total */}
             <div className="flex justify-between border-t border-border-light pt-4">
