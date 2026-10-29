@@ -74,7 +74,14 @@ export default async function AdminOrdersPage({
                         {order.id}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-gray-900">{order.customerName}</td>
+                    <td className="px-4 py-3 text-gray-900">
+                      {order.customerName}
+                      {order.billingType === "COMPANY" && (
+                        <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Cég
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-700">
                       {order.channel === "ORDER_FORM" && (
                         <span className="mr-2 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">

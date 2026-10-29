@@ -25,6 +25,7 @@ interface OrderConfirmationProps {
     city: string;
     postalCode: string;
   };
+  billingLines: string[]; // name, tax number (company), address
   methodLabel: string; // e.g. "GLS átvételi pont", "MPL házhozszállítás"
   shippingCost: string; // pre-formatted, e.g. "990 Ft"
   isDeliveryPoint: boolean;
@@ -38,6 +39,7 @@ export default function OrderConfirmation({
   items,
   totalAmount,
   shippingAddress,
+  billingLines,
   methodLabel,
   shippingCost,
   isDeliveryPoint,
@@ -102,6 +104,13 @@ export default function OrderConfirmation({
                 </Text>
               </>
             )}
+
+            <Text style={label}>Számlázási adatok</Text>
+            {billingLines.map((line, i) => (
+              <Text key={i} style={value}>
+                {line}
+              </Text>
+            ))}
           </Section>
 
           <Hr style={hr} />

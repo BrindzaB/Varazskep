@@ -9,6 +9,11 @@ import KvikkMapWidget, {
   type KvikkPointOption,
 } from "@/components/shop/KvikkMapWidget";
 import type { KvikkMapPoint } from "@/lib/kvikk/types";
+import {
+  validateBillingRequest,
+  type BillingRequest,
+  type BillingType,
+} from "@/lib/checkout/billing";
 
 type DeliveryMode = "home" | "point";
 
@@ -45,6 +50,14 @@ interface FormFields {
   address: string;
   city: string;
   postalCode: string;
+  // Billing (invoice) data
+  billingType: BillingType;
+  companyName: string;
+  taxNumber: string;
+  billingSameAsShipping: boolean; // home delivery only
+  billingAddress: string;
+  billingCity: string;
+  billingPostalCode: string;
   gdprConsent: boolean;
 }
 
@@ -55,6 +68,13 @@ const EMPTY_FORM: FormFields = {
   address: "",
   city: "",
   postalCode: "",
+  billingType: "PRIVATE",
+  companyName: "",
+  taxNumber: "",
+  billingSameAsShipping: true,
+  billingAddress: "",
+  billingCity: "",
+  billingPostalCode: "",
   gdprConsent: false,
 };
 
@@ -65,8 +85,34 @@ interface FieldError {
   address?: string;
   city?: string;
   postalCode?: string;
+  companyName?: string;
+  taxNumber?: string;
+  billingAddress?: string;
+  billingCity?: string;
+  billingPostalCode?: string;
   gdprConsent?: string;
   shipping?: string;
+}
+
+// The billing part of the form as the checkout route expects it.
+function toBillingRequest(fields: FormFields, mode: DeliveryMode): BillingRequest {
+  const sameAsShipping = mode === "home" && fields.billingSameAsShipping;
+  return {
+    type: fields.billingType,
+    ...(fields.billingType === "COMPANY"
+      ? {
+          companyName: fields.companyName.trim(),
+          taxNumber: fields.taxNumber.trim(),
+        }
+      : {}),
+    address: sameAsShipping
+      ? null
+      : {
+          address: fields.billingAddress.trim(),
+          city: fields.billingCity.trim(),
+          postalCode: fields.billingPostalCode.trim(),
+        },
+  };
 }
 
 function validate(
@@ -104,6 +150,17 @@ function validate(
   } else if (!selectedPoint) {
     errors.shipping = "Válasszon átvételi pontot.";
   }
+
+  const billingErrors = validateBillingRequest(
+    toBillingRequest(fields, mode),
+    mode === "home"
+  );
+  if (billingErrors.companyName) errors.companyName = billingErrors.companyName;
+  if (billingErrors.taxNumber) errors.taxNumber = billingErrors.taxNumber;
+  if (billingErrors.address) errors.billingAddress = billingErrors.address;
+  if (billingErrors.city) errors.billingCity = billingErrors.city;
+  if (billingErrors.postalCode)
+    errors.billingPostalCode = billingErrors.postalCode;
 
   if (!fields.gdprConsent) {
     errors.gdprConsent =
@@ -205,6 +262,16 @@ export default function CheckoutForm() {
       address: undefined,
       city: undefined,
       postalCode: undefined,
+      billingAddress: undefined,
+    }));
+  }
+
+  function handleBillingTypeChange(next: BillingType) {
+    setFields((prev) => ({ ...prev, billingType: next }));
+    setErrors((prev) => ({
+      ...prev,
+      companyName: undefined,
+      taxNumber: undefined,
     }));
   }
 
@@ -297,6 +364,7 @@ export default function CheckoutForm() {
             shippingAddress,
           },
           shipping,
+          billing: toBillingRequest(fields, mode),
           gdprConsent: fields.gdprConsent,
         }),
       });
@@ -516,6 +584,110 @@ export default function CheckoutForm() {
             </fieldset>
           )}
 
+          {/* Billing (invoice) data */}
+          <fieldset className="rounded border border-border-light bg-white p-6">
+            <legend className="px-1 text-base font-semibold text-charcoal">
+              Számlázási adatok
+            </legend>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {(["PRIVATE", "COMPANY"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => handleBillingTypeChange(t)}
+                  aria-pressed={fields.billingType === t}
+                  className={`rounded border p-3 text-sm font-medium transition-colors ${
+                    fields.billingType === t
+                      ? "border-charcoal bg-gray-50 text-charcoal"
+                      : "border-border-medium text-muted hover:border-charcoal"
+                  }`}
+                >
+                  {t === "PRIVATE" ? "Magánszemély" : "Cég"}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {fields.billingType === "PRIVATE" ? (
+                <p className="text-sm text-muted">
+                  A számla a fent megadott névre szól.
+                </p>
+              ) : (
+                <>
+                  <Field
+                    label="Cégnév"
+                    name="companyName"
+                    type="text"
+                    value={fields.companyName}
+                    error={errors.companyName}
+                    autoComplete="organization"
+                    onChange={handleChange}
+                  />
+                  <Field
+                    label="Adószám"
+                    name="taxNumber"
+                    type="text"
+                    value={fields.taxNumber}
+                    error={errors.taxNumber}
+                    placeholder="12345678-1-12"
+                    onChange={handleChange}
+                  />
+                </>
+              )}
+
+              {mode === "home" && (
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="billingSameAsShipping"
+                    checked={fields.billingSameAsShipping}
+                    onChange={handleChange}
+                    className="h-4 w-4 flex-shrink-0 accent-charcoal"
+                  />
+                  <span className="text-sm text-charcoal">
+                    A számlázási cím megegyezik a szállítási címmel
+                  </span>
+                </label>
+              )}
+
+              {(mode === "point" || !fields.billingSameAsShipping) && (
+                <>
+                  <Field
+                    label="Számlázási cím (utca, házszám)"
+                    name="billingAddress"
+                    type="text"
+                    value={fields.billingAddress}
+                    error={errors.billingAddress}
+                    autoComplete="billing street-address"
+                    onChange={handleChange}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field
+                      label="Irányítószám"
+                      name="billingPostalCode"
+                      type="text"
+                      value={fields.billingPostalCode}
+                      error={errors.billingPostalCode}
+                      autoComplete="billing postal-code"
+                      onChange={handleChange}
+                    />
+                    <Field
+                      label="Város"
+                      name="billingCity"
+                      type="text"
+                      value={fields.billingCity}
+                      error={errors.billingCity}
+                      autoComplete="billing address-level2"
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <p className="text-sm text-muted">Ország: Magyarország</p>
+                </>
+              )}
+            </div>
+          </fieldset>
+
           {/* GDPR consent */}
           <div className="rounded border border-border-light bg-white p-6">
             <label className="flex items-start gap-3">
@@ -608,6 +780,7 @@ interface FieldProps {
   value: string;
   error?: string;
   autoComplete?: string;
+  placeholder?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -618,6 +791,7 @@ function Field({
   value,
   error,
   autoComplete,
+  placeholder,
   onChange,
 }: FieldProps) {
   return (
@@ -634,6 +808,7 @@ function Field({
         type={type}
         value={value}
         autoComplete={autoComplete}
+        placeholder={placeholder}
         onChange={onChange}
         aria-describedby={error ? `${name}-error` : undefined}
         aria-invalid={!!error}

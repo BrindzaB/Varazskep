@@ -22,9 +22,9 @@ export interface CartItemMeta {
   designId?: string;
 }
 
-const STRIPE_METADATA_VALUE_MAX = 500;
+export const STRIPE_METADATA_VALUE_MAX = 500;
 
-// Keys the checkout route spends on customer + shipping data (13 today). The remaining
+// Keys the checkout route spends on customer, billing + shipping data (14 today). The remaining
 // budget of Stripe's 50 keys goes to cart lines; 30 leaves headroom for new fields.
 export const MAX_CART_LINES = 30;
 
