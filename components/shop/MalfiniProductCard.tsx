@@ -7,7 +7,7 @@ import type { MalfiniProduct, MalfiniVariant } from "@/lib/malfini/types";
 import { GENDER_LABELS } from "@/lib/malfini/genderLabels";
 import {
   PRODUCT_CARD_CLASS,
-  PRODUCT_CARD_IMAGE_CLASS,
+  PRODUCT_CARD_IMAGE_INSET_CLASS,
 } from "@/components/shop/productCardStyles";
 
 interface MalfiniProductCardProps {
@@ -50,7 +50,7 @@ export default function MalfiniProductCard({
           <img
             src={imageUrl}
             alt={product.name}
-            className={PRODUCT_CARD_IMAGE_CLASS}
+            className={PRODUCT_CARD_IMAGE_INSET_CLASS}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

@@ -7,7 +7,7 @@ import { COLOR_MAP } from "@/lib/utils/colors";
 import type { ProductWithVariants } from "@/lib/services/product";
 import {
   PRODUCT_CARD_CLASS,
-  PRODUCT_CARD_IMAGE_CLASS,
+  PRODUCT_CARD_IMAGE_FULL_CLASS,
 } from "@/components/shop/productCardStyles";
 
 interface ProductCardProps {
@@ -50,7 +50,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           <img
             src={displayImageUrl}
             alt={product.name}
-            className={PRODUCT_CARD_IMAGE_CLASS}
+            className={PRODUCT_CARD_IMAGE_FULL_CLASS}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
