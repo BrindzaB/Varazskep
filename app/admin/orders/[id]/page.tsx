@@ -11,6 +11,9 @@ import GdprEraseButton from "@/components/admin/GdprEraseButton";
 import { describeShipping } from "@/lib/shipping/display";
 import { getOrderLines, type OrderLine } from "@/lib/orders/lines";
 import { CHANNEL_LABELS, STATUS_COLORS, STATUS_LABELS } from "@/lib/orders/status";
+import CopyButton from "@/components/admin/CopyButton";
+import { buildInvoice, type InvoiceSummary } from "@/lib/orders/invoiceLines";
+import { getPricingSettings } from "@/lib/pricing/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -247,6 +250,158 @@ function OrderLinesTable({
   );
 }
 
+interface BillingView {
+  type: "PRIVATE" | "COMPANY";
+  name: string;
+  taxNumber: string | null;
+  address: { address: string; city: string; postalCode: string; country: string } | null;
+}
+
+function CopyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <dt className="w-24 shrink-0 text-gray-500">{label}:</dt>
+      <dd className="min-w-0 flex-1 break-words text-gray-900">{value}</dd>
+      <CopyButton value={value} />
+    </div>
+  );
+}
+
+// Who the invoice is made out to, field by field with copy buttons for Billingo.
+function BillingDetails({
+  billing,
+  erased,
+}: {
+  billing: BillingView;
+  erased: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <h2 className="mb-3 text-sm font-semibold text-gray-700">
+        Számlázási adatok
+      </h2>
+      {erased ? (
+        <p className="text-sm italic text-gray-400">
+          Számlázási adatok törölve.
+        </p>
+      ) : (
+        <dl className="space-y-1.5 text-sm">
+          <div className="flex gap-2">
+            <dt className="w-24 shrink-0 text-gray-500">Típus:</dt>
+            <dd className="text-gray-900">
+              {billing.type === "COMPANY" ? "Cég" : "Magánszemély"}
+            </dd>
+          </div>
+          <CopyRow
+            label={billing.type === "COMPANY" ? "Cégnév" : "Név"}
+            value={billing.name}
+          />
+          {billing.taxNumber && (
+            <CopyRow label="Adószám" value={billing.taxNumber} />
+          )}
+          {billing.address && (
+            <>
+              <CopyRow label="Irányítószám" value={billing.address.postalCode} />
+              <CopyRow label="Város" value={billing.address.city} />
+              <CopyRow label="Cím" value={billing.address.address} />
+              <div className="flex gap-2">
+                <dt className="w-24 shrink-0 text-gray-500">Ország:</dt>
+                <dd className="text-gray-900">{billing.address.country}</dd>
+              </div>
+            </>
+          )}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+// The invoice lines exactly as they go on the Billingo invoice: one line per cart line
+// (print fee included) plus shipping. Warns if they do not add up to what Stripe charged.
+function InvoiceLinesTable({
+  invoice,
+  vatPct,
+  paidHuf,
+}: {
+  invoice: InvoiceSummary;
+  vatPct: number;
+  paidHuf: number | null;
+}) {
+  const mismatch = paidHuf !== null && paidHuf !== invoice.grossHuf;
+  return (
+    <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 className="mb-3 text-sm font-semibold text-gray-700">
+        Számlatételek
+      </h2>
+      <div className="overflow-x-auto">
+        <table className="w-full whitespace-nowrap text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 text-left text-gray-500">
+              <th className="pb-2 font-medium">Megnevezés</th>
+              <th className="pb-2 text-right font-medium">Db</th>
+              <th className="pb-2 text-right font-medium">Bruttó egységár</th>
+              <th className="pb-2 text-right font-medium">ÁFA</th>
+              <th className="pb-2 text-right font-medium">Bruttó összesen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.lines.map((line, i) => (
+              <tr key={i} className="border-b border-gray-50 last:border-0">
+                <td className="py-1.5 text-gray-900">
+                  <span className="inline-flex items-center gap-2">
+                    {line.name}
+                    <CopyButton value={line.name} />
+                  </span>
+                </td>
+                <td className="py-1.5 text-right text-gray-900">
+                  {line.quantity} {line.unit}
+                </td>
+                <td className="py-1.5 text-right text-gray-600">
+                  {formatHuf(line.unitPriceGrossHuf)}
+                </td>
+                <td className="py-1.5 text-right text-gray-600">{vatPct}%</td>
+                <td className="py-1.5 text-right font-medium text-gray-900">
+                  {formatHuf(line.totalGrossHuf)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <dl className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-sm">
+        <div className="flex justify-end gap-4">
+          <dt className="text-gray-500">Nettó:</dt>
+          <dd className="w-28 text-right text-gray-900">
+            {formatHuf(invoice.netHuf)}
+          </dd>
+        </div>
+        <div className="flex justify-end gap-4">
+          <dt className="text-gray-500">ÁFA ({vatPct}%):</dt>
+          <dd className="w-28 text-right text-gray-900">
+            {formatHuf(invoice.vatHuf)}
+          </dd>
+        </div>
+        <div className="flex justify-end gap-4 font-semibold">
+          <dt className="text-gray-700">Bruttó:</dt>
+          <dd className="w-28 text-right text-gray-900">
+            {formatHuf(invoice.grossHuf)}
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-2 text-xs text-gray-500">
+        A nettó és ÁFA bontás tájékoztató, tételenként egész forintra kerekítve.
+        A számlán a Billingo számolja.
+      </p>
+      {mismatch && (
+        <p className="mt-2 text-sm font-medium text-red-600">
+          Figyelem: a tételek összege eltér a kifizetett összegtől (
+          {formatHuf(paidHuf)}). Számlázás előtt ellenőrizd a Stripe-ban.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function formatFileSize(bytes: number): string {
   return bytes >= 1024 * 1024
     ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -374,7 +529,33 @@ export default async function AdminOrderDetailPage({
         country: string;
       });
 
+  const billing: BillingView | null = order.billingType
+    ? {
+        type: order.billingType,
+        name: order.billingName ?? "",
+        taxNumber: order.billingTaxNumber,
+        address: (order.billingAddress as BillingView["address"]) ?? null,
+      }
+    : null;
+
   const lines = getOrderLines(order);
+
+  // Invoice lines need every line priced — ORDER_FORM and legacy orders are not.
+  const { vatPct } = await getPricingSettings();
+  const pricedItems = lines.flatMap((l) =>
+    l.quantity !== null && l.unitPriceHuf !== null && l.printFeeHuf !== null
+      ? [{ ...l, quantity: l.quantity, unitPriceHuf: l.unitPriceHuf, printFeeHuf: l.printFeeHuf }]
+      : []
+  );
+  const invoice =
+    !isOrderForm && lines.length > 0 && pricedItems.length === lines.length
+      ? buildInvoice({
+          items: pricedItems,
+          shippingLabel: shipping.methodLabel,
+          shippingCostHuf: order.shippingCost,
+          vatPct,
+        })
+      : null;
   // Each designed line with its stored design. Legacy orders keep theirs on the order.
   const designedLines = lines.flatMap((line) => {
     const design =
@@ -443,10 +624,11 @@ export default async function AdminOrderDetailPage({
                     />
                   </dd>
                 </div>
-                {address && (
+                {/* A delivery-point order's stored address is the point's — shown under Szállítás. */}
+                {address && !shipping.isDeliveryPoint && (
                   <>
                     <div className="flex gap-2">
-                      <dt className="w-24 shrink-0 text-gray-500">Cím:</dt>
+                      <dt className="w-24 shrink-0 text-gray-500">Szállítás:</dt>
                       <dd className="text-gray-900">
                         {address.postalCode} {address.city}, {address.address}
                       </dd>
@@ -498,9 +680,19 @@ export default async function AdminOrderDetailPage({
               )}
             </dl>
           </div>
+
+          {billing && <BillingDetails billing={billing} erased={piiErased} />}
         </div>
 
         <OrderLinesTable lines={lines} showPrices={!isOrderForm} />
+
+        {invoice && (
+          <InvoiceLinesTable
+            invoice={invoice}
+            vatPct={vatPct}
+            paidHuf={order.totalAmount}
+          />
+        )}
 
         {isOrderForm && (
           <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">

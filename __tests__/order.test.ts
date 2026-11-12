@@ -55,6 +55,17 @@ const baseInput = {
     postalCode: "1011",
     country: "HU",
   },
+  billing: {
+    type: "COMPANY" as const,
+    name: "Teszt Kft.",
+    taxNumber: "12345678-2-41",
+    address: {
+      address: "Váci út 10",
+      city: "Budapest",
+      postalCode: "1132",
+      country: "HU",
+    },
+  },
   totalAmount: 4990,
   gdprConsent: true,
   shippingCost: 1490,
@@ -86,6 +97,39 @@ describe("createOrder", () => {
       }),
     });
     expect(result).toMatchObject({ status: "PAID" });
+  });
+
+  it("stores the billing data", async () => {
+    mockPrisma.order.findUnique.mockResolvedValue(null);
+    mockPrisma.order.create.mockResolvedValue({ id: "order_1" });
+
+    await createOrder(baseInput);
+
+    const { data } = mockPrisma.order.create.mock.calls[0][0];
+    expect(data).toMatchObject({
+      billingType: "COMPANY",
+      billingName: "Teszt Kft.",
+      billingTaxNumber: "12345678-2-41",
+      billingAddress: baseInput.billing.address,
+    });
+  });
+
+  it("leaves the tax number out for a private person", async () => {
+    mockPrisma.order.findUnique.mockResolvedValue(null);
+    mockPrisma.order.create.mockResolvedValue({ id: "order_1" });
+
+    await createOrder({
+      ...baseInput,
+      billing: {
+        type: "PRIVATE",
+        name: "Teszt Elek",
+        address: baseInput.shippingAddress,
+      },
+    });
+
+    const { data } = mockPrisma.order.create.mock.calls[0][0];
+    expect(data.billingType).toBe("PRIVATE");
+    expect(data).not.toHaveProperty("billingTaxNumber");
   });
 
   it("stores every cart line with its quantity and prices, in cart order", async () => {

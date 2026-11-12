@@ -5,6 +5,10 @@ import Link from "next/link";
 import { formatHuf, getMinPrice } from "@/lib/utils/format";
 import { COLOR_MAP } from "@/lib/utils/colors";
 import type { ProductWithVariants } from "@/lib/services/product";
+import {
+  PRODUCT_CARD_CLASS,
+  PRODUCT_CARD_IMAGE_FULL_CLASS,
+} from "@/components/shop/productCardStyles";
 
 interface ProductCardProps {
   product: ProductWithVariants;
@@ -37,7 +41,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <Link
       href={`/products/${product.slug}`}
-      className="group flex flex-col overflow-hidden rounded border border-border-light bg-white transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-card"
+      className={PRODUCT_CARD_CLASS}
     >
       {/* Product image — 1:1 aspect ratio */}
       <div className="relative aspect-square w-full overflow-hidden bg-white">
@@ -46,7 +50,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           <img
             src={displayImageUrl}
             alt={product.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className={PRODUCT_CARD_IMAGE_FULL_CLASS}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

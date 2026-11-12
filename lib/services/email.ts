@@ -9,6 +9,7 @@ import OrderNotification from "@/emails/OrderNotification";
 import { formatHuf } from "@/lib/utils/format";
 import { getShopSettings } from "@/lib/services/shopSettings";
 import { describeShipping } from "@/lib/shipping/display";
+import { formatBillingLines, type BillingInfo } from "@/lib/checkout/billing";
 import type {
   DeliveryType,
   ShippingMethod,
@@ -129,6 +130,7 @@ interface PaidOrderEmailInput {
     postalCode: string;
     country: string;
   };
+  billing: BillingInfo;
   shippingCost: number;
   // Shipping description inputs (new Kvikk fields + legacy fallback).
   shippingCourier: string | null;
@@ -179,6 +181,7 @@ export async function sendOrderConfirmationEmail(
         city: input.shippingAddress.city,
         postalCode: input.shippingAddress.postalCode,
       },
+      billingLines: formatBillingLines(input.billing),
       methodLabel: shipping.methodLabel,
       shippingCost: formatHuf(input.shippingCost),
       isDeliveryPoint: shipping.isDeliveryPoint,
@@ -225,6 +228,8 @@ export async function sendOrderNotificationEmail(
       methodLabel: shipping.methodLabel,
       shippingCost: formatHuf(input.shippingCost),
       destination,
+      billingType: input.billing.type,
+      billingLines: formatBillingLines(input.billing),
     })
   );
 

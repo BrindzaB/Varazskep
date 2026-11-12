@@ -4,6 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatHuf } from "@/lib/utils/format";
 import type { MalfiniProduct, MalfiniVariant } from "@/lib/malfini/types";
+import { GENDER_LABELS } from "@/lib/malfini/genderLabels";
+import {
+  PRODUCT_CARD_CLASS,
+  PRODUCT_CARD_IMAGE_INSET_CLASS,
+} from "@/components/shop/productCardStyles";
 
 interface MalfiniProductCardProps {
   product: MalfiniProduct;
@@ -26,6 +31,9 @@ export default function MalfiniProductCard({
 
   const [hoveredVariant, setHoveredVariant] = useState<MalfiniVariant | null>(null);
 
+  // Férfi / Női / Gyerek / Uniszex — local products (mugs etc.) have no gender and show none.
+  const genderLabel = product.genderCode ? GENDER_LABELS[product.genderCode] : undefined;
+
   const imageUrl = getFrontImage(hoveredVariant ?? defaultVariant ?? product.variants[0])
     ?? getFrontImage(defaultVariant ?? product.variants[0])
     ?? null;
@@ -33,7 +41,7 @@ export default function MalfiniProductCard({
   return (
     <Link
       href={`/products/malfini/${product.code}`}
-      className="group flex flex-col overflow-hidden rounded border border-border-light bg-white transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-card hover:border-brand-violet"
+      className={PRODUCT_CARD_CLASS}
     >
       {/* Product image — 1:1 aspect ratio */}
       <div className="relative aspect-square w-full overflow-hidden bg-white">
@@ -42,7 +50,7 @@ export default function MalfiniProductCard({
           <img
             src={imageUrl}
             alt={product.name}
-            className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+            className={PRODUCT_CARD_IMAGE_INSET_CLASS}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
@@ -68,10 +76,17 @@ export default function MalfiniProductCard({
 
       {/* Card body */}
       <div className="flex flex-1 flex-col p-4">
-        <h2 className="line-clamp-2 text-base font-semibold text-charcoal">
-          {product.name}
-          <span className="font-mono text-xs font-normal text-muted ml-1">{product.code}</span>
-        </h2>
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="line-clamp-2 text-base font-semibold text-charcoal">
+            {product.name}
+            <span className="font-mono text-xs font-normal text-muted ml-1">{product.code}</span>
+          </h2>
+          {genderLabel && (
+            <span className="shrink-0 whitespace-nowrap text-xs text-muted">
+              {genderLabel}
+            </span>
+          )}
+        </div>
 
         {/* Color swatches — max 4 visible, remainder shown as "+x" */}
         {visibleVariants.length > 0 && (

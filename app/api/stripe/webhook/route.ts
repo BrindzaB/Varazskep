@@ -8,6 +8,7 @@ import {
 } from "@/lib/services/email";
 import type { DeliveryType } from "@/lib/generated/prisma/client";
 import { decodeCartItems } from "@/lib/checkout/cartMetadata";
+import { decodeBilling } from "@/lib/checkout/billing";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-03-25.dahlia",
@@ -54,6 +55,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (cartItems.length === 0) {
     console.error(`[webhook] No cart items in session ${session.id}`);
     return NextResponse.json({ error: "No cart items" }, { status: 400 });
+  }
+
+  // Validated by the checkout route before payment — missing here means a tampered or
+  // foreign session, which must not become an order the shop cannot invoice.
+  const billing = decodeBilling(meta.billing);
+  if (!billing) {
+    console.error(`[webhook] Missing or invalid billing in session ${session.id}`);
+    return NextResponse.json({ error: "Invalid billing" }, { status: 400 });
   }
 
   let shippingAddress: {
@@ -111,6 +120,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       customerEmail: session.customer_email ?? "",
       customerPhone: meta.customerPhone,
       shippingAddress,
+      billing,
       totalAmount,
       gdprConsent: meta.gdprConsent === "true",
       shippingCost,
@@ -163,6 +173,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         items: fullOrder.items,
         totalAmount,
         shippingAddress,
+        billing,
         shippingCost: fullOrder.shippingCost,
         shippingCourier: fullOrder.shippingCourier,
         deliveryType: fullOrder.deliveryType,

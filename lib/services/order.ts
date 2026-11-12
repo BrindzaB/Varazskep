@@ -4,6 +4,7 @@ import type {
   OrderChannel,
   OrderStatus,
 } from "@/lib/generated/prisma/client";
+import type { BillingInfo } from "@/lib/checkout/billing";
 
 export interface CreateOrderItemInput {
   // One of these must be set — never both.
@@ -33,6 +34,7 @@ export interface CreateOrderInput {
     postalCode: string;
     country: string;
   };
+  billing: BillingInfo; // who the invoice is made out to
   totalAmount: number; // HUF integer (includes shipping cost)
   gdprConsent: boolean;
   shippingCost: number; // HUF integer
@@ -100,6 +102,12 @@ export async function createOrder(input: CreateOrderInput) {
       customerEmail: input.customerEmail,
       ...(input.customerPhone ? { customerPhone: input.customerPhone } : {}),
       shippingAddress: input.shippingAddress,
+      billingType: input.billing.type,
+      billingName: input.billing.name,
+      ...(input.billing.taxNumber
+        ? { billingTaxNumber: input.billing.taxNumber }
+        : {}),
+      billingAddress: { ...input.billing.address },
       totalAmount: input.totalAmount,
       gdprConsent: input.gdprConsent,
       shippingCost: input.shippingCost,
@@ -321,6 +329,10 @@ export async function eraseOrderPii(orderId: string) {
       customerEmail: PII_ERASED_SENTINEL,
       customerPhone: PII_ERASED_SENTINEL,
       shippingAddress: {},
+      // Billing data too — the issued invoice, kept in Billingo, is the 8-year tax record.
+      billingName: PII_ERASED_SENTINEL,
+      billingTaxNumber: null,
+      billingAddress: {},
       customerNote: null, // ORDER_FORM free text — may name people, addresses
     },
   });

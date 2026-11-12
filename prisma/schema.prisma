@@ -151,6 +151,12 @@ model Order {
   customerEmail         String
   customerPhone         String? // recipient phone — needed to create the Kvikk shipment
   shippingAddress       Json? // { address, city, postalCode, country } — null for ORDER_FORM
+  // Billing (invoice) data — set on every WEBSHOP order, null for ORDER_FORM (the shop
+  // collects it directly). The invoice itself is issued in Billingo.
+  billingType           BillingType?
+  billingName           String? // person's name (PRIVATE) or company name (COMPANY)
+  billingTaxNumber      String? // Hungarian tax number "12345678-1-12" — COMPANY only
+  billingAddress        Json? // { address, city, postalCode, country } — same shape as shippingAddress
   totalAmount           Int? // in HUF (includes shipping cost) — null for ORDER_FORM (unpriced)
   gdprConsent           Boolean
   // Shipping method and cost
@@ -229,6 +235,12 @@ enum ShippingMethod {
 enum DeliveryType {
   HOME_DELIVERY
   DELIVERY_POINT
+}
+
+// Who the invoice is made out to.
+enum BillingType {
+  PRIVATE // private person — no tax number
+  COMPANY // company or sole trader with a Hungarian tax number
 }
 
 enum OrderChannel {

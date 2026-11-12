@@ -14,8 +14,10 @@ import type { KvikkCourier } from "@/lib/kvikk/types";
 import {
   encodeCartItems,
   MAX_CART_LINES,
+  STRIPE_METADATA_VALUE_MAX,
   type CartItemMeta,
 } from "@/lib/checkout/cartMetadata";
+import { resolveBilling } from "@/lib/checkout/billing";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-03-25.dahlia",
@@ -48,6 +50,7 @@ interface CheckoutRequestBody {
   items: CartItem[];
   customer: CustomerInfo;
   shipping: ShippingInfo;
+  billing: unknown; // BillingRequest — validated by resolveBilling
   gdprConsent: boolean;
 }
 
@@ -91,7 +94,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Hiányzó adatok." }, { status: 400 });
   }
 
-  const { items, customer, shipping, gdprConsent } =
+  const { items, customer, shipping, billing, gdprConsent } =
     parsed as CheckoutRequestBody;
 
   // Normalize + validate the recipient phone here (authoritative). Kvikk rejects a
@@ -125,6 +128,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 400 }
     );
   }
+  // Billing data — required on every webshop order, since the shop invoices each one.
+  // "Same as shipping" resolves against the home-delivery address only; a delivery
+  // point's address is never the customer's.
+  const billingInfo = resolveBilling(billing, customer.name ?? "", {
+    homeDelivery: shipping.deliveryType === "HOME_DELIVERY",
+    address: customer.shippingAddress ?? { address: "", city: "", postalCode: "" },
+  });
+  if (!billingInfo) {
+    return NextResponse.json(
+      { error: "Hiányzó vagy érvénytelen számlázási adatok." },
+      { status: 400 }
+    );
+  }
+  const billingMetadata = JSON.stringify(billingInfo);
+  if (billingMetadata.length > STRIPE_METADATA_VALUE_MAX) {
+    return NextResponse.json(
+      { error: "Túl hosszú számlázási adatok." },
+      { status: 400 }
+    );
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
   let totalWeightGrams = 0;
 
@@ -299,13 +323,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     mode: "payment",
     line_items: lineItems,
     customer_email: customer.email,
-    shipping_address_collection: {
-      allowed_countries: ["HU"],
-    },
     metadata: {
       customerName: customer.name,
       customerPhone: normalizedPhone,
       shippingAddress: JSON.stringify(customer.shippingAddress),
+      billing: billingMetadata,
       gdprConsent: String(gdprConsent),
       ...cartMetadata,
       shippingCourier: shipping.courier,
