@@ -5,6 +5,10 @@ import Link from "next/link";
 import { formatHuf } from "@/lib/utils/format";
 import type { MalfiniProduct, MalfiniVariant } from "@/lib/malfini/types";
 import { GENDER_LABELS } from "@/lib/malfini/genderLabels";
+import {
+  PRODUCT_CARD_CLASS,
+  PRODUCT_CARD_IMAGE_CLASS,
+} from "@/components/shop/productCardStyles";
 
 interface MalfiniProductCardProps {
   product: MalfiniProduct;
@@ -37,7 +41,7 @@ export default function MalfiniProductCard({
   return (
     <Link
       href={`/products/malfini/${product.code}`}
-      className="group flex flex-col overflow-hidden rounded border border-border-light bg-white transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-card hover:border-brand-violet"
+      className={PRODUCT_CARD_CLASS}
     >
       {/* Product image — 1:1 aspect ratio */}
       <div className="relative aspect-square w-full overflow-hidden bg-white">
@@ -46,7 +50,7 @@ export default function MalfiniProductCard({
           <img
             src={imageUrl}
             alt={product.name}
-            className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+            className={PRODUCT_CARD_IMAGE_CLASS}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
