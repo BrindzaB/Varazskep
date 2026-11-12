@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatHuf } from "@/lib/utils/format";
 import type { MalfiniProduct, MalfiniVariant } from "@/lib/malfini/types";
+import { GENDER_LABELS } from "@/lib/malfini/genderLabels";
 
 interface MalfiniProductCardProps {
   product: MalfiniProduct;
@@ -25,6 +26,9 @@ export default function MalfiniProductCard({
   const defaultVariant = visibleVariants[0] ?? null;
 
   const [hoveredVariant, setHoveredVariant] = useState<MalfiniVariant | null>(null);
+
+  // Férfi / Női / Gyerek / Uniszex — local products (mugs etc.) have no gender and show none.
+  const genderLabel = product.genderCode ? GENDER_LABELS[product.genderCode] : undefined;
 
   const imageUrl = getFrontImage(hoveredVariant ?? defaultVariant ?? product.variants[0])
     ?? getFrontImage(defaultVariant ?? product.variants[0])
@@ -68,10 +72,17 @@ export default function MalfiniProductCard({
 
       {/* Card body */}
       <div className="flex flex-1 flex-col p-4">
-        <h2 className="line-clamp-2 text-base font-semibold text-charcoal">
-          {product.name}
-          <span className="font-mono text-xs font-normal text-muted ml-1">{product.code}</span>
-        </h2>
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="line-clamp-2 text-base font-semibold text-charcoal">
+            {product.name}
+            <span className="font-mono text-xs font-normal text-muted ml-1">{product.code}</span>
+          </h2>
+          {genderLabel && (
+            <span className="shrink-0 whitespace-nowrap text-xs text-muted">
+              {genderLabel}
+            </span>
+          )}
+        </div>
 
         {/* Color swatches — max 4 visible, remainder shown as "+x" */}
         {visibleVariants.length > 0 && (
